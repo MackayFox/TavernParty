@@ -9,8 +9,8 @@ function run(over: Partial<RunRow> = {}): RunRow {
     acts: 5,
     players: 4,
     callingId: "warden",
-    bloodId: "stoneblood",
-    hookId: "h01",
+    bloodId: "hillfolk",
+    hookId: "signed-for-a-friend",
     renown: 20,
     keptScars: 1,
     laurels: 0,
@@ -45,10 +45,10 @@ describe("summariseRuns", () => {
   it("names the most-played Calling and breaks a tie the same way every time", () => {
     const rows = [
       run({ runId: 1, callingId: "warden" }),
-      run({ runId: 2, callingId: "alchemist" }),
+      run({ runId: 2, callingId: "knife" }),
     ];
-    expect(summariseRuns(rows).favouriteCalling).toBe("alchemist");
-    expect(summariseRuns([...rows].reverse()).favouriteCalling).toBe("alchemist");
+    expect(summariseRuns(rows).favouriteCalling).toBe("knife");
+    expect(summariseRuns([...rows].reverse()).favouriteCalling).toBe("knife");
   });
 
   it("ignores runs where the Calling was never recorded", () => {
