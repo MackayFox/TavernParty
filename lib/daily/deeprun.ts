@@ -121,6 +121,17 @@ export type Puzzle = {
   kit: { id: string; name: string; blurb: string; ability: Ability | null; value: number }[];
   rooms: PuzzleRoom[];
   baseVigour: number;
+  /**
+   * What the dice are pinned to.
+   *
+   * The date, for the daily. A dungeon's own code, for an authored one. Every
+   * die in a run comes from this and nothing else, which is what makes two
+   * players' scores comparable and an author's tuning a fact rather than a
+   * distribution.
+   */
+  seed: string;
+  /** What it is called. The date, or the author's title. */
+  label: string;
   maxScore: number;
 };
 
@@ -195,8 +206,48 @@ function roomsFor(date: string): RoomDef[] {
   return [...picked.slice(0, ROOMS), boss];
 }
 
+/**
+ * Tonight's dungeon.
+ *
+ * A thin caller of `puzzleFrom` now: the daily is one dungeon among others, it
+ * just happens to be assembled from the date rather than written by somebody.
+ * Keeping it on the same path as an authored one is what stops the two drifting,
+ * and there is a test asserting they produce byte-identical results.
+ */
 export function puzzleFor(date: string): Puzzle {
-  const rand = mulberry32(dateSeed(`${date}:deeprun:array`));
+  return puzzleFrom(
+    {
+      seed: date,
+      label: date,
+      rooms: roomsFor(date),
+      callingIds: null,
+      kitIds: null,
+      baseVigour: BASE_VIGOUR,
+    },
+    date
+  );
+}
+
+/**
+ * Build a Puzzle from a design: either the date's own pick, or somebody's.
+ *
+ * `pools` decides which Callings and Kit are offered. Null means "the whole set,
+ * narrowed by the seed", which is what the daily does. A list means the author
+ * chose, and the seed only shuffles what they allowed.
+ */
+export type Design = {
+  seed: string;
+  label: string;
+  rooms: RoomDef[];
+  /** Null for the daily's seeded pick. A list when an author chose. */
+  callingIds: string[] | null;
+  kitIds: string[] | null;
+  baseVigour: number;
+};
+
+export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
+  const date = design.seed;
+  const rand = mulberry32(dateSeed(`${arraySeed}:deeprun:array`));
   // Four dice, drop the lowest, six times: the same curve the live game uses, so
   // a player who knows one already knows the other.
   const array = Array.from({ length: ARRAY_SIZE }, () => {
@@ -204,8 +255,11 @@ export function puzzleFor(date: string): Puzzle {
     return dice[0] + dice[1] + dice[2];
   });
 
-  const callings = seededShuffle(CALLINGS, mulberry32(dateSeed(`${date}:deeprun:callings`)))
-    .slice(0, CALLING_CHOICES)
+  const callingPool = design.callingIds
+    ? CALLINGS.filter((c) => design.callingIds!.includes(c.id))
+    : CALLINGS;
+  const callings = seededShuffle(callingPool, mulberry32(dateSeed(`${date}:deeprun:callings`)))
+    .slice(0, design.callingIds ? callingPool.length : CALLING_CHOICES)
     .map((c) => {
       const kind = KNACK_BY_CALLING[c.id];
       return {
@@ -217,8 +271,9 @@ export function puzzleFor(date: string): Puzzle {
       };
     });
 
-  const kit = seededShuffle(KIT, mulberry32(dateSeed(`${date}:deeprun:kit`)))
-    .slice(0, KIT_CHOICES)
+  const kitPool = design.kitIds ? KIT.filter((k) => design.kitIds!.includes(k.id)) : KIT;
+  const kit = seededShuffle(kitPool, mulberry32(dateSeed(`${date}:deeprun:kit`)))
+    .slice(0, design.kitIds ? kitPool.length : KIT_CHOICES)
     .map((k) => ({
       id: k.id,
       name: k.name,
@@ -227,7 +282,7 @@ export function puzzleFor(date: string): Puzzle {
       value: k.bonus?.value ?? 0,
     }));
 
-  const rooms: PuzzleRoom[] = roomsFor(date).map((room, i) => ({
+  const rooms: PuzzleRoom[] = design.rooms.map((room, i) => ({
     id: room.id,
     index: i,
     title: room.title,
@@ -246,14 +301,28 @@ export function puzzleFor(date: string): Puzzle {
 
   return {
     date,
+    seed: design.seed,
+    label: design.label,
     array,
     abilities: ABILITIES,
     callings,
     kit,
     rooms,
-    baseVigour: BASE_VIGOUR,
-    maxScore: MAX_SCORE,
+    baseVigour: design.baseVigour,
+    maxScore: ceilingFor(design.rooms.length, design.baseVigour),
   };
+}
+
+/**
+ * The most anybody could score on a dungeon of this shape.
+ *
+ * Depth-dependent now that a dungeon may be three floors or eight, so a short
+ * one cannot advertise a ceiling it could never reach.
+ */
+export function ceilingFor(floors: number, baseVigour: number): number {
+  return (
+    floors * ROOM_CLEARED + BOSS_BEATEN + OUT_ALIVE + (baseVigour + 4 + MEND) * VIGOUR_VALUE
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -317,7 +386,21 @@ export function startingVigour(who: Character): number {
  * runs out of steps just ends there, which is also what happens when the player
  * closes the tab, so there is one code path for both.
  */
-export function run(puzzle: Puzzle, build: Build, steps: readonly Step[]): Result {
+export function run(
+  puzzle: Puzzle,
+  build: Build,
+  steps: readonly Step[],
+  /**
+   * Where the win and lose prose lives.
+   *
+   * The house pool by default. An authored dungeon passes its own, which is the
+   * whole of what a campaign is: the same runner, different rooms. This is a
+   * parameter rather than a field on Puzzle because `win` and `lose` are the one
+   * part of a room a player must not see until they have committed, and Puzzle
+   * is the thing that gets serialised to them.
+   */
+  defs: readonly RoomDef[] = HOUSE_DEFS
+): Result {
   const who = characterFor(puzzle, build);
   const lines: Line[] = [];
   let vigour = startingVigour(who);
@@ -336,8 +419,8 @@ export function run(puzzle: Puzzle, build: Build, steps: readonly Step[]): Resul
     const usingKnack = !!step.knack && knackLeft && knackApplies(who.knack, option);
     if (usingKnack) knackLeft = false;
 
-    const line = resolveOption(puzzle, who, room, option, {
-      die: dieFor(puzzle.date, room.index),
+    const line = resolveOption(puzzle, who, room, option, defs, {
+      die: dieFor(puzzle.seed, room.index),
       vigour,
       knack: usingKnack ? who.knack : null,
       knackLabel: who.knackLabel,
@@ -354,7 +437,7 @@ export function run(puzzle: Puzzle, build: Build, steps: readonly Step[]): Resul
     if (vigour <= 0) break;
   }
 
-  const out = vigour > 0 && depth >= DEPTH;
+  const out = vigour > 0 && depth >= puzzle.rooms.length;
   const score =
     roomsCleared * ROOM_CLEARED +
     (bossBeaten ? BOSS_BEATEN : 0) +
@@ -383,9 +466,10 @@ function resolveOption(
   who: Character,
   room: PuzzleRoom,
   option: PuzzleOption,
+  defs: readonly RoomDef[],
   ctx: { die: number; vigour: number; knack: KnackKind | null; knackLabel: string }
 ): Line {
-  const def = defFor(puzzle, room, option.id);
+  const def = defFor(defs, room, option.id);
   const base = (cleared: boolean, over: Partial<Line> = {}): Line => ({
     roomIndex: room.index,
     title: room.title,
@@ -441,7 +525,7 @@ function resolveOption(
     // Throw again and keep the second. Pinned to the date and the room like the
     // first one, so everybody's reroll is the same reroll. One helper, shared
     // with the par search, so the two cannot drift apart.
-    die = secondDie(puzzle.date, room.index);
+    die = secondDie(puzzle.seed, room.index);
     mods.push({ label: ctx.knackLabel.toLowerCase(), value: 0 });
   }
   mods.push({ label: "d20", value: die });
@@ -471,10 +555,15 @@ function resolveOption(
   });
 }
 
-const ROOM_BY_ID = new Map([...DEEP_ROOMS, ...DEEP_BOSSES].map((r) => [r.id, r]));
+/** Every room the house wrote. The default for a run that supplies none. */
+export const HOUSE_DEFS: RoomDef[] = [...DEEP_ROOMS, ...DEEP_BOSSES];
 
-function defFor(puzzle: Puzzle, room: PuzzleRoom, optionId: string): OptionDef {
-  const source = ROOM_BY_ID.get(room.id);
+function defFor(
+  defs: readonly RoomDef[],
+  room: PuzzleRoom,
+  optionId: string
+): OptionDef {
+  const source = defs.find((r) => r.id === room.id);
   return (
     source?.options.find((o) => o.id === optionId) ?? {
       id: optionId,

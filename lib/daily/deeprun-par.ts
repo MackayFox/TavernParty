@@ -59,7 +59,7 @@ function movesFor(
 ): Move[] {
   const who = characterFor(puzzle, build);
   const room = puzzle.rooms[roomIndex];
-  const die = dieFor(puzzle.date, roomIndex);
+  const die = dieFor(puzzle.seed, roomIndex);
   const moves: Move[] = [];
 
   const bonusFor = (ability: Ability): number => {
@@ -114,7 +114,7 @@ function knackMove(
     }
     case "rethrow": {
       if (option.kind !== "check") return null;
-      const again = secondDie(puzzle.date, roomIndex);
+      const again = secondDie(puzzle.seed, roomIndex);
       const ability = option.ability ?? "grit";
       const total = again + bonusFor(ability);
       const cleared = clears(again, total, option.tn ?? 99);
@@ -129,7 +129,7 @@ function knackMove(
  * Memoised on (room, vigour, knack), which is the entire state: nothing else
  * from the path can change what happens next.
  */
-function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: Step[] } {
+export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: Step[] } {
   const memo = new Map<string, { score: number; steps: Step[] }>();
 
   const walk = (roomIndex: number, vigour: number, knack: boolean): { score: number; steps: Step[] } => {
@@ -169,7 +169,7 @@ export function parFor(puzzle: Puzzle): {
   par: number;
   best: { build: Build; steps: Step[] } | null;
 } {
-  const cached = PAR_CACHE.get(puzzle.date);
+  const cached = PAR_CACHE.get(puzzle.seed);
   if (cached) return cached;
 
   // Which abilities does tonight actually ask about? Grit always counts, because
@@ -217,7 +217,7 @@ export function parFor(puzzle: Puzzle): {
   }
 
   const answer = { par, best };
-  PAR_CACHE.set(puzzle.date, answer);
+  PAR_CACHE.set(puzzle.seed, answer);
   return answer;
 }
 
