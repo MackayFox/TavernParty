@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.playwright-mcp/
+.env*
+!.env.example
+.remember/
+SETUP.txt
+
+.vercel
+.env*

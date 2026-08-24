@@ -1,0 +1,161 @@
+/* ============================================================
+   TAVERN PARTY — Design Tokens
+   ------------------------------------------------------------
+   Direction: "CANDLELIT".
+   The back room of an inn, late, one candle between five people
+   and a table. Warm dark wood everywhere, and exactly three
+   lights: the candle (the thing you must touch next), the wound
+   (what it cost you), and the coin (what you got away with).
+
+   Signature element: THE CHARACTER SHEET. Anything about *you*
+   renders as paper — parchment, hand-ruled boxes, brown ink. It
+   is the only light surface in the system, and it always means
+   "this is yours". Encounters are set on the dark; your sheet is
+   set on paper. That contrast is the whole visual argument.
+
+   Deliberately not the other two sites: Shareholder Party is cold
+   slate and fluorescent, Aux Wars is near-black and neon. This is
+   warm, brown and low-lit, and it uses a serif for running text
+   because the product here is prose and people read it.
+
+   Import into Tailwind v4 globals.css:
+     @import "tailwindcss";
+     @import "../design/tokens.css";
+   Then map tokens in @theme inline (see app/globals.css).
+
+   Fonts (Google Fonts, via next/font):
+     Cinzel 600/700/900          — display. Inscriptional Roman
+                                   caps: fantasy without costume.
+     EB Garamond 400/500/600     — body. The product is prose.
+     IBM Plex Mono 400/500/700   — dice, ability scores, room
+                                   codes. Shared with the network.
+
+   Every contrast figure below is measured, not estimated, and
+   tests/unit/contrast.test.ts parses this file and fails the build
+   if one of them stops being true. Do not edit a colour without
+   running it.
+   ============================================================ */
+
+:root {
+  /* ---------- Surfaces: the room, by candlelight ---------- */
+  --tp-bg-0: #120e0a;        /* app background: the room */
+  --tp-bg-1: #1b1611;        /* card / panel: the table */
+  --tp-bg-2: #241e17;        /* raised card, modal, hover */
+  --tp-bg-3: #2f2721;        /* active / pressed */
+
+  --tp-border: #352c24;      /* decorative divider — NOT control edges */
+  --tp-border-strong: #4a3e33;
+  /* Control edges need 3:1 against every surface they sit on.
+     Measured: 3.9:1 on bg-0, 3.4:1 on bg-3. */
+  --tp-border-input: #8a7660;
+
+  /* ---------- Ink on dark ----------
+     Measured against bg-0 and against bg-3, the worst case. */
+  --tp-text-hi: #f5efe4;     /* 16.7:1 on bg-0, 12.9:1 on bg-3 */
+  --tp-text-mid: #bcae9a;    /* 8.9:1 on bg-0, 6.8:1 on bg-3 */
+  --tp-text-low: #a2947d;    /* 6.4:1 on bg-0, 4.9:1 on bg-3 */
+
+  /* Text that sits on a gold, red or green fill. */
+  --tp-ink: #150f08;
+
+  /* ---------- The candle: the thing to touch next ---------- */
+  --tp-accent: #e8b54a;
+  --tp-accent-hover: #f2c766;
+  --tp-accent-press: #cf9e35;
+  --tp-accent-dim: rgba(232, 181, 74, 0.14);
+
+  /* ---------- The wound ---------- */
+  --tp-danger: #ec6b5f;      /* 5.9:1 on bg-0, 4.8:1 on bg-3 */
+  --tp-danger-press: #d8574b;
+
+  /* ---------- The coin ---------- */
+  --tp-success: #7fbf6a;     /* 8.2:1 on bg-0, 6.7:1 on bg-3 */
+
+  /* ---------- The uncanny: magic, curses, the unexplained ---------- */
+  --tp-arcane: #a98be8;      /* 6.4:1 on bg-0, 5.2:1 on bg-3 */
+  --tp-arcane-dim: rgba(169, 139, 232, 0.14);
+
+  /* ---------- Warning: a save you are about to fail ---------- */
+  --tp-warning: #e9a03c;
+
+  /* ---------- THE CHARACTER SHEET ----------
+     The only light surface. Paper, not a white card: it should
+     look printed and handled, never like a dialog box. */
+  --tp-paper: #e9ddc1;
+  --tp-paper-edge: #cdbf9e;       /* the cut edge, for the shadow */
+  --tp-paper-rule: #c3b391;       /* hand-ruled box lines */
+  --tp-paper-ink: #221a10;        /* 13.3:1 on paper */
+  --tp-paper-ink-mid: #5a4b34;    /* 6.3:1 on paper — labels, meta */
+
+  /* ---------- Party colours ----------
+     index = hash(playerId) % 8. Every one is light enough to carry
+     --tp-ink initials, which the contrast test enforces. Chosen to
+     look like dyed cloth and worked metal rather than UI chips. */
+  --tp-party-0: #d9a03c;   /* amber */
+  --tp-party-1: #c98a6b;   /* copper */
+  --tp-party-2: #8fb86a;   /* moss */
+  --tp-party-3: #6fa9b8;   /* slate blue */
+  --tp-party-4: #b98bc9;   /* orchid */
+  --tp-party-5: #d97a6c;   /* clay */
+  --tp-party-6: #a8b84a;   /* olive */
+  --tp-party-7: #c9a2b8;   /* rose */
+
+  /* ---------- Typography ---------- */
+  --tp-font-display: "Cinzel", Georgia, serif;
+  --tp-font-body: "EB Garamond", Georgia, serif;
+  --tp-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --tp-text-xs: 0.75rem;     /* 12px — badges, meta */
+  --tp-text-sm: 0.875rem;    /* 14px — secondary UI */
+  --tp-text-base: 1.0625rem; /* 17px — body. A serif needs the room */
+  --tp-text-lg: 1.1875rem;   /* 19px — emphasised body, encounter prose */
+  --tp-text-xl: 1.375rem;    /* 22px — card titles */
+  --tp-text-2xl: 1.75rem;    /* 28px — section headings */
+  --tp-text-3xl: 2.25rem;    /* 36px — screen titles */
+  --tp-text-4xl: 3rem;       /* 48px — the die, the result */
+  --tp-text-hero: clamp(2rem, 5vw + 1rem, 3.75rem);
+
+  --tp-tracking-display: 0.01em;  /* Cinzel is already wide; do not crush it */
+  --tp-tracking-label: 0.12em;    /* all-caps labels */
+  --tp-leading-display: 1.1;
+  --tp-leading-body: 1.62;        /* prose is the product: give it air */
+
+  /* ---------- Spacing (4px base) ---------- */
+  --tp-space-1: 0.25rem;
+  --tp-space-2: 0.5rem;
+  --tp-space-3: 0.75rem;
+  --tp-space-4: 1rem;
+  --tp-space-6: 1.5rem;
+  --tp-space-8: 2rem;
+  --tp-space-12: 3rem;
+  --tp-space-16: 4rem;
+  --tp-space-24: 6rem;
+
+  /* ---------- Radius ----------
+     Softer than Shareholder Party's stationery, because this is a
+     table and a book rather than a form. Paper stays square. */
+  --tp-radius-sm: 5px;
+  --tp-radius-md: 9px;
+  --tp-radius-lg: 14px;
+  --tp-radius-xl: 20px;
+  --tp-radius-paper: 2px;   /* paper has a cut edge, not a corner radius */
+  --tp-radius-full: 999px;
+
+  /* ---------- Elevation: candlelight, never grey ---------- */
+  --tp-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --tp-shadow-2: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --tp-shadow-3: 0 14px 44px rgba(0, 0, 0, 0.65);
+  /* The sheet sits ON the table and casts a real paper shadow. */
+  --tp-shadow-paper: 0 18px 50px rgba(0, 0, 0, 0.7), 0 2px 0 var(--tp-paper-edge);
+  --tp-glow-accent: 0 0 0 1px var(--tp-accent), 0 0 24px rgba(232, 181, 74, 0.32);
+  --tp-glow-arcane: 0 0 0 1px var(--tp-arcane), 0 0 24px rgba(169, 139, 232, 0.32);
+
+  /* ---------- Motion ---------- */
+  --tp-dur-micro: 120ms;       /* hover, press */
+  --tp-dur-standard: 200ms;    /* fades, card enters */
+  --tp-dur-emphatic: 340ms;    /* phase transitions */
+  --tp-dur-roll: 720ms;        /* a die coming to rest */
+  --tp-dur-reveal: 520ms;      /* an encounter turning over */
+  --tp-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --tp-ease-settle: cubic-bezier(0.34, 1.32, 0.64, 1);  /* the die bounce */
+}

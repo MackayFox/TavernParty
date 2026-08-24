@@ -1,0 +1,4 @@
+# Read verbatim by crawlers. A stray carriage return from a Windows checkout can
+# upset strict parsers, and a CLI deploy ships the working copy rather than the
+# committed bytes.
+public/ads.txt text eol=lf

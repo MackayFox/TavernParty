@@ -1,0 +1,237 @@
+@import "tailwindcss";
+@import "../design/tokens.css";
+
+@theme inline {
+  --color-bg-0: var(--tp-bg-0);
+  --color-bg-1: var(--tp-bg-1);
+  --color-bg-2: var(--tp-bg-2);
+  --color-bg-3: var(--tp-bg-3);
+  --color-border-dim: var(--tp-border);
+  --color-border-strong: var(--tp-border-strong);
+  --color-border-input: var(--tp-border-input);
+  --color-text-hi: var(--tp-text-hi);
+  --color-text-mid: var(--tp-text-mid);
+  --color-text-low: var(--tp-text-low);
+  --color-ink: var(--tp-ink);
+  --color-accent: var(--tp-accent);
+  --color-accent-hover: var(--tp-accent-hover);
+  --color-accent-press: var(--tp-accent-press);
+  --color-danger: var(--tp-danger);
+  --color-danger-press: var(--tp-danger-press);
+  --color-success: var(--tp-success);
+  --color-arcane: var(--tp-arcane);
+  --color-warning: var(--tp-warning);
+  --color-paper: var(--tp-paper);
+  --color-paper-edge: var(--tp-paper-edge);
+  --color-paper-rule: var(--tp-paper-rule);
+  --color-paper-ink: var(--tp-paper-ink);
+  --color-paper-ink-mid: var(--tp-paper-ink-mid);
+
+  --radius-sm: var(--tp-radius-sm);
+  --radius-md: var(--tp-radius-md);
+  --radius-lg: var(--tp-radius-lg);
+  --radius-xl: var(--tp-radius-xl);
+
+  --font-display: var(--tp-font-display);
+  --font-body: var(--tp-font-body);
+  --font-mono: var(--tp-font-mono);
+}
+
+/* ---------------------------------------------------------------
+   Base
+   --------------------------------------------------------------- */
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--tp-bg-0);
+  color: var(--tp-text-hi);
+  font-family: var(--tp-font-body);
+  font-size: var(--tp-text-base);
+  line-height: var(--tp-leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keyboard users must always be able to see where they are. */
+:focus-visible {
+  outline: 2px solid var(--tp-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.font-display {
+  font-family: var(--tp-font-display);
+  letter-spacing: var(--tp-tracking-display);
+  line-height: var(--tp-leading-display);
+}
+
+/* All-caps eyebrow labels: mono, wide-tracked, quiet. */
+.label-caps {
+  font-family: var(--tp-font-mono);
+  font-size: var(--tp-text-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--tp-tracking-label);
+  color: var(--tp-text-mid);
+}
+
+/* Every ability score, die face, hit point and room code. */
+.num {
+  font-family: var(--tp-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Encounter prose. The product is reading, so it gets measure and air. */
+.prose-read {
+  max-width: 34em;
+  font-size: var(--tp-text-lg);
+  line-height: var(--tp-leading-body);
+  color: var(--tp-text-hi);
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------------------
+   THE CHARACTER SHEET — the signature surface.
+   Parchment on a dark table. Anything about *you* goes here: your
+   character, your wounds, your loot, your epitaph. It is the only
+   light surface in the system, so it always means "this is yours".
+   --------------------------------------------------------------- */
+.sheet {
+  background: var(--tp-paper);
+  color: var(--tp-paper-ink);
+  border-radius: var(--tp-radius-paper);
+  box-shadow: var(--tp-shadow-paper);
+  position: relative;
+  /* Laid-paper tooth, and a faint warm bloom where the candle falls. */
+  background-image:
+    radial-gradient(120% 90% at 22% 8%, rgba(255, 246, 214, 0.55), transparent 60%),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(34, 26, 16, 0.022) 0px,
+      rgba(34, 26, 16, 0.022) 1px,
+      transparent 1px,
+      transparent 5px
+    );
+}
+
+/* A hand-ruled box on the sheet: ability scores, slots, the loot line. */
+.sheet-box {
+  border: 1px solid var(--tp-paper-rule);
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.sheet-label {
+  font-family: var(--tp-font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--tp-tracking-label);
+  color: var(--tp-paper-ink-mid);
+}
+
+/* ---------------------------------------------------------------
+   THE DIE. One shared visual for every roll in the product.
+   --------------------------------------------------------------- */
+.die {
+  font-family: var(--tp-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  background: var(--tp-bg-2);
+  border: 2px solid var(--tp-border-strong);
+  border-radius: var(--tp-radius-sm);
+  color: var(--tp-text-hi);
+}
+
+.die-crit {
+  border-color: var(--tp-accent);
+  color: var(--tp-accent);
+  box-shadow: var(--tp-glow-accent);
+}
+
+.die-fail {
+  border-color: var(--tp-danger);
+  color: var(--tp-danger);
+}
+
+/* ---------------------------------------------------------------
+   Motion. Every animation here is decorative: no game state is
+   ever communicated by movement alone.
+   --------------------------------------------------------------- */
+@keyframes tp-settle {
+  0% {
+    transform: translateY(-14px) rotate(-12deg) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) rotate(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes tp-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tp-sheet-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) rotate(-1.4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(-0.5deg);
+  }
+}
+
+/* A die coming to rest. */
+.tp-anim-roll {
+  animation: tp-settle var(--tp-dur-roll) var(--tp-ease-settle) both;
+}
+
+/* An encounter turning over. */
+.tp-anim-reveal {
+  animation: tp-reveal var(--tp-dur-reveal) var(--tp-ease-out) both;
+}
+
+/* The sheet landing on the table. */
+.tp-anim-sheet {
+  animation: tp-sheet-drop var(--tp-dur-emphatic) var(--tp-ease-out) both;
+}
+
+.phase-in {
+  animation: tp-reveal var(--tp-dur-emphatic) var(--tp-ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Static fallbacks, not nothing: the sheet keeps its slight tilt so it still
+     reads as paper that was put down rather than a rendered panel. */
+  .tp-anim-roll,
+  .tp-anim-reveal,
+  .phase-in {
+    animation: none;
+  }
+  .tp-anim-sheet {
+    animation: none;
+    transform: rotate(-0.5deg);
+  }
+}
+
+/* Tailwind v4 preflight sets buttons to cursor:default; games need pointers. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+select,
+summary {
+  cursor: pointer;
+}
