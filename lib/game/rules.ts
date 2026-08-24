@@ -282,8 +282,19 @@ export const DEFAULT_SETTINGS: RoomSettings = {
 /** How many ranked choices a draft accepts. */
 export const DRAFT_RANKS = 3;
 
-/** Company announcements kept in the room state. */
-export const LOG_MAX = 60;
+/**
+ * How much of the chronicle the room state carries.
+ *
+ * The biggest single line in the payload, and the room state is read out of
+ * Postgres on every poll: at 60 the log measured 5,035 B of a 9,666 B state row,
+ * 52% of it, and a six player run is 1,710 of those reads. `Chronicle` renders
+ * twelve entries and nothing else in the product reads the log at all, so the
+ * other forty-eight existed only to be paid for, 285 times each per player.
+ *
+ * Sixteen rather than twelve so the rail is never showing the very bottom of the
+ * buffer. Raise it only along with what the Chronicle shows.
+ */
+export const LOG_MAX = 16;
 
 /** Presence and host migration, matched to the rest of the network. */
 export const PRESENCE_TIMEOUT_MS = 15_000;

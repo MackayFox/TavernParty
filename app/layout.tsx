@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cinzel, EB_Garamond, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
 
@@ -23,6 +24,20 @@ const mono = IBM_Plex_Mono({
   display: "swap",
 });
 
+/**
+ * Site-wide metadata.
+ *
+ * `siteName` lives here so every card in every group chat carries the brand,
+ * whether or not the page that produced it remembered to. Everything else in
+ * `openGraph` is only a fallback: a page that does not declare its own title,
+ * description and url inherits this one, and fourteen pages sharing the home
+ * page's card is the state this was in. `tests/unit/seo-fix.test.ts` walks every
+ * route and fails if a page is riding on these defaults, or if a resolved title
+ * or description is outside the length a search result will actually show.
+ *
+ * The share image is `app/opengraph-image.tsx`, picked up by file convention.
+ * Naming it here would pin every page to the same picture forever.
+ */
 export const metadata: Metadata = {
   metadataBase: new URL("https://tavernparty.co.uk"),
   title: {
@@ -30,14 +45,19 @@ export const metadata: Metadata = {
     template: "%s · Tavern Party",
   },
   description:
-    "A free fantasy roleplaying game in your browser. Roll a character, take on five encounters with friends, and find out which of you walks out with the loot. Plus four daily puzzles. No downloads, no account needed.",
+    "A free fantasy roleplaying game in your browser. Roll a character, survive five encounters with friends, and one of you walks out with the loot.",
   openGraph: {
     title: "Tavern Party: Roll a Character, Survive the Night",
     description:
       "Build a character, survive five encounters, and only one of you gets the loot. Free in your browser.",
+    siteName: "Tavern Party",
+    url: "/",
     type: "website",
     locale: "en_GB",
   },
+  // Without this X renders the small square card and ignores the 1200x630 one.
+  // Everything else it needs it takes from the Open Graph tags above.
+  twitter: { card: "summary_large_image" },
   robots: { index: true, follow: true },
 };
 
@@ -77,6 +97,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
+        {/* Renders nothing and sends nothing without a PostHog token, but it has
+            to be mounted or the whole site is unmeasurable. It was written and
+            never placed. */}
+        <AnalyticsProvider />
         <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4">
           <Nav />
           <main id="main" className="flex flex-1 flex-col">

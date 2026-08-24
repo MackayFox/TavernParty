@@ -61,6 +61,12 @@ export function Ballad({ view, post, busy }: PhaseProps) {
             : "Nobody yet."}{" "}
           {voted} of {view.players.length} have sung. Nobody sees who anybody voted for.
         </p>
+        {/* The one phase whose deadline default is genuinely nothing, which is
+            worth saying rather than leaving somebody to find out. */}
+        <p className="text-sm text-text-low">
+          Sing nothing and your Laurel goes nowhere. It is the only thing all night that
+          costs you nothing to skip, and it is worth {LAUREL_VALUE} to somebody.
+        </p>
       </section>
     </div>
   );
@@ -140,7 +146,7 @@ export function Final({ view, post, busy }: PhaseProps) {
         })}
       </ol>
 
-      {me?.isHost && (
+      {me?.isHost ? (
         <div className="space-y-2">
           <Button size="lg" disabled={busy} onClick={() => void post("/again")}>
             Another round
@@ -149,6 +155,15 @@ export function Final({ view, post, busy }: PhaseProps) {
             Everybody keeps their chair. New array, new draft, no memory of this one.
           </p>
         </div>
+      ) : (
+        // No clock on this screen and no button on it either, for everybody who
+        // is not the host. Without a line here it reads as a page that has hung.
+        me && (
+          <p className="text-sm text-text-mid">
+            Nothing is running now. {nameOf(view, view.players.find((p) => p.isHost)?.id ?? "")}{" "}
+            can call another round, and your chair is held until they do.
+          </p>
+        )
       )}
 
       <AdSlot zone="room-final" className="pt-2" />

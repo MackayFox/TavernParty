@@ -12,6 +12,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { isDisallowed } from "@/app/crawl";
 import { Button, Card, Input, Field, Pill } from "@/components/ui";
 import * as engine from "@/lib/game/engine";
 import {
@@ -25,10 +26,16 @@ import * as store from "@/lib/game/store";
 import { getIdentity } from "@/lib/identity";
 
 export const metadata: Metadata = {
-  title: "Open Tables",
+  title: "Open Tables: Find an Online Roleplaying Game",
   description:
-    "Every table still waiting for players. Sit down at one, or take a Quick Match and let us put you at the fullest one. Free, in your browser, no account needed.",
+    "Every table still waiting for players. Sit down at one, or take a Quick Match and let us put you at the fullest one. Free, in your browser, no account.",
   alternates: { canonical: "/tables" },
+  openGraph: {
+    title: "Open Tables: Find an Online Roleplaying Game",
+    description:
+      "Who is sitting down right now, and how many chairs are left. Two players is enough to start, and it takes about ten minutes.",
+    url: "/tables",
+  },
 };
 
 /** The lobby is live state. Never cache it. */
@@ -118,7 +125,7 @@ export default async function TablesPage() {
                 href="/how-it-works"
                 className="font-display inline-flex min-h-11 items-center rounded-md border border-border-strong bg-bg-2 px-5 font-medium text-text-hi hover:bg-bg-3"
               >
-                How it works
+                How to play
               </Link>
             </div>
           </Card>
@@ -153,6 +160,11 @@ export default async function TablesPage() {
                     ) : (
                       <Link
                         href={`/room/${table.code}`}
+                        // robots.txt forbids /room/, so a followable link here is
+                        // an invitation to fetch a URL we have already refused,
+                        // for a table that will not exist by the time anybody
+                        // asks. Search Console files that under "blocked".
+                        rel={isDisallowed(`/room/${table.code}`) ? "nofollow" : undefined}
                         className="font-display inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-accent px-5 font-semibold text-ink hover:bg-accent-hover"
                       >
                         Join

@@ -2,10 +2,16 @@ import type { Metadata } from "next";
 import { LedgerGame } from "./LedgerGame";
 
 export const metadata: Metadata = {
-  title: "THE LEDGER: Daily Logic Grid Puzzle",
+  title: "The Ledger: Daily Logic Grid Puzzle, Free",
   description:
-    "Five drinkers, five debts and four statements that are all true. Work out who owes what. One grid a day, exactly one solution, and three checks that each cost you a mark. Free, no account.",
+    "Five drinkers, five debts and four statements that are all true. Work out who owes what. One grid a day, exactly one solution, and no dice anywhere in it.",
   alternates: { canonical: "/daily/ledger" },
+  openGraph: {
+    title: "The Ledger: Today's Logic Grid Puzzle",
+    description:
+      "Four true statements and one solution. Three checks are allowed and each of them costs you a mark. New grid every midnight.",
+    url: "/daily/ledger",
+  },
 };
 
 export default async function LedgerPage({

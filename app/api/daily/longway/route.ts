@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
-import { resolvePlayDate } from "@/lib/daily/core";
+import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import { ACTS, FLINCH, parFor, play, puzzleFor, shareText } from "@/lib/daily/longway";
 
 /**
@@ -16,10 +16,16 @@ import { ACTS, FLINCH, parFor, play, puzzleFor, shareText } from "@/lib/daily/lo
  * holding the rules. It is stateless: the night is a pure function of the date,
  * so the same list of choices always produces the same ledgers, and there is
  * nothing to store between Acts. Par is returned only once the fifth Act is in.
+ *
+ * The GET is public and cacheable: it is a pure function of the date, identical
+ * for everybody, and it changes at UTC midnight and at no other moment.
  */
 export async function GET(req: Request) {
   const { date, archive } = resolvePlayDate(new URL(req.url).searchParams.get("date"));
-  return NextResponse.json({ ...puzzleFor(date), archive });
+  return NextResponse.json(
+    { ...puzzleFor(date), archive },
+    { headers: { "Cache-Control": dailyCacheControl(archive) } }
+  );
 }
 
 const schema = z.object({

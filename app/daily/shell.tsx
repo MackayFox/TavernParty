@@ -12,8 +12,42 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { postJson, shareOrCopy, useNow } from "@/components/client";
-import { DAILY_META, msUntilReset, prettyDate, type DailyGame } from "@/lib/daily/core";
-import { localStats, recordDone } from "@/lib/daily/local";
+import {
+  DAILY_META,
+  DIE_RULE,
+  archiveDates,
+  msUntilReset,
+  prettyDate,
+  type DailyGame,
+} from "@/lib/daily/core";
+import { localStats, pruneProgress, recordDone } from "@/lib/daily/local";
+
+/**
+ * Fetch one night's puzzle.
+ *
+ * Deliberately not `getJson`, which sends `cache: "no-store"`: that helper exists
+ * for live room state, where a stale answer is a wrong answer. A daily is the
+ * opposite. It is one constant per UTC day, the same bytes for everybody, and
+ * the route now says so in a Cache-Control that expires at the reset, so the
+ * browser is allowed to keep it and a reload costs nothing.
+ */
+export async function getPuzzle<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  const data = (await res.json().catch(() => null)) as { error?: string } | null;
+  if (!res.ok) throw new Error(data?.error ?? "Something went wrong. Try again.");
+  return data as T;
+}
+
+/**
+ * The one thing the arithmetic on a page cannot show you, said out loud.
+ *
+ * It is stated nowhere else in the product, and three of the four dailies hand
+ * you the die before you choose, so without this a face of 1 or 20 looks like an
+ * ordinary number that has been mislabelled.
+ */
+export function DieRule() {
+  return <p className="mt-2 text-sm text-text-low">{DIE_RULE}</p>;
+}
 
 export function DailyHeader({
   game,
@@ -74,6 +108,16 @@ export async function finishDaily(
   archive: boolean
 ): Promise<number> {
   recordDone(game, date, score);
+  // Progress keys are per game per date and nothing was ever clearing them, so a
+  // regular player's localStorage grew forever until the quota refused a write.
+  // `writeProgress` swallows that failure, so the symptom would have been the
+  // dailies quietly forgetting a half-finished puzzle: the bug this is meant to
+  // prevent, arriving eighteen months late.
+  //
+  // A quarter rather than a month, because the window is also what protects a
+  // half-finished ARCHIVE night from being tidied away by finishing something
+  // else today. The date just played is kept whatever its age.
+  pruneProgress([...archiveDates(90), date]);
   const local = localStats(game).streak;
   if (archive) return local;
   try {

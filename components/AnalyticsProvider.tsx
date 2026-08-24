@@ -17,7 +17,10 @@ export function AnalyticsProvider() {
     if (!TOKEN || initialised) return;
     posthog.init(TOKEN, {
       api_host: HOST,
-      capture_pageview: true,
+      // Not `true`. On the App Router a route change is a history push and never
+      // a document load, so `true` would count one page view per session and
+      // every daily, table and room would read as unvisited.
+      capture_pageview: "history_change",
       capture_pageleave: true,
       persistence: "localStorage+cookie",
       autocapture: false,

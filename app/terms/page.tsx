@@ -2,10 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Terms of Use",
+  title: "Terms of Use: Free to Play, No Warranty",
   description:
-    "The terms for using Tavern Party. Free to play, no warranty, be decent to the other players, and the law of England and Wales applies.",
+    "The terms for using Tavern Party. Free to play, nothing to buy, no warranty, be decent to the other players, and the law of England and Wales applies.",
   alternates: { canonical: "/terms" },
+  openGraph: {
+    title: "Terms of Use: Free to Play, No Warranty",
+    description:
+      "Eight short clauses, written to be read. Nothing to buy, nothing that counts as gambling, and the words in the game are ours.",
+    url: "/terms",
+  },
 };
 
 function Clause({

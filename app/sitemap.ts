@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { CHARACTER_PAGES } from "@/app/characters/shared";
 import { DAILY_GAMES, DAILY_META } from "@/lib/daily/core";
 
 const BASE = "https://tavernparty.co.uk";
@@ -18,6 +19,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.9,
   }));
 
+  /**
+   * The four idea lists and their hub. They change when the content changes,
+   * which is rarely, and they are the pages most likely to be found by somebody
+   * who has never heard of the game.
+   */
+  const characters: MetadataRoute.Sitemap = CHARACTER_PAGES.map((p) => ({
+    url: `${BASE}${p.path}`,
+    changeFrequency: "monthly",
+    priority: 0.7,
+  }));
+
   return [
     { url: `${BASE}/`, changeFrequency: "weekly", priority: 1 },
     { url: `${BASE}/tables`, changeFrequency: "always", priority: 0.9 },
@@ -25,6 +37,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...dailies,
     { url: `${BASE}/daily/archive`, changeFrequency: "daily", priority: 0.6 },
     { url: `${BASE}/how-it-works`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE}/characters`, changeFrequency: "monthly", priority: 0.8 },
+    ...characters,
     { url: `${BASE}/online-roleplaying-games`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE}/leaderboard`, changeFrequency: "daily", priority: 0.5 },
     { url: `${BASE}/about`, changeFrequency: "monthly", priority: 0.5 },

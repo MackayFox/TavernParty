@@ -11,10 +11,16 @@ import {
 } from "@/lib/daily/core";
 
 export const metadata: Metadata = {
-  title: "Past Days: Every Puzzle Since We Started",
+  title: "Puzzle Archive: Every Daily Since We Started",
   description:
-    "Every daily puzzle Tavern Party has ever set, back to the first one. Play any of them as practice: the dice are pinned to the date, so a past day is exactly the puzzle everybody else got that morning.",
+    "Every daily puzzle Tavern Party has set, back to the first one. The dice are pinned to the date, so an old one is exactly the puzzle everybody else got that morning.",
   alternates: { canonical: "/daily/archive" },
+  openGraph: {
+    title: "Puzzle Archive: Every Daily Since We Started",
+    description:
+      "The back room shelf. Every day we have ever set, four puzzles each, playable as practice and none of them counting towards a streak.",
+    url: "/daily/archive",
+  },
 };
 
 /**

@@ -13,10 +13,16 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "Privacy",
+  title: "Privacy and Cookies: What This Site Keeps",
   description:
-    "What Tavern Party stores, where, and for how long. A signed guest cookie, some browser storage for your streaks, and Google's advertising cookies. Nothing sold, nothing tracked across other sites by us.",
+    "What Tavern Party stores, where, and for how long. A signed guest cookie, browser storage for your streaks, and Google's advertising cookies. Nothing is sold.",
   alternates: { canonical: "/privacy" },
+  openGraph: {
+    title: "Privacy and Cookies: What This Site Keeps",
+    description:
+      "Written against the actual code rather than from a template, so it names real cookies, real keys and real database tables.",
+    url: "/privacy",
+  },
 };
 
 function Row({ what, why, where }: { what: string; why: string; where: string }) {

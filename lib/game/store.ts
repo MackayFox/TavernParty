@@ -4,9 +4,9 @@
  *
  * Both are poll-driven: there are no server timers. Every snapshot and every
  * mutate runs engine.tick() first, so clients polling every ~2.5s are what
- * advances the deadlines. The Postgres store additionally broadcasts version
- * bumps over Supabase Realtime so clients refetch immediately rather than
- * waiting for their next poll.
+ * advances the deadlines. Where NEXT_PUBLIC_REALTIME is on, the Postgres store
+ * also broadcasts version bumps over Supabase Realtime so clients refetch
+ * immediately rather than waiting for their next poll.
  */
 import { supabaseConfigured } from "../supabase/admin";
 import type { Room, RoomSettings, RoomView } from "./types";
@@ -49,13 +49,19 @@ export function summarise(room: Room): RoomSummary {
   };
 }
 
-async function active(): Promise<GameStore> {
-  if (supabaseConfigured()) {
-    const { dbStore } = await import("./dbstore");
-    return dbStore;
-  }
-  const { memStore } = await import("./memstore");
-  return memStore;
+/**
+ * Resolved once per process, not once per call.
+ *
+ * Every exported function below goes through here, so this runs on every store
+ * operation the product performs, and the answer cannot change under it: which
+ * store this is, is decided by environment variables that are fixed at boot.
+ */
+let resolved: Promise<GameStore> | null = null;
+
+function active(): Promise<GameStore> {
+  return (resolved ??= supabaseConfigured()
+    ? import("./dbstore").then((m) => m.dbStore)
+    : import("./memstore").then((m) => m.memStore));
 }
 
 export const createRoom: GameStore["createRoom"] = async (o) => (await active()).createRoom(o);

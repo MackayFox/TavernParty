@@ -45,7 +45,17 @@ export function ActResult({ view, post, busy }: PhaseProps) {
   const others = outcomes.filter((o) => o.playerId !== view.me.id);
   const taken = new Set(outcomes.map((o) => o.approachId));
   const untaken = scene.approaches.filter((a) => !taken.has(a.id));
-  const openScar = view.me.scars.find((s) => s.kept === null);
+  /**
+   * EVERY undecided wound, not the first one.
+   *
+   * `find` was showing one Scar and one pair of buttons while `endAct` charges
+   * HIDE_SCAR_RENOWN for each one still undecided when the window shuts, so a
+   * player carrying two paid twice for a decision the screen only ever offered
+   * them once. Two is not a corner case: the Sapper's Signature rolls a second
+   * door in the same Act and the Oathbound's hands you somebody else's wound
+   * undecided.
+   */
+  const openScars = view.me.scars.filter((s) => s.kept === null);
   const decided = view.me.scars.filter((s) => s.kept !== null);
 
   function approachLabel(outcome: Outcome): string {
@@ -116,44 +126,64 @@ export function ActResult({ view, post, busy }: PhaseProps) {
         </Sheet>
       ))}
 
-      {openScar && (
-        <Sheet subtitle="You are carrying something out of this" title="The Scar">
-          <p className="text-sm text-paper-ink">{openScar.label}</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="sheet-box p-3">
-              <p className="sheet-label">Keep it</p>
-              <p className="mt-1 text-sm text-paper-ink">
-                Public, and everybody can see it. Worth {KEPT_SCAR_VALUE} at the Ballad, but
-                only if your Renown ends at or above the middle of the table. It puts{" "}
-                {KEEP_SCAR_DREAD} Dread on the whole party.
-              </p>
-              <Button
-                className="mt-2 w-full"
-                disabled={busy}
-                onClick={() => void post("/scar", { scarId: openScar.id, keep: true })}
-              >
-                Wear it
-              </Button>
+      {openScars.length > 0 && (
+        <Sheet
+          subtitle="You are carrying something out of this"
+          title={openScars.length === 1 ? "The Scar" : `${openScars.length} Scars to settle`}
+        >
+          {openScars.length > 1 && (
+            <p className="text-sm text-paper-ink">
+              Two wounds, two decisions. Each one is settled on its own, and each one you
+              leave costs you {HIDE_SCAR_RENOWN} Renown when the window closes.
+            </p>
+          )}
+          {openScars.map((scar, i) => (
+            <div
+              key={scar.id}
+              className={i > 0 ? "mt-5 border-t border-paper-rule pt-4" : "mt-2"}
+            >
+              <p className="text-sm text-paper-ink">{scar.label}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="sheet-box p-3">
+                  <p className="sheet-label">Keep it</p>
+                  <p className="mt-1 text-sm text-paper-ink">
+                    Public, and everybody can see it. Worth {KEPT_SCAR_VALUE} at the Ballad,
+                    but only if your Renown ends at or above the middle of the table. It puts{" "}
+                    {KEEP_SCAR_DREAD} Dread on the whole party.
+                  </p>
+                  <Button
+                    className="mt-2 w-full"
+                    disabled={busy}
+                    onClick={() => void post("/scar", { scarId: scar.id, keep: true })}
+                  >
+                    Wear it
+                    {/* One pair of these per wound, so the pair has to say which. */}
+                    <span className="sr-only">: {scar.label}</span>
+                  </Button>
+                </div>
+                <div className="sheet-box p-3">
+                  <p className="sheet-label">Hide it</p>
+                  <p className="mt-1 text-sm text-paper-ink">
+                    Private. Nobody at the table finds out. It costs you {HIDE_SCAR_RENOWN}{" "}
+                    Renown now and pays nothing later.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    className="mt-2 w-full"
+                    disabled={busy}
+                    onClick={() => void post("/scar", { scarId: scar.id, keep: false })}
+                  >
+                    Say nothing
+                    <span className="sr-only">: {scar.label}</span>
+                  </Button>
+                </div>
+              </div>
             </div>
-            <div className="sheet-box p-3">
-              <p className="sheet-label">Hide it</p>
-              <p className="mt-1 text-sm text-paper-ink">
-                Private. Nobody at the table finds out. It costs you {HIDE_SCAR_RENOWN} Renown
-                now and pays nothing later.
-              </p>
-              <Button
-                variant="secondary"
-                className="mt-2 w-full"
-                disabled={busy}
-                onClick={() => void post("/scar", { scarId: openScar.id, keep: false })}
-              >
-                Say nothing
-              </Button>
-            </div>
-          </div>
+          ))}
           <p className="sheet-label mt-3">
-            Decide nothing and it is hidden for you when the window closes, which costs you
-            the Renown anyway.
+            {openScars.length === 1
+              ? `Decide nothing and it is hidden for you when the window closes, which costs you the ${HIDE_SCAR_RENOWN} Renown anyway.`
+              : `Decide nothing and all ${openScars.length} are hidden for you when the window closes, at ${HIDE_SCAR_RENOWN} Renown each.`}
           </p>
         </Sheet>
       )}
@@ -161,7 +191,7 @@ export function ActResult({ view, post, busy }: PhaseProps) {
       <SignatureCall view={view} post={post} busy={busy} outcome={mine} />
       {mine && <BloodCall view={view} post={post} busy={busy} outcome={mine} />}
 
-      {!openScar && decided.length > 0 && (
+      {openScars.length === 0 && decided.length > 0 && (
         <p className="text-sm text-text-mid">
           {decided.filter((s) => s.kept).length} Scar
           {decided.filter((s) => s.kept).length === 1 ? "" : "s"} worn where the table can see
@@ -212,9 +242,23 @@ export function ActResult({ view, post, busy }: PhaseProps) {
         </section>
       )}
 
-      {untaken.length > 0 && (
-        <section aria-label="What nobody took" className="space-y-2">
-          <h3 className="label-caps">Nobody went this way</h3>
+      {/*
+        The regret beat. It only ever rendered when a door went untaken, which at
+        a full table is the rarer half: six players across three doors usually
+        covers all three, so the one screen that closes the Act just stopped
+        having an ending. The other half of the beat is worth saying out loud,
+        because "every way through was tried" is also a thing that happened.
+      */}
+      <section aria-label="What nobody took" className="space-y-2">
+        <h3 className="label-caps">
+          {untaken.length > 0 ? "Nobody went this way" : "Every way was tried"}
+        </h3>
+        {untaken.length === 0 ? (
+          <p className="text-sm text-text-mid">
+            All three doors had somebody in them. Whatever this scene was hiding, the party
+            found out between them.
+          </p>
+        ) : (
           <ul className="space-y-2">
             {untaken.map((approach) => (
               <li
@@ -232,8 +276,15 @@ export function ActResult({ view, post, busy }: PhaseProps) {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
+
+      {/* What the clock in the corner is going to do. Every other screen says. */}
+      <p className="text-sm text-text-low">
+        {act.index >= view.settings.acts
+          ? "When this window closes somebody calls for the song, and the night is scored."
+          : `When this window closes, Act ${act.index + 1} of ${view.settings.acts} starts on its own.`}
+      </p>
     </div>
   );
 }

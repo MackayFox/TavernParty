@@ -12,8 +12,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Announcer, Button, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
-import { getJson, postJson } from "@/components/client";
-import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily } from "../shell";
+import { postJson } from "@/components/client";
+import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
+import { clears, reachNote } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import { ABILITY_LABEL, AFFINITY_BONUS, abilityMod } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
@@ -93,7 +94,7 @@ export function MusterGame({ date }: { date?: string | null }) {
   useEffect(() => {
     let live = true;
     setRestored(false);
-    getJson<Payload>(`/api/daily/muster${date ? `?date=${encodeURIComponent(date)}` : ""}`)
+    getPuzzle<Payload>(`/api/daily/muster${date ? `?date=${encodeURIComponent(date)}` : ""}`)
       .then((payload) => {
         if (!live) return;
         const size = payload.array.length;
@@ -161,6 +162,21 @@ export function MusterGame({ date }: { date?: string | null }) {
     return bonus;
   }
 
+  /**
+   * What this build brings to one door, die included.
+   *
+   * The same sum the server builds in `resolve`: the face, the ability, the
+   * training and the kit. Without it the whole game was six subtractions in your
+   * head per candidate build, which buried the only decision in it: every night
+   * is set so that at least one door cannot be answered, and choosing which one
+   * to give up is the game. Guessing at that is not the same as deciding it.
+   */
+  function reachFor(trial: Trial): number {
+    if (!data) return trial.face;
+    const row = data.abilities.indexOf(trial.ability);
+    return trial.face + abilityMod(scoreAt(row)) + bonusFor(trial.ability);
+  }
+
   async function commit() {
     if (!data || locked || busy || duplicates) return;
     setBusy(true);
@@ -211,6 +227,7 @@ export function MusterGame({ date }: { date?: string | null }) {
             <ul className="mt-3 space-y-2">
               {data.trials.map((trial, i) => {
                 const outcome = result?.trials[i];
+                const reach = reachFor(trial);
                 return (
                   <li
                     key={trial.id}
@@ -222,6 +239,13 @@ export function MusterGame({ date }: { date?: string | null }) {
                       <span className="label-caps">
                         {ABILITY_LABEL[trial.ability]} · needs {trial.tn}
                       </span>
+                      {/* What the character on the sheet would bring to this one,
+                          updating as the numbers move. */}
+                      {!locked ? (
+                        <span className="num block text-sm text-accent">
+                          your reach: {reach} ({reachNote(trial.face, reach, trial.tn)})
+                        </span>
+                      ) : null}
                     </span>
                     {outcome ? (
                       <span
@@ -238,6 +262,18 @@ export function MusterGame({ date }: { date?: string | null }) {
                 );
               })}
             </ul>
+            {/* Announced as well as shown: the doors are at the top of the page
+                and the selects that change them are at the bottom of it. */}
+            {!locked ? (
+              <p className="mt-3 text-sm text-text-hi" role="status" aria-live="polite">
+                This build clears{" "}
+                <span className="num">
+                  {data.trials.filter((t) => clears(t.face, reachFor(t), t.tn)).length}
+                </span>{" "}
+                of {data.trials.length}.
+              </p>
+            ) : null}
+            <DieRule />
           </Card>
 
           <div className="mt-4">

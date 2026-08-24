@@ -13,8 +13,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Announcer, Button, Card, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
-import { getJson, postJson } from "@/components/client";
-import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily } from "../shell";
+import { postJson } from "@/components/client";
+import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 
 const GAME = "ledger" as const;
@@ -57,6 +57,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
   const [checks, setChecks] = useState(0);
   const [checkNote, setCheckNote] = useState<string | null>(null);
   const [closed, setClosed] = useState<Closed | null>(null);
+  const [arming, setArming] = useState(false);
   const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
     let live = true;
     setRestored(false);
     setCheckNote(null);
-    getJson<Payload>(`/api/daily/ledger${date ? `?date=${encodeURIComponent(date)}` : ""}`)
+    getPuzzle<Payload>(`/api/daily/ledger${date ? `?date=${encodeURIComponent(date)}` : ""}`)
       .then((payload) => {
         if (!live) return;
         const rows = payload.names.length;
@@ -119,7 +120,22 @@ export function LedgerGame({ date }: { date?: string | null }) {
     if (held !== -1) next[held] = next[row];
     next[row] = amountIndex;
     setAssignment(next);
+    setArming(false); // they are still writing; the close is not armed any more
     setAnnounce(`${data.names[row]} written down for ${data.amounts[amountIndex]} shillings`);
+  }
+
+  /**
+   * Closing settles the day and cannot be undone, and the button sits next to one
+   * that merely costs a mark. A mis-tap was the entire game, so it takes two, and
+   * any change to the grid disarms it again.
+   */
+  function armOrClose() {
+    if (!arming) {
+      setArming(true);
+      setAnnounce("Press close again to settle it. There is no going back.");
+      return;
+    }
+    void close();
   }
 
   async function check() {
@@ -282,16 +298,17 @@ export function LedgerGame({ date }: { date?: string | null }) {
                 <Button
                   size="lg"
                   className="flex-1 aria-disabled:opacity-40"
-                  onClick={close}
+                  onClick={armOrClose}
                   aria-disabled={busy || duplicates}
                   aria-busy={busy}
                 >
-                  Close the ledger
+                  {arming ? "Yes, close it" : "Close the ledger"}
                 </Button>
               </div>
               <p className="text-sm text-text-low">
-                Closing it is free and final. A check tells you how many lines are right and never
-                which, and it costs you a mark whether the news is good or not.
+                {arming
+                  ? "Press it again and that is your answer for today."
+                  : "Closing it is free and final, so it takes two presses. A check tells you how many lines are right and never which, and it costs you a mark whether the news is good or not."}
               </p>
             </div>
           ) : null}

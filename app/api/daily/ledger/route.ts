@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
-import { resolvePlayDate } from "@/lib/daily/core";
+import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import {
   MAX_CHECKS,
   MAX_SCORE,
@@ -20,16 +20,21 @@ import { rateLimit } from "@/lib/ratelimit";
  * THE LEDGER. Five drinkers, five debts, four true statements.
  *
  * GET is the names, the amounts and the statements. The grid it resolves to
- * never leaves `lib/daily/ledger.ts`.
+ * never leaves `lib/daily/ledger.ts`. It is public and cacheable for exactly as
+ * long as the puzzle lasts, which is until the next UTC midnight: the payload
+ * holds no answer and nothing in it is per player.
  */
 export async function GET(req: Request) {
   const { date, archive } = resolvePlayDate(new URL(req.url).searchParams.get("date"));
-  return NextResponse.json({
-    ...puzzleFor(date),
-    archive,
-    maxChecks: MAX_CHECKS,
-    maxScore: MAX_SCORE,
-  });
+  return NextResponse.json(
+    {
+      ...puzzleFor(date),
+      archive,
+      maxChecks: MAX_CHECKS,
+      maxScore: MAX_SCORE,
+    },
+    { headers: { "Cache-Control": dailyCacheControl(archive) } }
+  );
 }
 
 const schema = z.object({

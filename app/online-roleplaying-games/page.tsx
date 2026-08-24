@@ -9,6 +9,7 @@
  */
 import type { Metadata } from "next";
 import Link from "next/link";
+import { JsonLd } from "@/components/JsonLd";
 import { Card } from "@/components/ui";
 import { CALLINGS } from "@/lib/content/callings";
 import { HOOKS } from "@/lib/content/hooks";
@@ -26,13 +27,21 @@ import {
 
 const RUN_LENGTH = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
 
+/**
+ * "Online roleplaying games" on its own is a head term a five-page site is not
+ * going to take off Roll20 and D&D Beyond, and pretending otherwise wastes the
+ * only landing page there is. The qualifier is the whole point: no game master,
+ * no evening to book. That is a question people genuinely type, the page already
+ * answered it in the FAQ, and it is a query this domain can actually hold.
+ */
 export const metadata: Metadata = {
-  title: "Online Roleplaying Games You Can Play in a Browser",
-  description: `A free online roleplaying game for ${MIN_PLAYERS} to ${MAX_PLAYERS} players, ${RUN_LENGTH} a run. Build a character, take on ${DEFAULT_SETTINGS.acts} encounters together, and find out which of you takes the loot. No downloads, no account, no scheduling.`,
+  title: "Online Roleplaying Games With No Game Master",
+  description: `A free online roleplaying game for ${MIN_PLAYERS} to ${MAX_PLAYERS} players, ${RUN_LENGTH} a run, with nobody having to run it. The server sets the encounters and rolls every die.`,
   alternates: { canonical: "/online-roleplaying-games" },
   openGraph: {
-    title: "Online Roleplaying Games You Can Play in a Browser",
-    description: `Free, ${RUN_LENGTH}, ${MIN_PLAYERS} to ${MAX_PLAYERS} players, nothing to install.`,
+    title: "Online Roleplaying Games With No Game Master",
+    description: `Nobody prepares anything and nobody sits out. Free, ${RUN_LENGTH}, ${MIN_PLAYERS} to ${MAX_PLAYERS} players, nothing to install.`,
+    url: "/online-roleplaying-games",
   },
 };
 
@@ -92,20 +101,18 @@ export default function OnlineRoleplayingGamesPage() {
 
   return (
     <div className="flex flex-col gap-8 py-8 sm:py-12">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
-      />
+      <JsonLd data={faqLd} />
 
       <header className="flex flex-col gap-4">
         <p className="label-caps">Online roleplaying games</p>
         <h1 className="font-display text-3xl font-bold text-text-hi sm:text-4xl">
-          An online roleplaying game that fits in a coffee break
+          An online roleplaying game that needs no game master
         </h1>
         <p className="prose-read text-text-mid">
           Most online roleplaying games ask for the two things people do not have: an evening
           everybody is free for, and somebody willing to prepare it. Tavern Party is the
-          version that asks for neither. {MIN_PLAYERS} to {MAX_PLAYERS} of you open a link,
+          version that asks for neither, and it fits in a coffee break. {MIN_PLAYERS} to{" "}
+          {MAX_PLAYERS} of you open a link,
           build a character each, take on {DEFAULT_SETTINGS.acts} encounters together, and one
           of you walks out with the Hoard. It takes {RUN_LENGTH}, it is free, and there is
           nothing to install.
@@ -139,7 +146,11 @@ export default function OnlineRoleplayingGamesPage() {
           for the whole room and everybody assigns those same {ARRAY_SIZE} numbers to their own
           abilities, which quietly ends the oldest argument in this hobby: real dice, identical
           starting material, and the only decision left is where you put the best one and who
-          is prepared to live with the worst.
+          is prepared to live with the worst. Everything you are choosing between is published:{" "}
+          <Link href="/characters" className="text-accent underline">
+            the Callings, the Bloods, the Kit and the Hooks
+          </Link>{" "}
+          are all written out, so you can turn up having already decided what you want.
         </p>
         <p className="prose-read text-text-mid">
           After that come the encounters, drawn from a pool of {SCENES.length}. Each one offers

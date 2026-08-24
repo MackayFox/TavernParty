@@ -4,10 +4,16 @@ import { Card } from "@/components/ui";
 import { DAILY_GAMES, DAILY_META, prettyDate, utcDate } from "@/lib/daily/core";
 
 export const metadata: Metadata = {
-  title: "Four Daily Puzzles: Dice, Debts and Character Building",
+  title: "Four Daily Fantasy Puzzles, Free Every Day",
   description:
-    "Four small fantasy puzzles, new every day and identical for everybody in the world. Five doors and five known dice, an assignment of six rolls, a five by five debt grid, and a character built on tonight's numbers. Free, no account, nothing to download.",
+    "Four fantasy puzzles, new at midnight and identical for everybody in the world. Five doors, a blind dungeon, a debt grid, and a character built on tonight's numbers.",
   alternates: { canonical: "/daily" },
+  openGraph: {
+    title: "Four Daily Fantasy Puzzles, Free Every Day",
+    description:
+      "New at midnight, the same four for everybody in the world, and three of them publish a par worked out by brute force.",
+    url: "/daily",
+  },
 };
 
 /**

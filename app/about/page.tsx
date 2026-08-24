@@ -14,10 +14,16 @@ import {
 } from "@/lib/game/rules";
 
 export const metadata: Metadata = {
-  title: "About",
+  title: "About Tavern Party, and Why It Is This Short",
   description:
-    "What Tavern Party is, why it is shaped the way it is, and what it deliberately does not do. A small browser roleplaying game, free to play, made by one person.",
+    "What Tavern Party is, why it is shaped the way it is, and what it deliberately does not do. A small browser roleplaying game, free, made by one person.",
   alternates: { canonical: "/about" },
+  openGraph: {
+    title: "About Tavern Party, and Why It Is This Short",
+    description:
+      "The best part of this hobby is making a character. The worst is finding four adults free on the same Tuesday. Built around both.",
+    url: "/about",
+  },
 };
 
 export default function AboutPage() {

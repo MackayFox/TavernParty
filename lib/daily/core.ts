@@ -8,6 +8,8 @@
  * only and reached through `app/api/daily/*`.
  */
 
+import { CRIT, FUMBLE } from "@/lib/game/rules";
+
 export const DAILY_GAMES = ["longway", "deeprun", "ledger", "muster"] as const;
 export type DailyGame = (typeof DAILY_GAMES)[number];
 
@@ -156,8 +158,19 @@ export function resolvePlayDate(raw: string | null | undefined): PlayDate {
   return { date: raw, archive: raw !== today, valid: true };
 }
 
-/** Every playable date, newest first, capped. */
-export function archiveDates(limit = 120): string[] {
+/**
+ * Every playable date, newest first.
+ *
+ * The limit is a safety valve, not a page size: the archive page renders all of
+ * them, so at 120 the shelf would have started quietly dropping its oldest day
+ * every morning from the end of November 2026, with nothing on the page to say
+ * so. A year of four links a day is heavy but honest, and it is a server
+ * component with no JavaScript in it, so the cost is bytes rather than time.
+ *
+ * ponytail: no paging. Page it by month when the shelf passes a year, which is
+ * also roughly when the page stops being scannable by a human being.
+ */
+export function archiveDates(limit = 366): string[] {
   const out: string[] = [];
   const cursor = new Date();
   for (let i = 0; i < limit; i++) {
@@ -186,6 +199,67 @@ export function msUntilReset(from: number = Date.now()): number {
   next.setUTCHours(24, 0, 0, 0);
   return next.getTime() - from;
 }
+
+/**
+ * What a daily GET may be cached for.
+ *
+ * Every one of them is a pure function of a date: the same bytes for everybody
+ * in the world, changing once at UTC midnight and never in between. They were
+ * being fetched uncached after hydration, so every player paid a round trip for
+ * a constant.
+ *
+ * Today expires exactly at the reset, with no floor under it: a floor would mean
+ * serving yesterday's puzzle for a few seconds after midnight, which is the one
+ * thing a daily may never do. An archive date is finished and cannot change
+ * again, so it is cached for as long as anything is willing to hold it.
+ */
+export function dailyCacheControl(archive: boolean, from: number = Date.now()): string {
+  if (archive) return "public, max-age=86400, s-maxage=604800, immutable";
+  const ttl = Math.max(0, Math.floor(msUntilReset(from) / 1000));
+  return `public, max-age=${ttl}, s-maxage=${ttl}`;
+}
+
+// ---------------------------------------------------------------------------
+// The rule that outranks the arithmetic
+//
+// A natural 1 always fails and a natural 20 always succeeds, whatever the total
+// comes to (lib/game/rules, and `rollApproach` in lib/game/resolve). Three of
+// the four dailies publish the die before you choose, and all three were showing
+// a player their own sum against the target number and calling it: a face-1 door
+// was labelled "enough" and a face-20 door was labelled "short", on the games
+// whose entire pitch is that you can see what is coming.
+//
+// So the predicate lives here, once, and both sides of the wall use it: the
+// server to resolve a door and the client to label one. They cannot disagree.
+// ---------------------------------------------------------------------------
+
+/** Does this face, with this total behind it, clear that target number? */
+export function clears(face: number, total: number, tn: number): boolean {
+  if (face === CRIT) return true;
+  if (face === FUMBLE) return false;
+  return total >= tn;
+}
+
+/**
+ * The lowest face that clears `tn` with `bonus` on it, for a die nobody has
+ * thrown yet. Floored at 2 and capped at 20 by the same rule: "a 1 or better" is
+ * a promise the server will not keep, and a door needing a 21 is not shut,
+ * because a 20 opens it anyway.
+ */
+export function faceNeeded(tn: number, bonus: number): number {
+  return Math.min(CRIT, Math.max(FUMBLE + 1, tn - bonus));
+}
+
+/** The words for a door with a known face, before it is taken. */
+export function reachNote(face: number, reach: number, tn: number): string {
+  if (face === CRIT) return "a 20, so it opens whatever you bring";
+  if (face === FUMBLE) return "a 1, so it stays shut whatever you bring";
+  return reach >= tn ? "enough" : `short by ${tn - reach}`;
+}
+
+/** Said out loud wherever a player is reading dice off a screen. */
+export const DIE_RULE =
+  "A 1 on the die always fails and a 20 always clears, whatever the total comes to.";
 
 /**
  * "par", "two short of par". The share line for every game that publishes one.

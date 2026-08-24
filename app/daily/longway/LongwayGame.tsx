@@ -12,15 +12,19 @@
  * contributions, in the order they should be read out, and never a bare total.
  */
 import { useEffect, useRef, useState } from "react";
-import { Announcer, Button, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
-import { getJson, postJson } from "@/components/client";
-import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily } from "../shell";
+import { Announcer, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
+import { postJson } from "@/components/client";
+import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
+import { reachNote } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import {
   ABILITY_LABEL,
   AFFINITY_BONUS,
   DREAD_DOUBLE_AT,
+  FLINCH_DREAD,
+  FLINCH_RENOWN,
   HOOK_TOKEN_VALUE,
+  MARK_FLINCH_PENALTY,
   abilityMod,
 } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
@@ -134,7 +138,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
     let live = true;
     setRestored(false);
     setSpend(0);
-    getJson<Payload>(`/api/daily/longway${date ? `?date=${encodeURIComponent(date)}` : ""}`)
+    getPuzzle<Payload>(`/api/daily/longway${date ? `?date=${encodeURIComponent(date)}` : ""}`)
       .then((payload) => {
         if (!live) return;
         const stored = readProgress<Saved>(GAME, payload.date);
@@ -227,6 +231,23 @@ export function LongwayGame({ date }: { date?: string | null }) {
     );
   }
 
+  /**
+   * What a failure would actually cost here, which is not the figure on the door.
+   *
+   * Mirrors `costMultiplier` in the engine: your Calling's Failing tag on this
+   * scene doubles every cost in it, Dread at the threshold doubles it again for
+   * every door except the Reckless one, and both at once is four times the
+   * printed number. The doors were showing the sticker price on the daily that
+   * promises you can see what is coming.
+   */
+  function costMultFor(card: ActCard, reckless: boolean): number {
+    if (!data) return 1;
+    let mult = 1;
+    if (card.tags.includes(data.who.failingTag)) mult *= 2;
+    if ((reply?.dread ?? 0) >= DREAD_DOUBLE_AT && !reckless) mult *= 2;
+    return mult;
+  }
+
   return (
     <section className="mx-auto w-full max-w-2xl py-6">
       <DailyHeader game={GAME} date={data?.date ?? null} archive={!!data?.archive} />
@@ -299,7 +320,9 @@ export function LongwayGame({ date }: { date?: string | null }) {
               of {data.acts.length}
             </span>
             {(reply?.dread ?? 0) >= DREAD_DOUBLE_AT ? (
-              <Pill tone="danger">Dread at {DREAD_DOUBLE_AT}: every cost is doubled</Pill>
+              <Pill tone="danger">
+                Dread at {DREAD_DOUBLE_AT}: every cost doubled, bar the Reckless door
+              </Pill>
             ) : null}
           </Card>
 
@@ -316,6 +339,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
                 </li>
               ))}
             </ul>
+            <DieRule />
           </Card>
 
           {showLatest && latest ? (
@@ -367,6 +391,11 @@ export function LongwayGame({ date }: { date?: string | null }) {
                 {act.marked ? (
                   <Pill tone="arcane">Marked: this one is about you, and it pays +2</Pill>
                 ) : null}
+                {act.tags.includes(data.who.failingTag) ? (
+                  <Pill tone="warning">
+                    Your failing is in this room: every cost here is doubled
+                  </Pill>
+                ) : null}
               </p>
 
               {tokens > 0 ? (
@@ -391,6 +420,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
               <ul className="mt-4 space-y-2">
                 {act.doors.map((door) => {
                   const reach = reachOf(act.face, door.ability, Math.min(spend, tokens));
+                  const mult = costMultFor(act, door.reckless);
                   return (
                     <li key={door.id}>
                       <button
@@ -408,13 +438,13 @@ export function LongwayGame({ date }: { date?: string | null }) {
                           <span className="num">needs {door.tn}</span>
                           <span className="num">pays {door.deed}</span>
                           <span className="num">
-                            costs {door.cost.renown}
-                            {door.cost.dread > 0 ? ` and ${door.cost.dread} Dread` : ""}
+                            costs {door.cost.renown * mult}
+                            {door.cost.dread > 0 ? ` and ${door.cost.dread * mult} Dread` : ""}
+                            {mult > 1 ? (mult === 2 ? " (doubled)" : " (doubled twice)") : ""}
                           </span>
                         </span>
                         <span className="num mt-1 block text-sm text-accent">
-                          your reach: {reach}
-                          {reach >= door.tn ? " (enough)" : " (short)"}
+                          your reach: {reach} ({reachNote(act.face, reach, door.tn)})
                         </span>
                       </button>
                     </li>
@@ -428,9 +458,17 @@ export function LongwayGame({ date }: { date?: string | null }) {
                     className="min-h-11 w-full rounded-md border border-border-dim bg-bg-1 px-3 py-2 text-left text-text-mid transition-colors hover:border-border-strong hover:text-text-hi disabled:opacity-50"
                   >
                     Do not move.{" "}
-                    <span className="text-text-low">
-                      Costs a point of Renown and taxes the night with a point of Dread. Sometimes
-                      it is still the cheapest door.
+                    <span className="num text-text-low">
+                      {/* The real figures, because standing still is taxed by the
+                          Failing and by Dread exactly like a door is, and being
+                          Marked charges you another point for not turning up. */}
+                      Costs{" "}
+                      {Math.abs(
+                        (FLINCH_RENOWN - (act.marked ? MARK_FLINCH_PENALTY : 0)) *
+                          costMultFor(act, false)
+                      )}{" "}
+                      Renown and {FLINCH_DREAD * costMultFor(act, false)} Dread. Sometimes it is
+                      still the cheapest door.
                     </span>
                   </button>
                 </li>

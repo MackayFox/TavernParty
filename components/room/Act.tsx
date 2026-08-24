@@ -11,11 +11,11 @@ import { useState } from "react";
 import { Avatar, Button, Pill } from "@/components/ui";
 import { SCENES_BY_ID } from "@/lib/content/scenes";
 import { TAG_MEANING, isTag } from "@/lib/content/tags";
-import { costMultiplier } from "@/lib/game/resolve";
+import { DIE_RULE, faceNeeded } from "@/lib/daily/core";
+import { costMultiplier, sumLedger } from "@/lib/game/resolve";
 import {
   ABILITY_LABEL,
   AFFINITY_BONUS,
-  DREAD_DOUBLE_AT,
   FLINCH_DREAD,
   FLINCH_RENOWN,
   HOOK_TOKEN_VALUE,
@@ -25,14 +25,124 @@ import {
   REVEAL_COST_TORCHES,
   SIGNATURE_BOOST,
   abilityMod,
+  dreadThresholds,
 } from "@/lib/game/rules";
-import type { ApproachDef } from "@/lib/game/types";
+import type { ApproachDef, Calling, Modifier, Scene } from "@/lib/game/types";
 import { CALLING_BY_ID, KIT_BY_ID, meOf, nameOf, signed, type PhaseProps } from "./shared";
+
+/**
+ * What not moving costs you, worked out the way `resolveAct` works it out.
+ *
+ * Two things were wrong with the version this replaces, both of them making the
+ * most consequential number on the screen too small.
+ *
+ * The multiplier was computed without `players`, and `costMultiplier` falls back
+ * to the SOLO doubling threshold without it, so a six-handed table was told its
+ * costs had doubled from Dread 3 when the engine does not double them until 8.
+ *
+ * And the Mark was added on afterwards at face value. The engine multiplies it
+ * with the base, `(renown - markPenalty) * multiplier`, so a Marked player on
+ * their Failing scene at a doubled table read "2 Renown off you, and 1 more for
+ * the Mark" for a move that was about to take 8.
+ *
+ * No `approach`, deliberately: `resolveAct` costs a flinch with none either, so
+ * the Reckless exemption never applies to standing still.
+ */
+export function flinchCost(input: {
+  calling: Calling | undefined;
+  scene: Scene;
+  dread: number;
+  players: number;
+  marked: boolean;
+}): { renown: number; dread: number; multiplier: number } {
+  const multiplier = costMultiplier({
+    calling: input.calling,
+    scene: input.scene,
+    dread: input.dread,
+    players: input.players,
+  });
+  return {
+    renown: Math.abs((FLINCH_RENOWN - (input.marked ? MARK_FLINCH_PENALTY : 0)) * multiplier),
+    dread: FLINCH_DREAD * multiplier,
+    multiplier,
+  };
+}
+
+/**
+ * Your whole side of a roll before the die, named. The ledger doctrine, applied
+ * before the throw instead of after it.
+ *
+ * The screen used to print `tn - bonus - tokens` and call it the face you
+ * needed, which quietly dropped a Signature the player had already declared to
+ * the entire table: `rollApproach` adds SIGNATURE_BOOST to the roll, so a
+ * Chanter who had just spent the loudest thing they own was shown a target five
+ * higher than the one about to be thrown at. It dropped the tokens too, the
+ * moment you committed, because it zeroed the spend once `myChoice` came back.
+ */
+export function reachParts(input: {
+  /** The sheet: ability modifier, training and Kit. */
+  bonus: number;
+  /** Hook tokens going onto this roll. */
+  spending: number;
+  /** A Signature already declared into this Act, or 0. */
+  boost: number;
+  signatureLabel?: string;
+}): Modifier[] {
+  const parts: Modifier[] = [{ label: "you", value: input.bonus }];
+  if (input.spending > 0)
+    parts.push({
+      label: `${input.spending} Hook token${input.spending === 1 ? "" : "s"}`,
+      value: input.spending * HOOK_TOKEN_VALUE,
+    });
+  if (input.boost > 0)
+    parts.push({
+      label: (input.signatureLabel ?? "your Signature").toLowerCase(),
+      value: input.boost,
+    });
+  return parts;
+}
+
+/**
+ * What you locked into an Act, remembered across a reload.
+ *
+ * `viewFor` redacts `act.spend` until the Act resolves and the engine does not
+ * take the tokens off you until the window closes, so between committing and
+ * resolving the server will not tell you what you spent and your token count
+ * still reads full. The panel forgot the spend on every refresh, and the
+ * arithmetic under each door quietly dropped it with them.
+ *
+ * ponytail: a crutch on the client, and it does not follow you to another
+ * device. The fix is one line in `viewFor`: hand the viewer their own `spend`
+ * entry the way it already hands them their own `myChoice`.
+ */
+const SPEND_KEY = (code: string, act: number) => `tp:spend:${code}:${act}`;
+
+function rememberedSpend(code: string, act: number): number {
+  try {
+    const raw = window.sessionStorage.getItem(SPEND_KEY(code, act));
+    const n = raw === null ? 0 : Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    // Storage refused. Not a reason to fail to draw the encounter.
+    return 0;
+  }
+}
+
+function rememberSpend(code: string, act: number, tokens: number): void {
+  try {
+    window.sessionStorage.setItem(SPEND_KEY(code, act), String(tokens));
+  } catch {
+    // As above.
+  }
+}
 
 export function Act({ view, post, busy }: PhaseProps) {
   const act = view.act;
   const me = meOf(view);
   const [spend, setSpend] = useState(0);
+  const [locked, setLocked] = useState(() =>
+    rememberedSpend(view.code, view.act?.index ?? 0)
+  );
   const [nominated, setNominated] = useState<string | null>(null);
 
   if (!act) return null;
@@ -46,6 +156,17 @@ export function Act({ view, post, busy }: PhaseProps) {
   const chosen = act.myChoice ? scene.approaches.find((a) => a.id === act.myChoice) : undefined;
   const tokens = me?.hookTokens ?? 0;
   const torches = me?.torches ?? 0;
+  /** The thresholds for THIS table, not the solo figures. See rules.ts. */
+  const thresholds = dreadThresholds(view.players.length);
+  /**
+   * A Chanter's bet is already on the table and `rollApproach` adds it to the
+   * roll, so the arithmetic under each door has to as well. It did not: a player
+   * who had just spent the loudest thing they own was shown the number they
+   * needed without it, which is not the number about to be thrown.
+   */
+  const boost = act.boosted.includes(view.me.id) ? SIGNATURE_BOOST : 0;
+  /** Once you have moved, the tokens are locked in; before that, the widget. */
+  const spending = chosen ? locked : spend;
 
   /** Everything you bring to a roll before the die and before tokens. */
   function bonusFor(approach: ApproachDef): number {
@@ -57,20 +178,31 @@ export function Act({ view, post, busy }: PhaseProps) {
     return total;
   }
 
-  /**
-   * What flinching costs right now.
-   *
-   * Through the engine's own multiplier rather than the raw constants, because
-   * `resolveAct` computes the flinch cost with `costMultiplier` and no approach,
-   * so the Reckless exemption never applies to it: on your Failing scene at
-   * Dread 3 or more, not moving costs four times the constant. That is the
-   * number somebody is using to decide whether to move, and printing the
-   * constant understated it by up to 4x.
-   */
-  const flinchMult = costMultiplier({ calling, scene, dread: view.dread });
+  function reachOn(approach: ApproachDef): Modifier[] {
+    return reachParts({
+      bonus: bonusFor(approach),
+      spending,
+      boost,
+      signatureLabel: calling?.signature.label,
+    });
+  }
+
+  const flinch = flinchCost({
+    calling,
+    scene,
+    dread: view.dread,
+    players: view.players.length,
+    marked,
+  });
 
   function costWords(approach: ApproachDef): string {
-    const mult = costMultiplier({ calling, scene, dread: view.dread, approach });
+    const mult = costMultiplier({
+      calling,
+      scene,
+      dread: view.dread,
+      players: view.players.length,
+      approach,
+    });
     const parts: string[] = [];
     if (approach.cost.renown > 0) parts.push(`${approach.cost.renown * mult} Renown`);
     if (approach.cost.dread > 0) parts.push(`${approach.cost.dread * mult} party Dread`);
@@ -132,9 +264,10 @@ export function Act({ view, post, busy }: PhaseProps) {
           Your Failing is in this room. {calling?.failing.text} Failure costs you double.
         </p>
       )}
-      {view.dread >= DREAD_DOUBLE_AT && (
+      {view.dread >= thresholds.double && (
         <p className="rounded-md border border-warning/60 px-3 py-2 text-sm text-warning">
-          Dread is {view.dread}. Every Cost is doubled, except on the Reckless line.
+          Dread is {view.dread}, and {thresholds.double} is where it starts to tell at a table
+          of {view.players.length}. Every Cost is doubled, except on the Reckless line.
         </p>
       )}
 
@@ -147,9 +280,12 @@ export function Act({ view, post, busy }: PhaseProps) {
           <p className="font-display mt-1 text-lg text-text-hi">{chosen.label}</p>
           <p className="mt-1 text-sm text-text-mid">
             {ABILITY_LABEL[chosen.ability]}
-            {spend > 0 ? `, with ${spend} Hook token${spend === 1 ? "" : "s"} spent` : ""}
-            . Nothing is thrown until the window closes, so the rest of the table is
-            still deciding.
+            {locked > 0
+              ? `, with ${locked} Hook token${locked === 1 ? "" : "s"} going with it`
+              : ", with no Hook tokens on it"}
+            . They come off you when the window closes, so your count above still reads
+            full. Nothing is thrown until then, and the rest of the table is still
+            deciding.
           </p>
         </section>
       ) : (
@@ -165,6 +301,13 @@ export function Act({ view, post, busy }: PhaseProps) {
                 <button
                   type="button"
                   aria-pressed={spend === n}
+                  // Without this the row reads out as three buttons called "0",
+                  // "1" and "2", which is not a choice anybody can make.
+                  aria-label={
+                    n === 0
+                      ? "Spend no Hook tokens"
+                      : `Spend ${n} Hook token${n === 1 ? "" : "s"}, worth ${n * HOOK_TOKEN_VALUE} on the die`
+                  }
                   onClick={() => setSpend(n)}
                   className={`min-h-11 min-w-11 rounded-md border px-3 font-mono ${
                     spend === n
@@ -228,10 +371,14 @@ export function Act({ view, post, busy }: PhaseProps) {
 
       <section aria-label="The three ways through" className="space-y-3">
         {scene.approaches.map((approach) => {
-          const bonus = bonusFor(approach);
+          const parts = reachOn(approach);
+          const reach = sumLedger(parts);
           const hidden = approach.reckless && act.recklessTn === null;
           const tn = approach.reckless ? act.recklessTn : approach.tn;
-          const need = tn === null ? null : tn - bonus - (chosen ? 0 : spend * HOOK_TOKEN_VALUE);
+          // Floored at 2 and capped at 20 by `faceNeeded`, not at 1 and 20: a 1
+          // always fails whatever the total, so "a 1 or better" is a promise the
+          // server will not keep.
+          const need = tn === null ? null : faceNeeded(tn, reach);
           return (
             <div
               key={approach.id}
@@ -244,10 +391,16 @@ export function Act({ view, post, busy }: PhaseProps) {
                 {approach.reckless && <Pill tone="danger">Reckless, one player only</Pill>}
               </div>
               <p className="num mt-1 text-sm text-text-mid">
-                {ABILITY_LABEL[approach.ability]} · you bring {signed(bonus)} · needs{" "}
+                {ABILITY_LABEL[approach.ability]} · you bring {signed(reach)} · needs{" "}
                 {hidden ? "?" : tn}
-                {need !== null ? ` · so a ${Math.max(1, Math.min(20, need))} or better on the die` : ""}
+                {need !== null ? ` · so a ${need} or better on the die` : ""}
               </p>
+              {/* Never a bare figure: what you bring is the sum of named things. */}
+              {parts.length > 1 && (
+                <p className="num text-xs text-text-low">
+                  {parts.map((part) => `${signed(part.value)} ${part.label}`).join(" · ")}
+                </p>
+              )}
               <p className="mt-2 text-sm text-text-hi">
                 Wins {approach.deed} Renown. Fails and it costs {costWords(approach)}, and
                 leaves a Scar.
@@ -264,9 +417,23 @@ export function Act({ view, post, busy }: PhaseProps) {
                 <Button
                   size="lg"
                   disabled={busy || !!chosen || !view.me.id}
-                  onClick={() => void post("/commit", { approachId: approach.id, spendTokens: spend })}
+                  onClick={() => {
+                    const going = spend;
+                    void post("/commit", {
+                      approachId: approach.id,
+                      spendTokens: going,
+                    }).then((ok) => {
+                      if (!ok) return;
+                      setLocked(going);
+                      rememberSpend(view.code, act.index, going);
+                    });
+                  }}
                 >
                   {chosen?.id === approach.id ? "Taken" : "Take this line"}
+                  {/* Three buttons named "Take this line" is three identical
+                      entries in a screen reader's list of controls. The visible
+                      words still lead, so speech input keeps working. */}
+                  <span className="sr-only">: {approach.label}</span>
                 </Button>
                 {approach.reckless && hidden && (
                   <Button
@@ -276,13 +443,14 @@ export function Act({ view, post, busy }: PhaseProps) {
                   >
                     {torches < REVEAL_COST_TORCHES
                       ? "No torch left to burn"
-                      : `Burn a torch to see the number (${torches} left)`}
+                      : `Burn a torch to see it (${torches} left)`}
                   </Button>
                 )}
               </div>
             </div>
           );
         })}
+        <p className="text-xs text-text-low">{DIE_RULE}</p>
       </section>
 
       <section aria-label="Nominate somebody" className="rounded-lg border border-border-dim bg-bg-1 p-3">
@@ -344,12 +512,14 @@ export function Act({ view, post, busy }: PhaseProps) {
           })}
         </ul>
         <p className="text-sm text-text-mid">
-          Do nothing and you Flinch, which right now is{" "}
-          {Math.abs(FLINCH_RENOWN) * flinchMult} Renown off you and {FLINCH_DREAD * flinchMult}{" "}
-          Dread on everybody
-          {flinchMult > 1 ? ", because of where this night has got to" : ""}. It is a move, not a
-          pass.
-          {marked ? ` Being Marked and not moving costs you ${MARK_FLINCH_PENALTY} more.` : ""}
+          Do nothing and you Flinch, which right now is {flinch.renown} Renown off you and{" "}
+          {flinch.dread} Dread on everybody. It is a move, not a pass.
+          {marked
+            ? ` ${MARK_FLINCH_PENALTY * flinch.multiplier} of that Renown is for being Marked and staying put.`
+            : ""}
+          {flinch.multiplier > 1
+            ? ` Where this night has got to has multiplied all of it by ${flinch.multiplier}.`
+            : ""}
         </p>
       </section>
     </div>

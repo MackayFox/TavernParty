@@ -51,15 +51,22 @@ import {
 } from "@/lib/game/rules";
 import { ABILITIES, type Player, type Scores } from "@/lib/game/types";
 
+/**
+ * The page called itself four different things: "How It Works" in the title,
+ * "How Tavern Party Works" in the card, "How it works" in the eyebrow, and an H1
+ * about going through a door that used none of the words anybody searches for.
+ * It is the rules page. It says so everywhere now.
+ */
 export const metadata: Metadata = {
-  title: "How It Works",
+  title: "How to Play: The Full Rules",
   description:
-    "The whole rulebook on one page. Callings, Bloods, the shared house array, what a Hook actually does, how an Act resolves, keeping or hiding a Scar, the two Dread thresholds, and how the Ballad decides who takes the Hoard.",
+    "The whole rulebook on one page. Callings, Bloods, the shared array, what a Hook does, how an encounter resolves, keeping or hiding a Scar, and who takes the Hoard.",
   alternates: { canonical: "/how-it-works" },
   openGraph: {
-    title: "How Tavern Party Works",
+    title: "How to Play Tavern Party: The Full Rules",
     description:
-      "Callings, Bloods, the shared array, Hooks, Acts, Scars, Dread and the Ballad. Every number on the page is the number the game uses.",
+      "Callings, Bloods, the shared array, Hooks, Acts, Scars, Dread and the Ballad. Every number on the page is one the game uses.",
+    url: "/how-it-works",
   },
 };
 
@@ -209,13 +216,14 @@ export default function HowItWorksPage() {
   return (
     <div className="flex flex-col gap-8 py-8 sm:py-12">
       <header className="flex flex-col gap-4">
-        <p className="label-caps">How it works</p>
+        <p className="label-caps">How to play</p>
         <h1 className="font-display text-3xl font-bold text-text-hi sm:text-4xl">
-          Roll a character, survive the night, find out who they were prepared to send
-          through the door
+          How to play Tavern Party: the whole rulebook on one page
         </h1>
         <p className="prose-read text-text-mid">
-          {MIN_PLAYERS} to {MAX_PLAYERS} of you, {runLength}, no downloads and no account.
+          Roll a character, survive the night, and find out who the rest of them were prepared
+          to send through the door. {MIN_PLAYERS} to {MAX_PLAYERS} of you, {runLength}, no
+          downloads and no account.
           Everybody builds a character out of the same six numbers, the party takes on{" "}
           {acts} encounters together, and exactly one of you walks out with the Hoard. Every
           phase is simultaneous, so nothing ever waits on one person and a table of six takes
@@ -292,7 +300,11 @@ export default function HowItWorksPage() {
           {signed(AFFINITY_BONUS)} whenever you roll one of them, one Signature you may use
           once in the whole run, and one Failing. A Failing is a named tag, and any encounter
           carrying it doubles what failure costs you. The Failings deliberately do not name
-          the frightening tags. They name the tag that makes you irrelevant.
+          the frightening tags. They name the tag that makes you irrelevant. There is a{" "}
+          <Link href="/characters/classes" className="text-accent underline">
+            longer write-up of all {CALLINGS.length}
+          </Link>{" "}
+          if you would rather read them properly before you have to rank them under a clock.
         </p>
         <ul className="grid gap-3 sm:grid-cols-2">
           {CALLINGS.map((c) => (
@@ -331,7 +343,11 @@ export default function HowItWorksPage() {
           than drafted. A Blood is not a bag of stat bonuses. Not one of these adds to a roll.
           They bend what a result costs, who it costs, or what you knew before you committed,
           so your Blood changes the shape of your night rather than the size of your numbers.
-          Each one may be used once in a run.
+          Each one may be used once in a run, and{" "}
+          <Link href="/characters/origins" className="text-accent underline">
+            all {BLOODS.length} are written out at length
+          </Link>{" "}
+          elsewhere.
         </p>
         <ul className="grid gap-3 sm:grid-cols-2">
           {BLOODS.map((b) => (
@@ -426,7 +442,11 @@ export default function HowItWorksPage() {
           helps in every encounter and never runs out. The rest is a charge, a small number of
           uses of something that fires when you choose: a reroll, a look at a hidden number,
           or a torch. A torch is what you burn to see what the Reckless line actually needs,
-          at {REVEAL_COST_TORCHES} per look.
+          at {REVEAL_COST_TORCHES} per look.{" "}
+          <Link href="/characters/gear" className="text-accent underline">
+            All {KIT.length} pieces
+          </Link>{" "}
+          are listed with what each one is actually for.
         </p>
       </Section>
 
@@ -436,7 +456,11 @@ export default function HowItWorksPage() {
           A Hook is one specific thing you did, or that was done to you, and what it left
           behind. There are {HOOKS.length} and they are not exclusive. Backgrounds usually die
           in games like this because they are social features that only fire if somebody
-          remembers them. This one is currency, and it is spent three different ways.
+          remembers them. This one is currency, and it is spent three different ways.{" "}
+          <Link href="/characters/backstories" className="text-accent underline">
+            Every one of the {HOOKS.length} is written out in full
+          </Link>
+          , which is worth a look before you have to pick one in seconds.
         </p>
         <ol className="flex flex-col gap-3">
           <li>
@@ -801,6 +825,12 @@ export default function HowItWorksPage() {
           className="font-display inline-flex min-h-11 items-center rounded-md border border-border-strong bg-bg-2 px-5 font-medium text-text-hi hover:bg-bg-3"
         >
           Today&apos;s puzzles
+        </Link>
+        <Link
+          href="/characters"
+          className="font-display inline-flex min-h-11 items-center rounded-md border border-border-strong bg-bg-2 px-5 font-medium text-text-hi hover:bg-bg-3"
+        >
+          Read the character lists
         </Link>
       </footer>
     </div>

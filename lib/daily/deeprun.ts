@@ -30,9 +30,13 @@
  */
 import { CALLINGS } from "@/lib/content/callings";
 import { KIT } from "@/lib/content/kit";
-import { abilityMod } from "@/lib/game/rules";
+// The die, and the rule that a 1 always fails and a 20 always clears, come from
+// the places that own them: lib/game/rules and `clears`. This file used to keep
+// its own DIE_SIDES, CRIT and FUMBLE, which is how a tuning change reaches three
+// of four copies and the dungeon starts resolving a roll its own way.
+import { DIE_SIDES, abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
-import { dateSeed, mulberry32, seededShuffle } from "./core";
+import { clears, dateSeed, mulberry32, seededShuffle } from "./core";
 import {
   DEEP_BOSSES,
   DEEP_ROOMS,
@@ -46,9 +50,6 @@ import {
 export const ROOMS = 5;
 /** The rooms plus whatever is at the bottom. */
 export const DEPTH = ROOMS + 1;
-export const DIE_SIDES = 20;
-export const CRIT = 20;
-export const FUMBLE = 1;
 
 /** How many you choose between. Small on purpose: the build is the starter. */
 export const CALLING_CHOICES = 3;
@@ -456,7 +457,9 @@ function resolveOption(
 
   const total = mods.reduce((t, m) => t + m.value, 0);
   const tn = option.tn ?? 99;
-  const cleared = die === CRIT ? true : die === FUMBLE ? false : total >= tn;
+  // Shared with the par search and with the "so a 12 or better" line the page
+  // prints before you choose. One predicate, three readers.
+  const cleared = clears(die, total, tn);
   const spent = cleared ? 0 : option.vigour;
 
   return base(cleared, {

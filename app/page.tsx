@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TavernHero } from "./TavernHero";
+import { JsonLd } from "@/components/JsonLd";
 import { Network } from "@/components/Network";
 import { AdSlot, Card, Pill, Sheet, SheetBox } from "@/components/ui";
 import { BLOODS } from "@/lib/content/bloods";
@@ -27,10 +28,19 @@ import {
 import { ABILITIES, type Scores } from "@/lib/game/types";
 
 export const metadata: Metadata = {
-  title: "Tavern Party: Free Online Roleplaying Game in Your Browser",
+  // Absolute, because the root template appends "· Tavern Party" to every child
+  // title and the home page already opens with the brand. Left as a plain string
+  // it resolved to seventy three characters with the name in it twice.
+  title: { absolute: "Tavern Party: A Free Online Roleplaying Game in Your Browser" },
   description:
-    "Roll a character, survive five encounters with friends, and only one of you walks out with the loot. A free fantasy roleplaying game in the browser, plus four daily puzzles. No download, no account.",
+    "Roll a character, survive five encounters with friends, and only one of you walks out with the loot. Free in your browser, plus four daily puzzles.",
   alternates: { canonical: "/" },
+  openGraph: {
+    title: "Tavern Party: Roll a Character, Survive the Night",
+    description:
+      "Build a character, survive five encounters, and only one of you gets the loot. Free in your browser, no account.",
+    url: "/",
+  },
 };
 
 const RUN_LENGTH = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
@@ -209,7 +219,11 @@ export default function HomePage() {
         <p className="prose-read mt-3">
           A Calling, a Blood, a piece of Kit and a Hook. The Calling is the loud one: there are{" "}
           {CALLINGS.length}, one of each per table, and being denied the one you wanted is the
-          point at which the draft becomes a game.
+          point at which the draft becomes a game. All four lists are written out in full on{" "}
+          <Link href="/characters" className="text-accent underline">
+            the character pages
+          </Link>
+          , and you are welcome to take any of them to a table of your own.
         </p>
 
         <ul className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -269,8 +283,10 @@ export default function HomePage() {
               </li>
             ))}
             <li className="text-sm text-text-low">
-              {HOOKS.length - SHOWN_HOOKS.length} more, and no two of them put the same problem
-              into the deck.
+              <Link href="/characters/backstories" className="text-accent underline">
+                {HOOKS.length - SHOWN_HOOKS.length} more, written out in full
+              </Link>
+              , and no two of them put the same problem into the deck.
             </li>
           </ul>
         </div>
@@ -340,6 +356,25 @@ export default function HomePage() {
             made of. Nothing to install, nothing to buy, and no dice to lose under the sofa.
           </p>
           <p>
+            Every part of that is a list you can read before you ever open a table: eight{" "}
+            <Link href="/characters/classes" className="text-accent underline">
+              character class ideas
+            </Link>
+            , eight{" "}
+            <Link href="/characters/origins" className="text-accent underline">
+              places to be from
+            </Link>
+            , twelve pieces of{" "}
+            <Link href="/characters/gear" className="text-accent underline">
+              adventuring gear
+            </Link>{" "}
+            and twenty{" "}
+            <Link href="/characters/backstories" className="text-accent underline">
+              character backstory ideas
+            </Link>
+            , all written out. Take any of them to a game that has nothing to do with this one.
+          </p>
+          <p>
             It is built as a one-shot: a whole story with an ending, in the time a lunch break
             allows, rather than a campaign that needs everybody free on the same evening for a
             month. If you have ever wanted to try a tabletop game with friends online but could
@@ -396,31 +431,29 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Structured data. One inline block rather than a component, because it is
-          the only place on the site that needs it. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "VideoGame",
-            name: "Tavern Party",
-            url: "https://tavernparty.co.uk",
-            description:
-              "A free fantasy roleplaying game in the browser. Roll a character, take on five encounters with friends, and find out which of you walks out with the loot.",
-            genre: ["Role-playing game", "Party game", "Puzzle"],
-            gamePlatform: "Web browser",
-            playMode: ["MultiPlayer", "SinglePlayer"],
-            numberOfPlayers: {
-              "@type": "QuantitativeValue",
-              minValue: 1,
-              maxValue: MAX_PLAYERS,
-            },
-            applicationCategory: "Game",
-            operatingSystem: "Any",
-            offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
-            inLanguage: "en-GB",
-          }),
+      {/* Structured data for the game itself. Through JsonLd rather than a raw
+          script tag, so `<` is escaped and a future dynamic value cannot close
+          the tag. */}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "VideoGame",
+          name: "Tavern Party",
+          url: "https://tavernparty.co.uk",
+          description:
+            "A free fantasy roleplaying game in the browser. Roll a character, take on five encounters with friends, and find out which of you walks out with the loot.",
+          genre: ["Role-playing game", "Party game", "Puzzle"],
+          gamePlatform: "Web browser",
+          playMode: ["MultiPlayer", "SinglePlayer"],
+          numberOfPlayers: {
+            "@type": "QuantitativeValue",
+            minValue: 1,
+            maxValue: MAX_PLAYERS,
+          },
+          applicationCategory: "Game",
+          operatingSystem: "Any",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
+          inLanguage: "en-GB",
         }}
       />
     </div>

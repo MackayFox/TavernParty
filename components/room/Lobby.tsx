@@ -4,8 +4,9 @@
  * WAITING and MUSTER.
  *
  * The lobby is where the code gets shared, so the code is the biggest thing on
- * it. The muster is an eight second beat with no input: the array everybody is
- * about to fight over, and the order they will fight over it in.
+ * it. The muster is a beat with no input at all: the array everybody is about to
+ * fight over, and the order they will fight over it in. It is the one screen in
+ * the game with a countdown ring and nothing to press, so it has to say so.
  */
 import Link from "next/link";
 import { useState } from "react";
@@ -180,6 +181,15 @@ export function Muster({ view }: { view: RoomView }) {
   const array = view.houseArray ?? [];
   return (
     <div className="phase-in space-y-6">
+      {/*
+        A countdown ring over a screen with no control on it reads as a demand,
+        and the only people who know it is not one are the people who have played
+        before. So: nothing to do, and it moves on by itself.
+      */}
+      <p className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-hi">
+        There is nothing to press on this one. Read it while it is up, and the first draft
+        opens on its own when the clock runs out. Nothing here can go wrong.
+      </p>
       <section aria-label="The house array">
         <p className="prose-read">
           The house rolls once and everybody builds from the same six numbers. No

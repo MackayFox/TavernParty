@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { DAILY_GAMES, DAILY_META, utcDate } from "@/lib/daily/core";
+import { DAILY_GAMES, DAILY_META, dailyCacheControl, utcDate } from "@/lib/daily/core";
 
 /**
  * The index of the four dailies.
@@ -7,10 +7,16 @@ import { DAILY_GAMES, DAILY_META, utcDate } from "@/lib/daily/core";
  * One place that names the ids, so a smoke test or a link checker does not have
  * to guess at slugs, and adding a fifth daily is one entry in `DAILY_META`
  * rather than an edit in every consumer.
+ *
+ * A table of constants and today's date, so it is cacheable until the date in it
+ * stops being true.
  */
 export async function GET() {
-  return NextResponse.json({
-    date: utcDate(),
-    games: DAILY_GAMES.map((id) => ({ id, ...DAILY_META[id] })),
-  });
+  return NextResponse.json(
+    {
+      date: utcDate(),
+      games: DAILY_GAMES.map((id) => ({ id, ...DAILY_META[id] })),
+    },
+    { headers: { "Cache-Control": dailyCacheControl(false) } }
+  );
 }

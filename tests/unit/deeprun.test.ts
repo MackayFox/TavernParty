@@ -164,6 +164,12 @@ describe("par", () => {
     expect(performance.now() - started).toBeLessThan(10_000);
   });
 
+  // Fourteen full par searches. It runs in about 2.2 seconds alone, and there is
+  // already a separate test above asserting par is cheap, so this one must not
+  // double as an accidental performance assertion: under a full suite run the
+  // default five second timeout fails on CPU contention rather than on anything
+  // being wrong, and a test that fails for reasons unrelated to its subject is
+  // worse than no test.
   it("leaves every day of a fortnight winnable", () => {
     for (let d = 1; d <= 14; d++) {
       const date = `2026-09-${String(d).padStart(2, "0")}`;
@@ -175,7 +181,7 @@ describe("par", () => {
       // A day nobody could have got out of is a broken day.
       expect(played.out, date).toBe(true);
     }
-  });
+  }, 30_000);
 });
 
 describe("the content", () => {

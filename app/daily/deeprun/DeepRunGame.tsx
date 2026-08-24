@@ -27,10 +27,12 @@ import {
   SheetBox,
   Spinner,
 } from "@/components/ui";
-import { getJson, postJson } from "@/components/client";
+import { postJson } from "@/components/client";
 import { ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
-import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily } from "../shell";
+import { faceNeeded } from "@/lib/daily/core";
+import { readProgress, writeProgress } from "@/lib/daily/local";
+import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 
 const GAME = "deeprun" as const;
 
@@ -91,10 +93,76 @@ type RunReply = {
   archive: boolean;
   finished: boolean;
   par?: number;
+  /** The line that scored par. Sent with the score, and never before it. */
+  bestRun?: { build: { callingId: string; kitIds: string[] }; steps: Step[] } | null;
   share?: string;
 };
 
 type Step = { optionId: string; knack?: boolean };
+
+/** Everything about a run in progress: the character, and how far down they are. */
+type Saved = {
+  callingId: string | null;
+  slots: (number | null)[];
+  kitIds: string[];
+  down: boolean;
+  steps: Step[];
+  reply: RunReply | null;
+};
+
+/**
+ * A run in progress, read back off this browser.
+ *
+ * This is the one daily where the dice are worth knowing twice: the numbers
+ * arrive a room at a time and there is no way to see them again, so a reload
+ * used to destroy the whole run with nothing to go back to. Everything is checked
+ * against tonight's dungeon rather than trusted, because the stored copy may be a
+ * shape from an older release or simply somebody's editing.
+ *
+ * The lines and the steps are written together and are meaningless apart, so if
+ * they do not match, the descent is dropped and the build is kept. Losing the
+ * character as well would be the same bug wearing a coat.
+ *
+ * Exported only so a test can hold the validation to all of that.
+ */
+export function restore(data: Payload): Saved | null {
+  const saved = readProgress<Saved>(GAME, data.date);
+  if (!saved || typeof saved !== "object") return null;
+  const okCalling =
+    saved.callingId === null || data.callings.some((c) => c.id === saved.callingId);
+  const okSlots =
+    Array.isArray(saved.slots) &&
+    saved.slots.length === data.abilities.length &&
+    saved.slots.every(
+      (s) => s === null || (Number.isInteger(s) && s >= 0 && s < data.array.length)
+    );
+  const okKit =
+    Array.isArray(saved.kitIds) &&
+    saved.kitIds.length <= 2 &&
+    new Set(saved.kitIds).size === saved.kitIds.length &&
+    saved.kitIds.every((id) => data.kit.some((k) => k.id === id));
+  if (!okCalling || !okSlots || !okKit) return null;
+
+  const okSteps =
+    Array.isArray(saved.steps) &&
+    saved.steps.length <= data.rooms.length &&
+    saved.steps.every((s, i) => data.rooms[i]?.options.some((o) => o.id === s?.optionId));
+  const steps = okSteps ? saved.steps : [];
+  const okReply =
+    saved.reply == null
+      ? steps.length === 0 // nothing chosen yet is a consistent state too
+      : Array.isArray(saved.reply.lines) && saved.reply.lines.length === steps.length;
+  const descending = okSteps && okReply;
+
+  return {
+    callingId: saved.callingId ?? null,
+    slots: saved.slots,
+    kitIds: saved.kitIds,
+    down: descending ? !!saved.down : false,
+    steps: descending ? steps : [],
+    reply: descending ? saved.reply : null,
+  };
+}
 
 export function DeepRunGame({ date }: { date: string | null }) {
   const [data, setData] = useState<Payload | null>(null);
@@ -102,7 +170,7 @@ export function DeepRunGame({ date }: { date: string | null }) {
 
   useEffect(() => {
     const url = date ? `/api/daily/deeprun?date=${encodeURIComponent(date)}` : "/api/daily/deeprun";
-    getJson<Payload>(url)
+    getPuzzle<Payload>(url)
       .then(setData)
       .catch(() => setError("Could not find the way in. Try again."));
   }, [date]);
@@ -125,22 +193,39 @@ function Run({ data }: { data: Payload }) {
   const [busy, setBusy] = useState(false);
   const [announce, setAnnounce] = useState("");
 
+  // Whatever this browser already had of tonight, read once on the way in.
+  const [saved] = useState(() => restore(data));
+
   // The build.
-  const [callingId, setCallingId] = useState<string | null>(null);
-  const [slots, setSlots] = useState<(number | null)[]>(() =>
-    new Array(data.abilities.length).fill(null)
+  const [callingId, setCallingId] = useState<string | null>(saved?.callingId ?? null);
+  const [slots, setSlots] = useState<(number | null)[]>(
+    () => saved?.slots ?? new Array(data.abilities.length).fill(null)
   );
   const [held, setHeld] = useState<number | null>(null);
-  const [kitIds, setKitIds] = useState<string[]>([]);
-  const [down, setDown] = useState(false);
+  const [kitIds, setKitIds] = useState<string[]>(saved?.kitIds ?? []);
+  const [down, setDown] = useState(saved?.down ?? false);
 
   // The descent.
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [reply, setReply] = useState<RunReply | null>(null);
+  const [steps, setSteps] = useState<Step[]>(saved?.steps ?? []);
+  const [reply, setReply] = useState<RunReply | null>(saved?.reply ?? null);
   const [streak, setStreak] = useState<number | null>(null);
   const recorded = useRef(false);
 
   const finished = !!reply?.finished;
+
+  // Written on every change rather than at the end, because the end is exactly
+  // what a lost run never reaches. The initial state is the stored state, so the
+  // first pass writes back what it just read.
+  useEffect(() => {
+    writeProgress(GAME, data.date, {
+      callingId,
+      slots,
+      kitIds,
+      down,
+      steps,
+      reply,
+    } satisfies Saved);
+  }, [data.date, callingId, slots, kitIds, down, steps, reply]);
 
   useEffect(() => {
     if (!finished || !reply || recorded.current) return;
@@ -470,12 +555,15 @@ function Run({ data }: { data: Payload }) {
               <p className="mt-3 text-sm text-text-low">
                 You do not know what this room rolled. Nobody does until somebody opens it.
               </p>
+              <DieRule />
 
               <ul className="mt-3 space-y-3">
                 {room.options.map((option) => {
                   const bonus = option.ability ? bonusFor(option.ability) : 0;
-                  const need =
-                    option.tn !== null ? Math.max(1, Math.min(20, option.tn - bonus)) : null;
+                  // Floored at 2 and capped at 20 by `faceNeeded`, not at 1 and 20:
+                  // this line used to promise a door on "a 1 or better" when a 1
+                  // is the one face that never opens anything.
+                  const need = option.tn !== null ? faceNeeded(option.tn, bonus) : null;
                   const canKnack =
                     !knackSpent &&
                     !!calling &&
@@ -545,6 +633,43 @@ function Run({ data }: { data: Payload }) {
                   </div>
                 </dl>
               </Card>
+
+              {/* The other two dailies show you the night you could have had.
+                  This one knew it and was keeping it to itself. */}
+              {reply.bestRun && reply.score < (reply.par ?? 0) && (
+                <Card>
+                  <p className="label-caps">The best run there was tonight</p>
+                  <p className="mt-1 text-text-hi">
+                    {data.callings.find((c) => c.id === reply.bestRun!.build.callingId)?.name ??
+                      "Somebody else"}
+                    , carrying{" "}
+                    {reply
+                      .bestRun!.build.kitIds.map(
+                        (id) => data.kit.find((k) => k.id === id)?.name ?? id
+                      )
+                      .join(" and ")}
+                    .
+                  </p>
+                  <ol className="mt-2 space-y-1 text-sm text-text-mid">
+                    {reply.bestRun.steps.map((step, i) => {
+                      const room = data.rooms[i];
+                      const option = room?.options.find((o) => o.id === step.optionId);
+                      return (
+                        <li key={`${step.optionId}-${i}`}>
+                          <span className="num text-text-low">Floor {i + 1}. </span>
+                          {option?.label ?? step.optionId}
+                          {step.knack ? ", on the knack" : ""}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  <p className="mt-2 text-sm text-text-low">
+                    The dice were the same for them as for you. Only the character and the doors
+                    were different.
+                  </p>
+                </Card>
+              )}
+
               {reply.share && <ShareCard text={reply.share} />}
               <NextUp game={GAME} archive={reply.archive} streak={streak} />
             </>

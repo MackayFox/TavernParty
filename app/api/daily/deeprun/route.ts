@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
-import { resolvePlayDate } from "@/lib/daily/core";
+import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import {
   ARRAY_SIZE,
   DEPTH,
@@ -34,7 +34,12 @@ import { parFor } from "@/lib/daily/deeprun-par";
  */
 export async function GET(req: Request) {
   const { date, archive } = resolvePlayDate(new URL(req.url).searchParams.get("date"));
-  return NextResponse.json({ ...puzzleFor(date), archive });
+  // Safe to cache in public precisely because the dice are not in it: this is
+  // the dungeon everybody is handed, and it changes at UTC midnight only.
+  return NextResponse.json(
+    { ...puzzleFor(date), archive },
+    { headers: { "Cache-Control": dailyCacheControl(archive) } }
+  );
 }
 
 const schema = z.object({

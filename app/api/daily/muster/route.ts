@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
-import { resolvePlayDate } from "@/lib/daily/core";
+import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import { parFor, play, puzzleFor, shareText, validBuild } from "@/lib/daily/muster";
 import { ARRAY_SIZE } from "@/lib/game/rules";
 
@@ -14,10 +14,16 @@ import { ARRAY_SIZE } from "@/lib/game/rules";
  * the design: a score below par is a build decision, never a bad roll.
  *
  * Par, and the build that reaches it, come back with the result.
+ *
+ * The GET is public and cacheable: the same bytes for everybody until the next
+ * UTC midnight, so nobody should be paying a round trip for it twice.
  */
 export async function GET(req: Request) {
   const { date, archive } = resolvePlayDate(new URL(req.url).searchParams.get("date"));
-  return NextResponse.json({ ...puzzleFor(date), archive });
+  return NextResponse.json(
+    { ...puzzleFor(date), archive },
+    { headers: { "Cache-Control": dailyCacheControl(archive) } }
+  );
 }
 
 const schema = z.object({

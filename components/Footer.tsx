@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { CHARACTER_PAGES } from "@/app/characters/shared";
+import { isDisallowed } from "@/app/crawl";
 import { OTHER_SITES } from "@/lib/content/network";
 import { DAILY_GAMES, DAILY_META } from "@/lib/daily/core";
 
@@ -19,9 +21,16 @@ const COLUMNS: [string, [string, string][]][] = [
     ],
   ],
   [
+    "Characters",
+    [
+      ["How to build one", "/characters"],
+      ...CHARACTER_PAGES.map((p) => [p.label, p.path] as [string, string]),
+    ],
+  ],
+  [
     "The house",
     [
-      ["How it works", "/how-it-works"],
+      ["How to play", "/how-it-works"],
       ["Online roleplaying games", "/online-roleplaying-games"],
       ["Leaderboard", "/leaderboard"],
       // An optional account that nothing links to is an account nobody has. The
@@ -39,7 +48,9 @@ const COLUMNS: [string, [string, string][]][] = [
 export function Footer() {
   return (
     <footer className="mt-16 border-t border-border-dim py-10 text-sm">
-      <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+      {/* Two columns until there is room for four. Three would leave the network
+          column orphaned on its own row at every width. */}
+      <div className="grid grid-cols-2 gap-8 lg:grid-cols-4">
         {COLUMNS.map(([title, links]) => (
           <nav key={title} aria-label={title}>
             <p className="label-caps mb-3">{title}</p>
@@ -49,6 +60,11 @@ export function Footer() {
                 <li key={`${title}-${href}`}>
                   <Link
                     href={href}
+                    // "Log in" and "Your record" are both in robots.txt. A
+                    // followable link to a path we have refused to serve a
+                    // crawler is a warning in Search Console and a waste of the
+                    // crawl budget the real pages want.
+                    rel={isDisallowed(href) ? "nofollow" : undefined}
                     className="flex min-h-11 items-center text-text-mid hover:text-text-hi"
                   >
                     {label}

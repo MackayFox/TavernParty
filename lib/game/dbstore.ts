@@ -2,7 +2,11 @@
  * Postgres-backed store (Supabase). Room state is one JSONB row in `tables`,
  * with optimistic concurrency on `version`. Every access runs engine.tick()
  * first, because serverless has no timers, and version bumps are broadcast over
- * Supabase Realtime so clients refetch immediately.
+ * Supabase Realtime, where that is switched on, so clients refetch immediately.
+ *
+ * Reads go through a per-instance copy keyed on the version, because this row
+ * being read every 2.5s per player is the entire cost of running the product.
+ * The measurements are on `cache` below.
  */
 import { adminClient } from "../supabase/admin";
 import * as engine from "./engine";
@@ -31,14 +35,96 @@ const ABANDONED_AFTER_MS = 30 * 60 * 1000;
  */
 const MAX_RETRIES = 6;
 
+/**
+ * Realtime is opt-in, because it is an accelerant and it is not free.
+ *
+ * A broadcast makes clients refetch a little sooner than their next 2.5s poll
+ * and carries no state, so the game plays correctly with it off, misconfigured
+ * or blocked. What it costs is a metered message per subscriber per version bump
+ * and a held connection per player, against a free tier ceiling of 200 of them,
+ * which is thirty-three six-player tables. Off unless somebody asks for it, and
+ * the same variable gates the client's subscription.
+ */
+const REALTIME = process.env.NEXT_PUBLIC_REALTIME === "1";
+
+/**
+ * The last state this instance read, per table.
+ *
+ * A poll reads the room state and the room state almost never changes. Measured
+ * on a full six-player run: 285 polls per player over twelve minutes, 1,710 for
+ * the table, against 15 version bumps. Better than 99% of those reads pulled a
+ * JSONB row identical to the one the same instance had read 2.5 seconds earlier,
+ * at 7.4 KB a time, and that read is the product's whole Supabase egress bill.
+ *
+ * So a load asks for the version first, which is one integer, and pulls `state`
+ * only when it differs from the copy already in hand.
+ *
+ * Best effort by construction: it is per instance, a serverless deployment has
+ * many, and a cold one simply reads. Nothing hangs off it being right, because
+ * `save` is still guarded on the version that was loaded, so a stale copy cannot
+ * overwrite anybody: it loses the race and the retry loop re-reads.
+ */
+const cache = new Map<string, { room: Room; at: number }>();
+
+/** One instance serves many tables. Bounded, oldest read evicted first. */
+const CACHE_MAX = 64;
+
+/**
+ * A held copy is re-read in full this often whatever the version says.
+ *
+ * A version is only a safe key while the row it names is the same row, and
+ * `cleanupStale` frees codes for `generateCode` to hand out again, with the
+ * reissued table counting from the bottom. One in nine hundred million and
+ * permanently wrong if it ever lands, against one full read per table per minute
+ * to make it impossible.
+ */
+const CACHE_TTL_MS = 60_000;
+
+function held(code: string): Room | null {
+  const hit = cache.get(code);
+  if (!hit || Date.now() - hit.at > CACHE_TTL_MS) return null;
+  return hit.room;
+}
+
+/** Always a copy, both ways: callers mutate the room `load` hands them. */
+function remember(code: string, room: Room): void {
+  cache.set(code, { room: structuredClone(room), at: Date.now() });
+  for (const oldest of cache.keys()) {
+    if (cache.size <= CACHE_MAX) break;
+    cache.delete(oldest);
+  }
+}
+
+/** The row's version, or null when there is no row. */
+async function currentVersion(code: string): Promise<number | null> {
+  const { data, error } = await adminClient()
+    .from("tables")
+    .select("version")
+    .eq("code", code)
+    .maybeSingle();
+  if (error) throw new GameError("internal", "Could not reach the tavern. Try again.");
+  return (data?.version as number | undefined) ?? null;
+}
+
 async function load(code: string): Promise<Room | null> {
+  const key = code.toUpperCase();
+  const mine = held(key);
+  if (mine) {
+    const version = await currentVersion(key);
+    if (version === mine.version) return structuredClone(mine);
+    cache.delete(key);
+    // No row at all: the table was reaped. Say so rather than reading again.
+    if (version === null) return null;
+  }
   const { data, error } = await adminClient()
     .from("tables")
     .select("state")
-    .eq("code", code.toUpperCase())
+    .eq("code", key)
     .maybeSingle();
   if (error) throw new GameError("internal", "Could not reach the tavern. Try again.");
-  return (data?.state as Room) ?? null;
+  const room = (data?.state as Room) ?? null;
+  if (room) remember(key, room);
+  return room;
 }
 
 /** Persist only if nobody else wrote first. False means retry. */
@@ -64,6 +150,7 @@ async function save(room: Room, expectedVersion: number): Promise<boolean> {
 }
 
 async function broadcast(code: string, version: number): Promise<void> {
+  if (!REALTIME) return;
   try {
     await adminClient()
       .channel(`tp:table:${code}`)
@@ -102,6 +189,9 @@ async function withRoom<T>(code: string, work: (room: Room, now: number) => T): 
        * another instance is committing this same transition, so it will persist it.
        */
       if (justFinished) await persistRun(room);
+      // This instance now knows exactly what the row holds, so the next poll
+      // through here is a version check rather than another 7 KB read.
+      remember(room.code, room);
       void broadcast(room.code, room.version);
       return result;
     }
@@ -127,7 +217,10 @@ export const dbStore: GameStore = {
         name: room.name,
         acts: room.settings.acts,
       });
-      if (!error) return room;
+      if (!error) {
+        remember(code, room);
+        return room;
+      }
       if (error.code !== "23505") {
         console.error("[dbstore] createRoom failed", error);
         throw new GameError("internal", "Could not open a table. Try again.");

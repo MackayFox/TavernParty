@@ -230,6 +230,10 @@ export function Draft({ view, post, busy }: PhaseProps) {
                     : atLimit
                       ? "Three is the most you can rank"
                       : "Add to your ranking"}
+                  {/* Eight buttons all called "Add to your ranking" is eight
+                      identical rows in a screen reader's control list. The
+                      visible words still lead it, so speech input is unaffected. */}
+                  <span className="sr-only">: {label(id)}</span>
                 </button>
               </div>
             </li>
@@ -265,6 +269,7 @@ function CallingBody({ id }: { id: string }) {
       <details className="mt-2">
         <summary className="label-caps flex min-h-11 items-center text-accent">
           What it is like to play
+          <span className="sr-only">: {calling.name}</span>
         </summary>
         <p className="mt-1 text-sm text-text-mid">{CALLING_DETAIL[id]}</p>
       </details>
@@ -295,6 +300,7 @@ function KitBody({ id }: { id: string }) {
       <details className="mt-2">
         <summary className="label-caps flex min-h-11 items-center text-accent">
           A closer look
+          <span className="sr-only">: {item.name}</span>
         </summary>
         <p className="mt-1 text-sm text-text-mid">{KIT_DETAIL[id]}</p>
       </details>

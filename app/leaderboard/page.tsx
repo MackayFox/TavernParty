@@ -3,10 +3,16 @@ import Link from "next/link";
 import { getLeaderboard } from "@/lib/stats";
 
 export const metadata: Metadata = {
-  title: "The board of Hoards",
+  title: "Leaderboard: Who Has Taken the Most Hoards",
   description:
-    "Who has walked out with the Hoard most often on Tavern Party. Ranked by wins, not by hours played.",
+    "Who has walked out with the Hoard most often on Tavern Party, ranked by wins rather than by hours played. Turning up is deliberately worth nothing here.",
   alternates: { canonical: "/leaderboard" },
+  openGraph: {
+    title: "Leaderboard: Who Has Taken the Most Hoards",
+    description:
+      "Ranked by Hoards taken, then by best single night. Not by Renown piled up over time, because that would only reward turning up.",
+    url: "/leaderboard",
+  },
 };
 
 export const revalidate = 300;

@@ -36,19 +36,17 @@ import {
   ARRAY_DICE,
   ARRAY_DROP,
   ARRAY_SIZE,
-  CRIT,
   DREAD_DOUBLE_AT,
   DREAD_MAX,
   FLINCH_DREAD,
   FLINCH_RENOWN,
-  FUMBLE,
   HOOK_TOKENS_MAX,
   HOOK_TOKEN_VALUE,
   MARK_BONUS,
   MARK_FLINCH_PENALTY,
 } from "@/lib/game/rules";
 import { ABILITIES, type Ability, type Modifier, type Player, type Scores } from "@/lib/game/types";
-import { parPhrase, seededRng } from "./core";
+import { clears, parPhrase, seededRng } from "./core";
 
 /** Five, as in the live run. */
 export const ACTS = 5;
@@ -347,8 +345,9 @@ function step(
     act.face
   );
   const total = sumLedger(mods);
-  const success =
-    act.face === CRIT ? true : act.face === FUMBLE ? false : total >= door.tn;
+  // The same predicate the page labels the door with, so the preview and the
+  // ledger cannot disagree about a natural 1 or a natural 20.
+  const success = clears(act.face, total, door.tn);
 
   let renownDelta = success ? door.deed : -door.cost.renown * mult;
   if (act.marked) renownDelta += MARK_BONUS;

@@ -29,13 +29,11 @@ import {
   ARRAY_DICE,
   ARRAY_DROP,
   ARRAY_SIZE,
-  CRIT,
   DIE_SIDES,
-  FUMBLE,
   abilityMod,
 } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
-import { parPhrase, seededRng, seededShuffle } from "./core";
+import { clears, parPhrase, seededRng, seededShuffle } from "./core";
 
 export const TRIALS = 5;
 
@@ -256,8 +254,9 @@ function resolve(
     mods.push({ label: kit.name.toLowerCase(), value: kit.value });
 
   const total = mods.reduce((sum, m) => sum + m.value, 0);
-  const cleared =
-    trial.face === CRIT ? true : trial.face === FUMBLE ? false : total >= trial.tn;
+  // Shared with the door labels on the page, so what the build promises and what
+  // the night pays are the same sentence.
+  const cleared = clears(trial.face, total, trial.tn);
   return {
     id: trial.id,
     label: trial.label,

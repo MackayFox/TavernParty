@@ -21,11 +21,17 @@ const CONTACT_SUBJECTS = [
 ] as const;
 
 export const metadata: Metadata = {
-  title: "Contact",
+  title: "Contact: Report a Bug or Suggest an Encounter",
   description:
-    "Report a bug, question a rule, or suggest an encounter for the deck. One form, and it reaches the person who built the game.",
+    "Report a bug, question a rule, or suggest an encounter for the deck. One form, and it reaches the person who built the game. An email address is optional.",
   alternates: { canonical: "/contact" },
   robots: { index: true, follow: true },
+  openGraph: {
+    title: "Contact: Report a Bug or Suggest an Encounter",
+    description:
+      "Bugs, rules that read wrong, an encounter you think belongs in the deck, or a complaint. It all arrives in the same place.",
+    url: "/contact",
+  },
 };
 
 const ERRORS: Record<string, string> = {

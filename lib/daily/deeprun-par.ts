@@ -29,6 +29,7 @@
  */
 import { abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
+import { clears } from "./core";
 import {
   BOOST,
   BOSS_BEATEN,
@@ -46,9 +47,6 @@ import {
   type Step,
 } from "./deeprun";
 import type { KnackKind } from "./deeprun-data";
-
-const CRIT = 20;
-const FUMBLE = 1;
 
 /** What one (option, knack) does, worked out once and then just looked up. */
 type Move = { step: Step; cleared: boolean; vigour: number };
@@ -76,7 +74,7 @@ function movesFor(
       return { step: { optionId: option.id }, cleared: true, vigour: -option.vigour };
     const ability = option.ability ?? "grit";
     const total = die + bonusFor(ability);
-    const cleared = die === CRIT ? true : die === FUMBLE ? false : total >= (option.tn ?? 99);
+    const cleared = clears(die, total, option.tn ?? 99);
     return { step: { optionId: option.id }, cleared, vigour: cleared ? 0 : -option.vigour };
   };
 
@@ -111,7 +109,7 @@ function knackMove(
       if (option.kind !== "check") return null;
       const ability = option.ability ?? "grit";
       const total = die + bonusFor(ability) + BOOST;
-      const cleared = die === CRIT ? true : die === FUMBLE ? false : total >= (option.tn ?? 99);
+      const cleared = clears(die, total, option.tn ?? 99);
       return { step, cleared, vigour: cleared ? 0 : -option.vigour };
     }
     case "rethrow": {
@@ -119,7 +117,7 @@ function knackMove(
       const again = secondDie(puzzle.date, roomIndex);
       const ability = option.ability ?? "grit";
       const total = again + bonusFor(ability);
-      const cleared = again === CRIT ? true : again === FUMBLE ? false : total >= (option.tn ?? 99);
+      const cleared = clears(again, total, option.tn ?? 99);
       return { step, cleared, vigour: cleared ? 0 : -option.vigour };
     }
   }

@@ -7,12 +7,25 @@
  * They are held as indices into the house array rather than as values, because
  * the array can contain the same number twice and a duplicate must still be two
  * separate chips.
+ *
+ * THE SEVENTY SECONDS. This screen used to open empty: six blank boxes and
+ * twenty backgrounds, each with a name, a line, two tags and a disclosure, and a
+ * clock. Nobody reads twenty Hooks in seventy seconds, so nobody read any of
+ * them, and running out of clock handed you a Hook drawn at random by `beginRun`
+ * with no warning anywhere that it would.
+ *
+ * The fix is the framing, not the clock, which lives in rules.ts and is not
+ * ours: the screen opens with a whole character already on it, placed the way
+ * `defaultScores` would place it and carrying a suggested past, and the seventy
+ * seconds are spent disagreeing with it rather than producing it from nothing.
+ * Twenty cards are behind one tap instead of in front of you. Nothing here is
+ * mandatory reading, and what the deadline does is written on the screen.
  */
 import { useMemo, useState } from "react";
-import { Button, ErrorNote, Pill, Sheet } from "@/components/ui";
+import { Button, ErrorNote, Pill, Sheet, hashOf } from "@/components/ui";
 import { HOOKS, HOOK_DETAIL } from "@/lib/content/hooks";
 import { ABILITY_BLURB, ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
-import { ABILITIES, type Ability, type Scores } from "@/lib/game/types";
+import { ABILITIES, type Ability, type Calling, type Scores } from "@/lib/game/types";
 import { BLOOD_BY_ID, CALLING_BY_ID, KIT_BY_ID, meOf, signed, type PhaseProps } from "./shared";
 
 type Slots = Record<Ability, number | null>;
@@ -26,6 +39,39 @@ const EMPTY: Slots = {
   charm: null,
 };
 
+/**
+ * Best numbers onto what you are trained for, then down the standard order.
+ *
+ * Deliberately the same policy as `defaultScores` in the engine, which is what
+ * the deadline applies to anybody who hands in nothing. The screen opening on it
+ * means the suggestion you are looking at is the one you will get.
+ */
+export function autoSlots(array: readonly number[], calling: Calling | undefined): Slots {
+  const order: Ability[] = calling
+    ? [...calling.affinities, ...ABILITIES.filter((a) => !calling.affinities.includes(a))]
+    : [...ABILITIES];
+  const byValue = array.map((_, i) => i).sort((a, b) => array[b] - array[a]);
+  const next = { ...EMPTY };
+  order.forEach((ability, i) => {
+    next[ability] = byValue[i] ?? null;
+  });
+  return next;
+}
+
+/**
+ * The past this screen opens on.
+ *
+ * Spread across the table by a hash of the player's own id rather than given to
+ * everybody as HOOKS[0]: the twenty insert tags are a permutation of the whole
+ * tag vocabulary, so a table that all defaulted to the same Hook would build a
+ * deck out of one problem repeated. It is named on screen, it is changeable for
+ * the whole window, and it is the same on every render, which is the difference
+ * between a suggestion and the silent draw the deadline used to make.
+ */
+export function suggestedHookId(playerId: string): string {
+  return HOOKS[hashOf(playerId) % HOOKS.length].id;
+}
+
 export function Assign({ view, post, busy }: PhaseProps) {
   const me = meOf(view);
   const array = view.houseArray ?? [];
@@ -33,11 +79,16 @@ export function Assign({ view, post, busy }: PhaseProps) {
   const blood = me?.bloodId ? BLOOD_BY_ID.get(me.bloodId) : undefined;
   const kit = (me?.kitIds ?? []).map((id) => KIT_BY_ID.get(id)).filter((k) => !!k);
 
-  const [slots, setSlots] = useState<Slots>(() => fromScores(me?.scores ?? null, array));
+  const [slots, setSlots] = useState<Slots>(() =>
+    me?.scores ? fromScores(me.scores, array) : autoSlots(array, calling)
+  );
   const [held, setHeld] = useState<number | null>(null);
-  const [hookId, setHookId] = useState<string | null>(me?.hookId ?? null);
+  const [hookId, setHookId] = useState<string | null>(
+    () => me?.hookId ?? (view.me.id ? suggestedHookId(view.me.id) : null)
+  );
   const [problem, setProblem] = useState<string | null>(null);
   const [handedIn, setHandedIn] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
 
   const used = useMemo(
     () => new Set(ABILITIES.map((a) => slots[a]).filter((i): i is number => i !== null)),
@@ -59,19 +110,10 @@ export function Assign({ view, post, busy }: PhaseProps) {
     setHeld(null);
   }
 
-  /** Best numbers onto what you are trained for, then down the standard order. */
   function auto() {
     setProblem(null);
     setHandedIn(false);
-    const order: Ability[] = calling
-      ? [...calling.affinities, ...ABILITIES.filter((a) => !calling.affinities.includes(a))]
-      : [...ABILITIES];
-    const byValue = array.map((_, i) => i).sort((a, b) => array[b] - array[a]);
-    const next = { ...EMPTY };
-    order.forEach((ability, i) => {
-      next[ability] = byValue[i] ?? null;
-    });
-    setSlots(next);
+    setSlots(autoSlots(array, calling));
     setHeld(null);
   }
 
@@ -109,65 +151,31 @@ export function Assign({ view, post, busy }: PhaseProps) {
   return (
     <div className="phase-in space-y-6">
       {/*
-        Without this, "where should the 16 go?" has no basis at all, and the
-        auto-place button is the only usable answer: a first-timer presses it and
-        learns nothing. One sentence gives them a reason to disagree with it.
+        The four things a first-timer needs and had none of: what this is, what
+        to do, that the clock is real, and what the clock does if they let it
+        run. The last one was the worst of it, because the answer was a Hook
+        drawn at random and nothing said so.
       */}
-      <p className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-hi">
+      <section
+        aria-label="What this screen is"
+        className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-hi"
+      >
+        <p>
+          Here is a whole character, already filled in. Your best numbers are on what your
+          Calling is trained for, and a past has been suggested. Change any of it, or leave
+          it, then hand the sheet in.
+        </p>
+        <p className="mt-2 text-text-mid">
+          Hand in nothing before the clock runs out and the house keeps this placement and
+          picks your past for you at random, which is very unlikely to be the one below.
+          One tap on the button at the bottom is enough to stop that.
+        </p>
+      </section>
+      <p className="prose-read">
         Every encounter offers three ways through and each one tests a different ability, so a
         high number is only worth what the night asks of it. Spread them and you are never
         stuck; spike them and you are the only person who can do one thing.
       </p>
-      <p className="prose-read">
-        Six numbers, one sheet. Pick a number up, then tap the ability you want it in.
-        Tap a filled box to take the number back off.
-      </p>
-
-      <section aria-label="The house numbers" className="space-y-2">
-        <h2 className="label-caps">
-          Still to place · {tray.length} of {array.length}
-        </h2>
-        <ul className="flex flex-wrap gap-2">
-          {tray.map((i) => (
-            <li key={i}>
-              <button
-                type="button"
-                aria-pressed={held === i}
-                onClick={() => setHeld(held === i ? null : i)}
-                className={`flex min-h-14 min-w-14 flex-col items-center justify-center rounded-md border-2 px-2 ${
-                  held === i
-                    ? "border-accent bg-accent-dim"
-                    : "border-border-strong bg-bg-2"
-                }`}
-              >
-                <span className="num text-2xl text-text-hi">{array[i]}</span>
-                <span className="num text-[10px] text-text-mid">
-                  {signed(abilityMod(array[i]))}
-                </span>
-                {held === i && <span className="sr-only">in hand</span>}
-              </button>
-            </li>
-          ))}
-          {tray.length === 0 && (
-            <li className="text-sm text-text-mid">All six placed.</li>
-          )}
-        </ul>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={auto}>
-            Put my best where I am trained
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setSlots(EMPTY);
-              setHeld(null);
-              setHandedIn(false);
-            }}
-          >
-            Clear the sheet
-          </Button>
-        </div>
-      </section>
 
       <Sheet
         title={me?.name ?? "Your sheet"}
@@ -246,6 +254,64 @@ export function Assign({ view, post, busy }: PhaseProps) {
         </dl>
       </Sheet>
 
+      {/*
+        Below the sheet rather than above it, because the sheet now arrives full:
+        the tray is where a number goes when you take it back off, not where the
+        screen starts.
+      */}
+      <section aria-label="The house numbers" className="space-y-2">
+        <h2 className="label-caps">
+          In your hand · {tray.length} of {array.length}
+        </h2>
+        <p className="text-sm text-text-mid">
+          Tap a box on the sheet to take its number back off. Pick a number up here, then tap
+          the ability you want it in.
+        </p>
+        <ul className="flex flex-wrap gap-2">
+          {tray.map((i) => (
+            <li key={i}>
+              <button
+                type="button"
+                aria-pressed={held === i}
+                aria-label={`${array[i]}, worth ${signed(abilityMod(array[i]))}`}
+                onClick={() => setHeld(held === i ? null : i)}
+                className={`flex min-h-14 min-w-14 flex-col items-center justify-center rounded-md border-2 px-2 ${
+                  held === i
+                    ? "border-accent bg-accent-dim"
+                    : "border-border-strong bg-bg-2"
+                }`}
+              >
+                <span className="num text-2xl text-text-hi">{array[i]}</span>
+                <span className="num text-[10px] text-text-mid">
+                  {signed(abilityMod(array[i]))}
+                </span>
+                {/* Visible, not sr-only: "which one am I holding" was carried by
+                    a border colour and nothing else for everybody who can see. */}
+                {held === i && <span className="num text-[10px] text-accent">in hand</span>}
+              </button>
+            </li>
+          ))}
+          {tray.length === 0 && (
+            <li className="text-sm text-text-mid">Nothing in your hand. All six are placed.</li>
+          )}
+        </ul>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={auto}>
+            Put my best where I am trained
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSlots(EMPTY);
+              setHeld(null);
+              setHandedIn(false);
+            }}
+          >
+            Clear the sheet
+          </Button>
+        </div>
+      </section>
+
       <section aria-label="Choose a Hook" className="space-y-3">
         <div>
           <h2 className="font-display text-xl text-text-hi">Where you have been</h2>
@@ -255,49 +321,64 @@ export function Assign({ view, post, busy }: PhaseProps) {
             turns on you, so the people who can see your Hook decide when you are paid.
           </p>
         </div>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {HOOKS.map((hook) => {
-            const chosen = hookId === hook.id;
-            return (
-              <li key={hook.id}>
-                <div
-                  className={`h-full rounded-lg border bg-bg-1 p-3 ${
-                    chosen ? "border-accent" : "border-border-dim"
-                  }`}
-                >
-                  <h3 className="font-display text-text-hi">{hook.name}</h3>
-                  <p className="mt-1 text-sm italic text-text-mid">{hook.blurb}</p>
-                  <p className="mt-2 flex flex-wrap gap-2">
-                    <Pill tone="danger">Puts {hook.insertTag} in the deck</Pill>
-                    <Pill tone="success">Refills on {hook.callTag}</Pill>
-                  </p>
-                  <details className="mt-2">
-                    <summary className="label-caps flex min-h-11 items-center text-accent">
-                      The whole story
-                    </summary>
-                    <p className="mt-1 text-sm text-text-mid">{HOOK_DETAIL[hook.id]}</p>
-                  </details>
-                  <button
-                    type="button"
-                    aria-pressed={chosen}
-                    onClick={() => {
-                      setHookId(hook.id);
-                      setProblem(null);
-                      setHandedIn(false);
-                    }}
-                    className={`mt-3 min-h-11 w-full rounded-md border px-3 font-display ${
-                      chosen
-                        ? "border-accent bg-accent text-ink font-semibold"
-                        : "border-border-strong text-text-hi"
+
+        {/*
+          One card, then a door to the other nineteen. Twenty of these on screen
+          at once is more reading than the window holds, and a screen nobody can
+          finish is a screen nobody starts.
+        */}
+        {chosenHook && !browsing && (
+          <div className="rounded-lg border border-accent bg-bg-1 p-3">
+            <p className="label-caps">Yours, unless you say otherwise</p>
+            <HookBody hook={chosenHook} />
+          </div>
+        )}
+
+        <Button
+          variant="secondary"
+          aria-expanded={browsing}
+          onClick={() => setBrowsing(!browsing)}
+        >
+          {browsing ? "Close the list" : `Look at all ${HOOKS.length} pasts`}
+        </Button>
+
+        {browsing && (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {HOOKS.map((hook) => {
+              const chosen = hookId === hook.id;
+              return (
+                <li key={hook.id}>
+                  <div
+                    className={`h-full rounded-lg border bg-bg-1 p-3 ${
+                      chosen ? "border-accent" : "border-border-dim"
                     }`}
                   >
-                    {chosen ? "✓ This is your history" : "Choose this"}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    <HookBody hook={hook} />
+                    <button
+                      type="button"
+                      aria-pressed={chosen}
+                      onClick={() => {
+                        setHookId(hook.id);
+                        setProblem(null);
+                        setHandedIn(false);
+                      }}
+                      className={`mt-3 min-h-11 w-full rounded-md border px-3 font-display ${
+                        chosen
+                          ? "border-accent bg-accent text-ink font-semibold"
+                          : "border-border-strong text-text-hi"
+                      }`}
+                    >
+                      {chosen ? "✓ This is your history" : "Choose this"}
+                      {/* Twenty buttons called "Choose this" is twenty identical
+                          entries in a screen reader's control list. */}
+                      <span className="sr-only">: {hook.name}</span>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <div className="sticky bottom-0 space-y-2 border-t border-border-dim bg-bg-0 py-3">
@@ -312,7 +393,7 @@ export function Assign({ view, post, busy }: PhaseProps) {
               : tray.length > 0
                 ? `${tray.length} number${tray.length === 1 ? "" : "s"} still in your hand.`
                 : hookId
-                  ? "Ready."
+                  ? "Ready. Hand it in and the deadline cannot pick for you."
                   : "Still needs a Hook."}
           </p>
         </div>
@@ -321,9 +402,29 @@ export function Assign({ view, post, busy }: PhaseProps) {
   );
 }
 
-/** Rebuild the chip layout from scores already on the server, if there are any. */
-function fromScores(scores: Scores | null, array: readonly number[]): Slots {
-  if (!scores) return { ...EMPTY };
+/** One Hook, read the same way whether it is yours or one you are considering. */
+function HookBody({ hook }: { hook: (typeof HOOKS)[number] }) {
+  return (
+    <>
+      <h3 className="font-display text-text-hi">{hook.name}</h3>
+      <p className="mt-1 text-sm italic text-text-mid">{hook.blurb}</p>
+      <p className="mt-2 flex flex-wrap gap-2">
+        <Pill tone="danger">Puts {hook.insertTag} in the deck</Pill>
+        <Pill tone="success">Refills on {hook.callTag}</Pill>
+      </p>
+      <details className="mt-2">
+        <summary className="label-caps flex min-h-11 items-center text-accent">
+          The whole story
+          <span className="sr-only">: {hook.name}</span>
+        </summary>
+        <p className="mt-1 text-sm text-text-mid">{HOOK_DETAIL[hook.id]}</p>
+      </details>
+    </>
+  );
+}
+
+/** Rebuild the chip layout from scores already on the server. */
+function fromScores(scores: Scores, array: readonly number[]): Slots {
   const taken = new Set<number>();
   const next = { ...EMPTY };
   for (const ability of ABILITIES) {

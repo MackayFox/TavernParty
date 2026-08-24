@@ -1,8 +1,13 @@
 "use client";
 
-/** Small client helpers shared across screens. */
+/**
+ * Small client helpers shared across screens.
+ *
+ * Nothing in here may import the Supabase client. Five screens import this
+ * module for `postJson` alone, and a `useLoggedIn` hook that nothing has ever
+ * called was enough to put the whole 227 KB client into all five bundles.
+ */
 import { useEffect, useState } from "react";
-import { browserClient } from "@/lib/supabase/browser";
 import { readName, writeName } from "@/lib/daily/local";
 
 /** POST JSON and surface the server's user-facing error message on failure. */
@@ -35,20 +40,6 @@ export async function deleteJson<T>(url: string, body?: unknown): Promise<T> {
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error ?? "Something went wrong. Try again.");
   return data as T;
-}
-
-/** null = still checking; true/false = known. Logged-in users never type a name. */
-export function useLoggedIn(): boolean | null {
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  useEffect(() => {
-    const supabase = browserClient();
-    if (!supabase) {
-      setLoggedIn(false);
-      return;
-    }
-    supabase.auth.getUser().then(({ data }) => setLoggedIn(!!data.user));
-  }, []);
-  return loggedIn;
 }
 
 /** Display name persisted per browser so guests are not re-asked every game. */

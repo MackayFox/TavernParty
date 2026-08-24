@@ -1,10 +1,14 @@
 /**
  * THE DEEP RUN, content. Server-only, and imported only by `deeprun.ts`.
  *
- * Twenty rooms in three bands plus five things at the bottom. A night takes six
- * of them, so the pool has to be big enough that a week does not repeat and
- * small enough that every room is actually written rather than generated. These
- * are written.
+ * Fifteen rooms across three bands, five per band, plus five things at the
+ * bottom. Twenty in total. A night takes six of them, so the pool has to be big
+ * enough that a week does not repeat and small enough that every room is
+ * actually written rather than generated. These are written.
+ *
+ * This comment used to say twenty-five, and four separate design passes quoted
+ * it back as fact when estimating how long the pool lasts. Every one of those
+ * estimates was a quarter optimistic. Count the arrays, not the header.
  *
  * THE SHAPE OF A ROOM, and why it is always this shape.
  *

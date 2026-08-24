@@ -12,7 +12,7 @@ import { CALLINGS } from "@/lib/content/callings";
 import { KIT } from "@/lib/content/kit";
 import { HOOKS } from "@/lib/content/hooks";
 import { BLOODS } from "@/lib/content/bloods";
-import { DREAD_DOUBLE_AT, DREAD_MAX, DREAD_TURN_AT, TIMINGS } from "@/lib/game/rules";
+import { TIMINGS, dreadThresholds } from "@/lib/game/rules";
 import type { Phase, PlayerView, RoomView } from "@/lib/game/types";
 
 /** POST to a room endpoint. Resolves true when the server accepted it. */
@@ -72,7 +72,7 @@ export function phaseSentence(view: RoomView): string {
     case "WAITING":
       return `Waiting at the table. ${view.players.length} here.`;
     case "MUSTER":
-      return "The house rolls the array. Nothing to decide yet.";
+      return "The house rolls the array. Nothing to press. The first draft opens on its own.";
     case "DRAFT_CALLING":
       return "Rank up to three Callings.";
     case "DRAFT_KIT":
@@ -84,7 +84,7 @@ export function phaseSentence(view: RoomView): string {
     case "ACT_RESULT":
       return `${act}The ledger. Keep your Scar or hide it.`;
     case "BALLAD":
-      return "Toast somebody else.";
+      return "Toast somebody else. Sing nothing and nobody gets your Laurel.";
     case "FINAL":
       return "The night is over. Final standings.";
   }
@@ -95,20 +95,49 @@ export function phaseSentence(view: RoomView): string {
 // ---------------------------------------------------------------------------
 
 /**
+ * The Dread reading for THIS table, and the words that go with it.
+ *
+ * DREAD_DOUBLE_AT, DREAD_TURN_AT and DREAD_MAX are the SOLO figures, kept for
+ * the dailies and for the pages that want a number to print. A table's
+ * thresholds scale with its head count, because Dread is generated per player
+ * (see `dreadThresholds` in rules.ts). Reading the flat constants here printed a
+ * one-player ceiling over a six-player night: the meter said 5 of 8 while the
+ * party could carry 22, and it announced "everything costs more" three points
+ * before the engine agreed. Every number on this panel was somebody else's game.
+ */
+export function dreadReading(
+  dread: number,
+  players: number
+): { double: number; turn: number; max: number; doubled: boolean; turned: boolean; state: string } {
+  const { double, turn, max } = dreadThresholds(players);
+  const doubled = dread >= double;
+  const turned = dread >= turn;
+  return {
+    double,
+    turn,
+    max,
+    doubled,
+    turned,
+    state: turned
+      ? "The night has turned"
+      : doubled
+        ? "Everything costs more"
+        : "Steady, for now",
+  };
+}
+
+/**
  * The collective count, its two published thresholds, and what each one does.
  *
  * Never colour alone: the number, a state word and the two thresholds are all
  * spelled out, so the bar is decoration on top of text that already says it.
  */
-export function DreadMeter({ dread }: { dread: number }) {
-  const frac = Math.max(0, Math.min(1, dread / DREAD_MAX));
-  const turned = dread >= DREAD_TURN_AT;
-  const doubled = dread >= DREAD_DOUBLE_AT;
-  const state = turned
-    ? "The night has turned"
-    : doubled
-      ? "Everything costs more"
-      : "Steady, for now";
+export function DreadMeter({ view }: { view: RoomView }) {
+  const { double, turn, max, doubled, turned, state } = dreadReading(
+    view.dread,
+    view.players.length
+  );
+  const frac = Math.max(0, Math.min(1, view.dread / max));
   const tone = turned ? "bg-danger" : doubled ? "bg-warning" : "bg-success";
   return (
     <section
@@ -118,8 +147,8 @@ export function DreadMeter({ dread }: { dread: number }) {
       <div className="flex items-baseline justify-between gap-2">
         <span className="label-caps">Dread</span>
         <span className="num text-lg text-text-hi">
-          {dread}
-          <span className="text-text-low">/{DREAD_MAX}</span>
+          {view.dread}
+          <span className="text-text-low">/{max}</span>
         </span>
       </div>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-bg-3">
@@ -132,13 +161,16 @@ export function DreadMeter({ dread }: { dread: number }) {
       <p className="mt-2 text-sm text-text-hi">{state}</p>
       <ul className="mt-1 space-y-0.5 text-xs text-text-mid">
         <li>
-          {doubled ? "Passed" : "At"} {DREAD_DOUBLE_AT}: every Cost doubles, except on the
-          Reckless line.
+          {doubled ? "Passed" : "At"} {double}: every Cost doubles, except on the Reckless
+          line.
         </li>
         <li>
-          {turned ? "Passed" : "At"} {DREAD_TURN_AT}: the night turns, and the last Act comes
-          from a worse deck.
+          {turned ? "Passed" : "At"} {turn}: the night turns, and the last Act comes from a
+          worse deck.
         </li>
+        {/* The scale itself, so nobody reads these against the solo figures the
+            front page prints. */}
+        <li>These move with the size of the table. Yours seats {view.players.length}.</li>
       </ul>
     </section>
   );
@@ -189,6 +221,23 @@ const LOG_GLYPH: Record<RoomView["log"][number]["kind"], string> = {
   system: "·",
 };
 
+/**
+ * Kept, hidden and still undecided, counted apart.
+ *
+ * `viewFor` sends YOU your whole pile, wounds you have hidden and wounds you
+ * have not decided included, and sends everybody else only the kept ones. The
+ * rail printed `scars.length` as "Scars kept", so your own hidden Scar was
+ * counted as worn and then counted a second time as "said nothing about", and an
+ * undecided one was counted as worn before you had decided anything.
+ */
+export function scarTally(p: PlayerView): { kept: number; hidden: number; undecided: number } {
+  return {
+    kept: p.scars.filter((s) => s.kept === true).length,
+    hidden: p.hiddenScarCount,
+    undecided: p.scars.filter((s) => s.kept === null).length,
+  };
+}
+
 export function PartyRail({ view }: { view: RoomView }) {
   return (
     <section aria-label="The party" className="rounded-lg border border-border-dim bg-bg-1">
@@ -200,6 +249,7 @@ export function PartyRail({ view }: { view: RoomView }) {
           const calling = p.callingId ? CALLING_BY_ID.get(p.callingId) : undefined;
           const mine = p.id === view.me.id;
           const away = !p.connected && !p.isBot;
+          const scars = scarTally(p);
           return (
             <li key={p.id} className="flex items-start gap-2 px-3 py-2">
               <Avatar id={p.id} name={p.name} ring={mine ? "you" : null} dimmed={away} />
@@ -219,12 +269,11 @@ export function PartyRail({ view }: { view: RoomView }) {
                   {p.hookTokens === 1 ? "" : "s"}
                   {p.torches > 0 ? ` · ${p.torches} torch${p.torches === 1 ? "" : "es"}` : ""}
                 </p>
-                {(p.scars.length > 0 || p.hiddenScarCount > 0) && (
+                {scars.kept + scars.hidden + scars.undecided > 0 && (
                   <p className="text-xs text-text-low">
-                    {p.scars.length} Scar{p.scars.length === 1 ? "" : "s"} kept
-                    {p.hiddenScarCount > 0
-                      ? `, ${p.hiddenScarCount} said nothing about`
-                      : ""}
+                    {scars.kept} Scar{scars.kept === 1 ? "" : "s"} kept
+                    {scars.hidden > 0 ? `, ${scars.hidden} said nothing about` : ""}
+                    {scars.undecided > 0 ? `, ${scars.undecided} still to decide` : ""}
                   </p>
                 )}
               </div>

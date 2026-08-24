@@ -173,11 +173,22 @@ export function SheetBox({
 // People
 // ---------------------------------------------------------------------------
 
+/**
+ * Stable string hash. Same answer on the server and the client, every render.
+ *
+ * Exported because the party colours are not the only thing that needs a spread
+ * nobody can steer: ASSIGN uses it to open on a different suggested Hook for
+ * each player, which is what stops a whole table defaulting to the same past.
+ */
+export function hashOf(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 /** Stable per-player colour. Same hash on the server and the client. */
 export function partyIndex(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 8;
+  return hashOf(id) % 8;
 }
 
 export function initialsOf(name: string): string {
