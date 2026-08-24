@@ -6,6 +6,7 @@
  */
 import { adminClient } from "../supabase/admin";
 import * as engine from "./engine";
+import { persistRun } from "./persist";
 import {
   generateCode,
   summarise,
@@ -82,10 +83,16 @@ async function withRoom<T>(code: string, work: (room: Room, now: number) => T): 
     const room = await load(code);
     if (!room) throw new GameError("not_found", "That table does not exist.");
     const v0 = room.version;
+    const phase0 = room.phase;
     const now = Date.now();
     engine.tick(room, now);
     const result = work(room, now);
     if (room.version === v0) return result; // nothing changed, no write
+    if (phase0 !== "FINAL" && room.phase === "FINAL") {
+      // The run just ended. Write the record before the state, so the final
+      // snapshot a client reads is already the persisted one.
+      await persistRun(room);
+    }
     if (await save(room, v0)) {
       void broadcast(room.code, room.version);
       return result;
