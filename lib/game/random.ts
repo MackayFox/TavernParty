@@ -49,3 +49,20 @@ export function d6(rng: Rng = defaultRng): number {
 export function intBetween(min: number, max: number, rng: Rng = defaultRng): number {
   return min + Math.floor(rng() * (max - min + 1));
 }
+
+/** A twenty-sided die. The only die this game rolls in play. */
+export function d20(rng: Rng = defaultRng): number {
+  return 1 + Math.floor(rng() * 20);
+}
+
+/**
+ * One ability score: roll `dice` six-sided dice, drop the lowest `drop`, sum the
+ * rest. Rolled once per array slot, and the resulting array is shared by the
+ * whole room, so the variance is a feature rather than a fairness problem.
+ */
+export function rollScore(dice: number, drop: number, rng: Rng = defaultRng): number {
+  const faces: number[] = [];
+  for (let i = 0; i < dice; i++) faces.push(d6(rng));
+  faces.sort((a, b) => a - b);
+  return faces.slice(drop).reduce((sum, f) => sum + f, 0);
+}
