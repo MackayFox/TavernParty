@@ -35,6 +35,11 @@ export type RollContext = {
   dread: number;
   /** True when this scene carries the tag that refills their Hook. */
   hookCalled: boolean;
+  /**
+   * A Signature called into this Act before the roll. Part of the roll rather
+   * than a rescue after it, so it is a bet: declared while nobody knows the die.
+   */
+  boost?: { label: string; value: number };
 };
 
 /**
@@ -71,6 +76,10 @@ export function ledgerFor(ctx: RollContext, face: number): Modifier[] {
       value: tokens * HOOK_TOKEN_VALUE,
     });
   }
+
+  // Last, because it was declared last and because it is the loudest line on the
+  // list. A Signature should read as the thing that tipped it.
+  if (ctx.boost) mods.push({ ...ctx.boost });
 
   return mods;
 }

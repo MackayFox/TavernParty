@@ -83,9 +83,9 @@ export default function AboutPage() {
           </Card>
         </div>
         <p className="prose-read text-text-mid">
-          There are also four daily puzzles, all of which run the same engine with the dice
-          pinned to the date, so everybody in the world gets the same night and the score you
-          post is comparable. One of them is nothing but character creation, because for a lot
+          There are also four daily puzzles. Three run the same dice as the live game, pinned to
+          the date, so everybody in the world gets the same night and the score you post is
+          comparable. The fourth has no dice in it at all. One of them is nothing but character creation, because for a lot
           of people that always was the game.
         </p>
       </section>

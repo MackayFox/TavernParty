@@ -19,9 +19,11 @@ import {
   HIDE_SCAR_RENOWN,
   KEEP_SCAR_DREAD,
   KEPT_SCAR_VALUE,
+  SIGNATURE_CLEAR_DREAD,
+  SIGNATURE_OATH_RENOWN,
 } from "@/lib/game/rules";
 import { ABILITIES, type Ability, type Outcome, type Scores } from "@/lib/game/types";
-import { meOf, nameOf, signed, type PhaseProps } from "./shared";
+import { CALLING_BY_ID, meOf, nameOf, signed, type PhaseProps } from "./shared";
 
 const BLOOD_BY_ID = new Map(BLOODS.map((b) => [b.id, b]));
 
@@ -62,6 +64,31 @@ export function ActResult({ view, post, busy }: PhaseProps) {
       {mine && (
         <Sheet title={me?.name ?? "You"} subtitle={approachLabel(mine)}>
           <LedgerBody outcome={mine} sentence={sentence(mine)} onPaper />
+          {/*
+            The whetstone and the spare bowstring advertise "2 rerolls" on the
+            card you rank them on. For a while that is all they did: only torch
+            charges were honoured, so a player who drafted the whetstone for its
+            rerolls went looking for a button that was never built.
+          */}
+          {(me?.rerolls ?? 0) > 0 &&
+            mine.approachId !== "flinch" &&
+            (!mine.scar ||
+              view.me.scars.some((s) => s.id === mine.scar!.id && s.kept === null)) && (
+              <div className="mt-4 border-t border-paper-rule pt-3">
+                <p className="text-sm text-paper-ink">
+                  Your gear will buy you another throw. You keep the second one, whatever it
+                  is, and you have {me?.rerolls} left.
+                </p>
+                <Button
+                  variant="secondary"
+                  className="mt-2"
+                  disabled={busy}
+                  onClick={() => void post("/reroll")}
+                >
+                  Throw it again
+                </Button>
+              </div>
+            )}
         </Sheet>
       )}
 
@@ -107,6 +134,7 @@ export function ActResult({ view, post, busy }: PhaseProps) {
         </Sheet>
       )}
 
+      <SignatureCall view={view} post={post} busy={busy} outcome={mine} />
       {mine && <BloodCall view={view} post={post} busy={busy} outcome={mine} />}
 
       {!openScar && decided.length > 0 && (
@@ -183,6 +211,142 @@ export function ActResult({ view, post, busy }: PhaseProps) {
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * Your Signature, for the six Callings whose one is an answer to a result.
+ *
+ * The Chanter's and the Reckoner's are on the Act screen instead, because those
+ * two are declared before the die. Rendered only when it can actually be spent,
+ * with what it will do to this specific Act stated in numbers rather than in the
+ * abstract, and it never appears at all once it is gone.
+ */
+function SignatureCall({
+  view,
+  post,
+  busy,
+  outcome,
+}: PhaseProps & { outcome: Outcome | undefined }) {
+  const me = meOf(view);
+  const calling = me?.callingId ? CALLING_BY_ID.get(me.callingId) : undefined;
+  const act = view.act;
+  const scene = act ? SCENES_BY_ID[act.sceneId] : undefined;
+  const [targetId, setTargetId] = useState("");
+  const [doorId, setDoorId] = useState("");
+
+  if (!me || !calling || me.usedSignature || !act?.outcomes || !scene) return null;
+  const kind = calling.signature.kind;
+  const outcomes = act.outcomes;
+  const others = view.players.filter((p) => p.id !== me.id);
+
+  // Who or what this Signature could be pointed at, and therefore whether it is
+  // callable at all right now.
+  const wins = outcomes.filter((o) => o.playerId !== me.id && o.success && o.renownDelta > 0);
+  const wounded = others.filter((p) => p.scars.some((s) => s.kept === null));
+  const dreadThisAct = outcomes.reduce((t, o) => t + Math.max(0, o.dreadDelta), 0);
+  const myScarUndecided = me.scars.some((s) => s.kept === null);
+  const otherDoors = scene.approaches.filter((a) => a.id !== outcome?.approachId);
+
+  let detail: string;
+  let ready = true;
+  switch (kind) {
+    case "rerollOwn":
+      detail =
+        "Throw your die again for the line you took, and live with the second one. It has to be before you decide what to do with the wound: once that is settled, the table has seen it.";
+      // A real roll to throw again, and if it left a wound that wound must still
+      // be undecided, because taking a settled Scar back out would silently
+      // reverse a Dread charge everybody has already read.
+      ready = !!outcome && outcome.approachId !== "flinch" && (!outcome.scar || myScarUndecided);
+      break;
+    case "shieldParty":
+      detail = `Take all ${dreadThisAct} Dread this Act put on the party straight back off it. Not just yours: everybody's.`;
+      ready = dreadThisAct > 0;
+      break;
+    case "clearDread":
+      detail = `Take ${SIGNATURE_CLEAR_DREAD} Dread off the party. It is ${view.dread} now, so it would be ${Math.max(0, view.dread - SIGNATURE_CLEAR_DREAD)}.`;
+      ready = view.dread > 0;
+      break;
+    case "stealDeed":
+      detail =
+        "Take half the credit for somebody else's win. It costs them nothing: the story grows in the telling and you are in it now.";
+      ready = wins.length > 0;
+      break;
+    case "takeScarFor":
+      detail = `Carry somebody else's wound out of here on your own body. It arrives undecided, and you take ${SIGNATURE_OATH_RENOWN} Renown for the saying.`;
+      ready = wounded.length > 0;
+      break;
+    case "secondApproach":
+      detail =
+        "One way in shut in your face, so try another. A second roll is a second chance at the Deed and a second chance at the wound.";
+      ready = !!outcome && !outcome.success && otherDoors.length > 0;
+      break;
+    default:
+      return null; // The two bets live on the Act screen.
+  }
+
+  if (!ready) return null;
+
+  const body =
+    kind === "stealDeed" || kind === "takeScarFor" ? (
+      <select
+        value={targetId}
+        onChange={(e) => setTargetId(e.target.value)}
+        aria-label={kind === "stealDeed" ? "Whose win" : "Whose wound"}
+        className="min-h-11 rounded-md border border-paper-rule bg-paper px-3 py-2 text-paper-ink"
+      >
+        <option value="">Choose somebody</option>
+        {(kind === "stealDeed"
+          ? wins.map((w) => ({ id: w.playerId, name: nameOf(view, w.playerId) }))
+          : wounded.map((p) => ({ id: p.id, name: p.name }))
+        ).map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    ) : kind === "secondApproach" ? (
+      <select
+        value={doorId}
+        onChange={(e) => setDoorId(e.target.value)}
+        aria-label="Which other way in"
+        className="min-h-11 rounded-md border border-paper-rule bg-paper px-3 py-2 text-paper-ink"
+      >
+        <option value="">Choose a door</option>
+        {otherDoors.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.label}
+            {a.reckless ? " (Reckless)" : ""}
+          </option>
+        ))}
+      </select>
+    ) : null;
+
+  const needsChoice =
+    (kind === "stealDeed" || kind === "takeScarFor") ? !targetId : kind === "secondApproach" ? !doorId : false;
+
+  return (
+    <Sheet title={calling.signature.label} subtitle="Your Signature, once a night">
+      <p className="text-sm text-paper-ink">{detail}</p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        {body}
+        <Button
+          className="ml-auto"
+          disabled={busy || needsChoice}
+          onClick={() =>
+            void post("/signature", {
+              ...(targetId ? { targetId } : {}),
+              ...(doorId ? { approachId: doorId } : {}),
+            })
+          }
+        >
+          {needsChoice ? "Choose one first" : `Call ${calling.signature.label}`}
+        </Button>
+      </div>
+      <p className="sheet-label mt-3">
+        Once in the whole night. Nothing happens if you leave it.
+      </p>
+    </Sheet>
   );
 }
 

@@ -50,6 +50,7 @@ export function makePlayer(over: Partial<Player> = {}): Player {
     hookTokens: 2,
     scars: [],
     torches: 0,
+    rerolls: 0,
     usedSignature: false,
     usedBloodPower: false,
     laurelFor: null,

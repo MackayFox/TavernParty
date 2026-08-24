@@ -105,6 +105,7 @@ const EXAMPLE_PLAYER: Player = {
   hookTokens: HOOK_TOKENS_MAX,
   scars: [],
   torches: 0,
+  rerolls: 0,
   usedSignature: false,
   usedBloodPower: false,
   laurelFor: null,

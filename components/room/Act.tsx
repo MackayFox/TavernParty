@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { Avatar, Button, Pill } from "@/components/ui";
 import { SCENES_BY_ID } from "@/lib/content/scenes";
+import { TAG_MEANING, isTag } from "@/lib/content/tags";
 import { costMultiplier } from "@/lib/game/resolve";
 import {
   ABILITY_LABEL,
@@ -22,6 +23,7 @@ import {
   MARK_FLINCH_PENALTY,
   NOMINATION_PENALTY,
   REVEAL_COST_TORCHES,
+  SIGNATURE_BOOST,
   abilityMod,
 } from "@/lib/game/rules";
 import type { ApproachDef } from "@/lib/game/types";
@@ -79,6 +81,11 @@ export function Act({ view, post, busy }: PhaseProps) {
     <div className="phase-in space-y-6">
       <section aria-label="The scene" className="tp-anim-reveal">
         <h2 className="font-display text-2xl text-text-hi sm:text-3xl">{scene.title}</h2>
+        {/*
+          Not a slug soup. TAG_MEANING exists for all twenty tags and was being
+          used on the front page and the rules page but nowhere in the game, so
+          the encounter was headed "CLERGY · DARK · OATH" with no gloss anywhere.
+        */}
         <ul className="mt-2 flex flex-wrap gap-2">
           {scene.tags.map((tag) => (
             <li key={tag}>
@@ -86,6 +93,9 @@ export function Act({ view, post, busy }: PhaseProps) {
             </li>
           ))}
         </ul>
+        <p className="mt-1 text-xs text-text-low">
+          {scene.tags.filter(isTag).map((tag) => TAG_MEANING[tag]).join(" · ")}
+        </p>
         <p className="prose-read mt-3">{scene.setup}</p>
       </section>
 
@@ -174,6 +184,47 @@ export function Act({ view, post, busy }: PhaseProps) {
           </p>
         </section>
       )}
+
+      {/*
+        The two Signatures that are declared while the Act is live. Both are
+        bets: you call them before anybody knows the die, which is what makes
+        them worth more than the six that answer a result.
+      */}
+      {calling && !me?.usedSignature && !act.boosted.includes(view.me.id) &&
+        (calling.signature.kind === "addFive" || calling.signature.kind === "revealReckless") && (
+          <section className="rounded-lg border border-accent/60 bg-bg-1 p-4">
+            <p className="label-caps">Your Signature, once a night</p>
+            <h3 className="font-display mt-1 text-lg text-accent">{calling.signature.label}</h3>
+            <p className="mt-1 text-sm text-text-hi">
+              {calling.signature.kind === "addFive"
+                ? `Worth ${SIGNATURE_BOOST} on whatever you take next, and the whole table sees you call it. It has to be now: once you have moved it is too late.`
+                : "Read the Reckless number without burning a Torch. Use it on the Act where you cannot tell whether the reward is worth it."}
+            </p>
+            <Button
+              className="mt-3"
+              disabled={busy || !view.me.id || (calling.signature.kind === "addFive" && !!chosen)}
+              onClick={() => void post("/signature")}
+            >
+              {calling.signature.kind === "addFive" && chosen
+                ? "Too late, you have moved"
+                : `Call ${calling.signature.label}`}
+            </Button>
+          </section>
+        )}
+
+      {act.boosted.length > 0 && (
+        <p className="rounded-md border border-accent/50 px-3 py-2 text-sm text-accent">
+          {act.boosted.map((id) => nameOf(view, id)).join(", ")} called a Signature into this
+          one. Whatever they take, they are backing it.
+        </p>
+      )}
+
+      {/* The tap is final, and the token widget above is folded into it. */}
+      <p className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-hi">
+        {chosen
+          ? "You have moved. Nothing is thrown until the window closes."
+          : "Whichever line you take is locked in, tokens and all. Set your tokens first."}
+      </p>
 
       <section aria-label="The three ways through" className="space-y-3">
         {scene.approaches.map((approach) => {

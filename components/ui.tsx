@@ -272,37 +272,6 @@ export function Die({
   );
 }
 
-/**
- * Hit points. A bar plus the numbers plus a word at the bottom, so the state is
- * never only a length or only a colour.
- */
-export function Wounds({ current, max }: { current: number; max: number }) {
-  const pct = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
-  const state = current <= 0 ? "Down" : pct <= 0.34 ? "Bloodied" : "Steady";
-  const tone =
-    current <= 0 ? "bg-danger" : pct <= 0.34 ? "bg-warning" : "bg-success";
-  return (
-    <span
-      className="inline-flex items-center gap-2"
-      role="img"
-      aria-label={`${current} of ${max} hit points, ${state}`}
-    >
-      <span className="h-2 w-16 overflow-hidden rounded-full bg-bg-3">
-        <span
-          className={`block h-full rounded-full ${tone}`}
-          style={{ width: `${pct * 100}%` }}
-        />
-      </span>
-      <span className="num text-xs text-text-mid">
-        {current}/{max}
-      </span>
-      <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-low">
-        {state}
-      </span>
-    </span>
-  );
-}
-
 /** Countdown ring. role="timer" so a screen reader can poll it. */
 export function Timer({
   endsAt,

@@ -226,6 +226,18 @@ body {
     animation: none;
     transform: rotate(-0.5deg);
   }
+  /* Tailwind's own utilities, which the class list above does not reach: the
+     spinner spun and every button eased regardless of the setting. */
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Tailwind v4 preflight sets buttons to cursor:default; games need pointers. */

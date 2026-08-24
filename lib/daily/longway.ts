@@ -147,6 +147,7 @@ function soloPlayer(scores: Scores, hookTokens: number): Player {
     hookTokens,
     scars: [],
     torches: 0,
+    rerolls: 0,
     usedSignature: false,
     usedBloodPower: false,
     laurelFor: null,

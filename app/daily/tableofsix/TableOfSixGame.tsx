@@ -203,6 +203,7 @@ export function TableOfSixGame({ date }: { date?: string | null }) {
                     <label className="mt-3 block">
                       <span className="label-caps mb-1 block">Send which roll</span>
                       <select
+                        aria-label={`Send which roll to: ${obstacle.label}`}
                         className="min-h-11 w-full rounded-md border border-border-input bg-bg-0 px-3 text-base text-text-hi disabled:opacity-60"
                         value={slots[row] ?? 0}
                         disabled={locked}

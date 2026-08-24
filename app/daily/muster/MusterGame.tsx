@@ -287,7 +287,12 @@ export function MusterGame({ date }: { date?: string | null }) {
                     disabled={locked}
                     onChange={(e) => {
                       setCallingId(e.target.value);
-                      setAnnounce(`Calling set to ${e.target.value}`);
+                      setAnnounce(
+                        `Calling set to ${
+                          data.callings.find((c) => c.id === e.target.value)?.name ??
+                          e.target.value
+                        }`
+                      );
                     }}
                   >
                     {data.callings.map((c) => (
@@ -307,7 +312,11 @@ export function MusterGame({ date }: { date?: string | null }) {
                     disabled={locked}
                     onChange={(e) => {
                       setKitId(e.target.value);
-                      setAnnounce(`Kit set to ${e.target.value}`);
+                      setAnnounce(
+                        `Kit set to ${
+                          data.kit.find((k) => k.id === e.target.value)?.name ?? e.target.value
+                        }`
+                      );
                     }}
                   >
                     {data.kit.map((k) => (

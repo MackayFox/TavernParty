@@ -58,6 +58,10 @@ import {
   PRESENCE_TIMEOUT_MS,
   REVEAL_COST_TORCHES,
   SCARCITY_FLOOR_PLAYERS,
+  SIGNATURE_BOOST,
+  SIGNATURE_CLEAR_DREAD,
+  SIGNATURE_OATH_RENOWN,
+  SIGNATURE_STEAL_SHARE,
   TIMINGS,
   abilityMod,
 } from "./rules";
@@ -154,6 +158,7 @@ function freshPlayer(id: string, name: string, isHost: boolean, isBot = false): 
     hookTokens: HOOK_TOKENS_MAX,
     scars: [],
     torches: 0,
+    rerolls: 0,
     usedSignature: false,
     usedBloodPower: false,
     laurelFor: null,
@@ -429,7 +434,13 @@ function applyKitDraft(room: Room, now: number, rng: Rng): void {
     if (!p) continue;
     p.kitIds = [id];
     const item = KIT_BY_ID.get(id);
-    if (item?.charge?.kind === "torch") p.torches += item.charge.uses;
+    // Both `torch` and `reveal` charges buy the same thing (a look at the
+    // Reckless number), so they land in the same pocket rather than being two
+    // names for one mechanic. `reroll` charges are their own resource because
+    // they buy something genuinely different.
+    if (item?.charge?.kind === "torch" || item?.charge?.kind === "reveal")
+      p.torches += item.charge.uses;
+    if (item?.charge?.kind === "reroll") p.rerolls += item.charge.uses;
     note(room, "draft", `${p.name} takes the ${item?.name.toLowerCase() ?? id}`, pid);
   }
   room.phase = "ASSIGN";
@@ -529,6 +540,7 @@ function beginAct(room: Room, index: number, now: number, rng: Rng): void {
     spend: {},
     order: [],
     revealed: [],
+    boosted: [],
     outcomes: null,
   };
   room.phase = "ACT";
@@ -594,6 +606,53 @@ export function revealReckless(room: Room, playerId: string, now: number): void 
   }
   act.revealed.push(playerId);
   touch(room);
+}
+
+/**
+ * Put one outcome into the world.
+ *
+ * The deltas are rewritten to what actually landed after the clamps at zero
+ * Renown and at DREAD_MAX. Two reasons: the ledger should show what happened
+ * rather than what was intended, and anything that refunds a cost later has to
+ * refund the amount that was really taken.
+ *
+ * Nominations are settled before this runs, against the intended deed, which is
+ * right: your cut is of the job, not of somebody else's empty purse.
+ */
+function applyOutcome(room: Room, out: Outcome, scene: Scene): void {
+  const p = findPlayer(room, out.playerId);
+  if (!p) return;
+  const renownBefore = p.renown;
+  const dreadBefore = room.dread;
+  p.renown = Math.max(0, p.renown + out.renownDelta);
+  room.dread = Math.min(DREAD_MAX, room.dread + out.dreadDelta);
+  out.renownDelta = p.renown - renownBefore;
+  out.dreadDelta = room.dread - dreadBefore;
+  if (out.scar) p.scars.push(out.scar);
+  if (out.hookRefilled) p.hookTokens = HOOK_TOKENS_MAX;
+  const approach = scene.approaches.find((a) => a.id === out.approachId);
+  note(
+    room,
+    out.success ? "roll" : "scar",
+    `${p.name}: ${approach ? (out.success ? approach.win : approach.lose) : "did not move"}`,
+    p.id
+  );
+}
+
+/**
+ * Take one outcome back out of the world, so it can be rolled again.
+ *
+ * Exact, because `applyOutcome` stored the clamped figures rather than the
+ * intended ones. The caller must refuse if the Scar has already been decided:
+ * un-deciding somebody's keep-or-hide would silently reverse a Dread charge the
+ * whole table has already seen.
+ */
+function unapplyOutcome(room: Room, out: Outcome): void {
+  const p = findPlayer(room, out.playerId);
+  if (!p) return;
+  p.renown = Math.max(0, p.renown - out.renownDelta);
+  room.dread = Math.max(0, room.dread - out.dreadDelta);
+  if (out.scar) p.scars = p.scars.filter((s) => s.id !== out.scar!.id);
 }
 
 /**
@@ -673,15 +732,22 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
 
     const approach = scene.approaches.find((a) => a.id === chosen)!;
     const spend = act.spend[p.id] ?? 0;
+    const calling = callingOf(p);
     const ctx = {
       player: p,
-      calling: callingOf(p),
+      calling,
       kit: kitOf(p),
       scene,
       approach,
       spendTokens: spend,
       dread: room.dread,
       hookCalled,
+      // Chanter. Declared during the Act, so it went on the table before the
+      // die did. The label is the Signature's own name, so the ledger reads
+      // "Everyone Joins In +5" rather than a nameless bonus.
+      boost: act.boosted.includes(p.id)
+        ? { label: (calling?.signature.label ?? "your Signature").toLowerCase(), value: SIGNATURE_BOOST }
+        : undefined,
     };
     let out = rollApproach(ctx, i, rng);
 
@@ -724,34 +790,7 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
     }
   }
 
-  // Apply.
-  //
-  // The deltas are rewritten to what actually landed after the clamps at zero
-  // Renown and at DREAD_MAX. Two reasons: the ledger should show what happened
-  // rather than what was intended, and a Blood power that refunds a cost has to
-  // refund the amount that was really taken. Nominations were settled above,
-  // against the intended deed, which is right: your cut is of the job, not of
-  // somebody else's empty purse.
-  for (const out of outcomes) {
-    const p = findPlayer(room, out.playerId);
-    if (!p) continue;
-    const renownBefore = p.renown;
-    const dreadBefore = room.dread;
-    p.renown = Math.max(0, p.renown + out.renownDelta);
-    room.dread = Math.min(DREAD_MAX, room.dread + out.dreadDelta);
-    out.renownDelta = p.renown - renownBefore;
-    out.dreadDelta = room.dread - dreadBefore;
-    if (out.scar) p.scars.push(out.scar);
-    if (out.hookRefilled) p.hookTokens = HOOK_TOKENS_MAX;
-    const scene2 = SCENES_BY_ID[act.sceneId];
-    const approach = scene2.approaches.find((a) => a.id === out.approachId);
-    note(
-      room,
-      out.success ? "roll" : "scar",
-      `${p.name}: ${approach ? (out.success ? approach.win : approach.lose) : "did not move"}`,
-      p.id
-    );
-  }
+  for (const out of outcomes) applyOutcome(room, out, scene);
 
   act.outcomes = outcomes;
   room.phase = "ACT_RESULT";
@@ -801,6 +840,255 @@ export function decideScar(
     }
   }
   touch(room);
+}
+
+/**
+ * Throw your own die again for the line you already took.
+ *
+ * Shared by the Houndmaster's Signature and by a Kit reroll charge, because they
+ * are the same act with a different receipt. The second throw replaces the first
+ * entirely: `unapplyOutcome` takes the Renown, the Dread and the wound back out
+ * before `applyOutcome` puts the new ones in, which is only exact because
+ * `applyOutcome` records the clamped figures rather than the intended ones.
+ *
+ * Refuses once the wound has been decided. Un-deciding somebody's keep-or-hide
+ * would silently reverse a Dread charge the whole table has already read.
+ */
+function rethrow(
+  room: Room,
+  p: Player,
+  act: ActState,
+  scene: Scene,
+  label: string,
+  rng: Rng
+): void {
+  const outcomes = act.outcomes;
+  if (!outcomes) throw new GameError("wrong_phase", "Nothing has played out yet.");
+  const mine = outcomes.find((o) => o.playerId === p.id);
+  if (!mine || mine.approachId === "flinch")
+    throw new GameError("bad_choice", "You have nothing to throw again.");
+  if (mine.scar && p.scars.find((s) => s.id === mine.scar!.id)?.kept !== null)
+    throw new GameError(
+      "already",
+      "You have already decided what to do with the wound. Too late to undo it."
+    );
+  const approach = scene.approaches.find((a) => a.id === mine.approachId);
+  if (!approach) throw new GameError("bad_choice", "That door has gone.");
+
+  const at = outcomes.indexOf(mine);
+  unapplyOutcome(room, mine);
+  const again = rollApproach(
+    {
+      player: p,
+      calling: callingOf(p),
+      kit: kitOf(p),
+      scene,
+      approach,
+      spendTokens: 0, // Spent on the first throw, and gone with it.
+      dread: room.dread,
+      hookCalled: mine.hookRefilled,
+    },
+    at,
+    rng
+  );
+  if (act.marked.includes(p.id)) again.renownDelta += MARK_BONUS;
+  again.mods.splice(1, 0, { label, value: 0 });
+  outcomes[at] = again;
+  applyOutcome(room, again, scene);
+}
+
+/**
+ * Spend a Kit reroll charge.
+ *
+ * The whetstone and the spare bowstring advertise "2 rerolls" on the card you
+ * rank them on, and for a while that is all they did: only `torch` charges were
+ * honoured, so a player who drafted the whetstone for its rerolls went looking
+ * for a button that did not exist.
+ */
+export function useKitReroll(room: Room, playerId: string, now: number): void {
+  requirePhase(room, "ACT_RESULT");
+  const p = requirePlayer(room, playerId);
+  if (p.rerolls <= 0) throw new GameError("no_charge", "You have no rerolls left.");
+  const act = room.act;
+  if (!act) throw new GameError("wrong_phase", "Nothing is happening.");
+  rethrow(room, p, act, SCENES_BY_ID[act.sceneId], "your gear earns its place", defaultRng);
+  p.rerolls--;
+  note(room, "roll", `${p.name} throws again off their own kit`, p.id);
+  touch(room);
+}
+
+/**
+ * Your Signature. One per Calling, once in the whole run.
+ *
+ * Eight kinds, one action, because they share every precondition: your Calling,
+ * once ever, against the Act in front of you. Two are declared during the Act,
+ * before anybody knows the die, and six react to the result.
+ *
+ * The split matters. A Signature you can hold until you have seen the roll is a
+ * safety net; one you have to call while the outcome is unknown is a bet. The
+ * Chanter and the Reckoner bet. Everybody else reacts, and pays for it by having
+ * their Signature be smaller.
+ */
+export function useSignature(
+  room: Room,
+  playerId: string,
+  arg: { targetId?: string; approachId?: string },
+  now: number
+): void {
+  const p = requirePlayer(room, playerId);
+  const calling = callingOf(p);
+  if (!calling) throw new GameError("no_signature", "You have no Calling to call on.");
+  if (p.usedSignature) throw new GameError("already", "You only get that once a night.");
+  const act = room.act;
+  if (!act) throw new GameError("wrong_phase", "Nothing is happening.");
+  const scene = SCENES_BY_ID[act.sceneId];
+  const kind = calling.signature.kind;
+
+  // The two bets happen while the Act is live.
+  if (kind === "addFive" || kind === "revealReckless") {
+    requirePhase(room, "ACT");
+    if (room.phaseEndsAt !== null && now > room.phaseEndsAt)
+      throw new GameError("too_late", "You left it too long.");
+    if (kind === "addFive") {
+      // Before you commit, not after: the point is that you back a door before
+      // you know whether it needed backing.
+      if (act.choices[playerId])
+        throw new GameError("already", "You have already moved. Call it before you go.");
+      act.boosted.push(playerId);
+      note(room, "system", `${p.name}: ${calling.signature.label}`, p.id);
+    } else {
+      if (!act.revealed.includes(playerId)) act.revealed.push(playerId);
+      note(room, "system", `${p.name} prices the door without burning anything`, p.id);
+    }
+    p.usedSignature = true;
+    touch(room);
+    return;
+  }
+
+  // Everything else answers a result.
+  requirePhase(room, "ACT_RESULT");
+  if (!act.outcomes) throw new GameError("wrong_phase", "Nothing has played out yet.");
+  const outcomes = act.outcomes;
+  const mine = outcomes.find((o) => o.playerId === playerId);
+
+  switch (kind) {
+    case "rerollOwn":
+      // Houndmaster. The same machinery a Kit reroll uses: throw again, live
+      // with the second one.
+      rethrow(room, p, act, scene, calling.signature.label.toLowerCase(), defaultRng);
+      break;
+
+    case "shieldParty": {
+      // Warden. Every point of Dread this Act put on the party, not just yours.
+      const total = outcomes.reduce((t, o) => t + Math.max(0, o.dreadDelta), 0);
+      if (total <= 0) throw new GameError("bad_choice", "This Act put nothing on the party.");
+      room.dread = Math.max(0, room.dread - total);
+      for (const o of outcomes) if (o.dreadDelta > 0) o.dreadDelta = 0;
+      note(room, "system", `${p.name}: ${calling.signature.label}. The party takes none of it`, p.id);
+      break;
+    }
+
+    case "clearDread": {
+      // Hedge-witch. Not a reset: enough to pull the table back under a
+      // threshold it has just crossed, which is when it is worth having.
+      if (room.dread <= 0) throw new GameError("bad_choice", "There is nothing on the party.");
+      const before = room.dread;
+      room.dread = Math.max(0, room.dread - SIGNATURE_CLEAR_DREAD);
+      note(
+        room,
+        "dread",
+        `${p.name}: ${calling.signature.label}. Dread ${before} down to ${room.dread}`,
+        p.id
+      );
+      break;
+    }
+
+    case "stealDeed": {
+      // Knife. A cut of somebody else's win, and it costs them nothing: the
+      // story grows in the telling and you are in it now.
+      const targetId = arg.targetId;
+      if (!targetId || targetId === playerId)
+        throw new GameError("bad_target", "Name somebody else's success.");
+      const theirs = outcomes.find((o) => o.playerId === targetId);
+      if (!theirs?.success || theirs.renownDelta <= 0)
+        throw new GameError("bad_target", "They did not pull anything off worth taking.");
+      const cut = Math.max(1, Math.round(theirs.renownDelta * SIGNATURE_STEAL_SHARE));
+      p.renown += cut;
+      note(
+        room,
+        "roll",
+        `${p.name}: ${calling.signature.label}. ${cut} Renown, and ${nameOfIn(room, targetId)} keeps theirs`,
+        p.id
+      );
+      break;
+    }
+
+    case "takeScarFor": {
+      // Oathbound. Carry somebody else's wound. It becomes yours, undecided,
+      // and you are paid for the saying rather than for the wearing.
+      const targetId = arg.targetId;
+      if (!targetId || targetId === playerId)
+        throw new GameError("bad_target", "Name whose wound you are taking.");
+      const them = findPlayer(room, targetId);
+      const theirs = them?.scars.find((s) => s.kept === null);
+      if (!them || !theirs)
+        throw new GameError("bad_target", "They have nothing undecided to give you.");
+      them.scars = them.scars.filter((s) => s.id !== theirs.id);
+      p.scars.push({ ...theirs, id: `${theirs.id}-oath` });
+      p.renown += SIGNATURE_OATH_RENOWN;
+      note(
+        room,
+        "scar",
+        `${p.name}: ${calling.signature.label}. ${them.name}'s wound is theirs now`,
+        p.id
+      );
+      break;
+    }
+
+    case "secondApproach": {
+      // Sapper. One way in did not work, so try another. Only after a failure,
+      // because "the other way in" needs a first way that shut.
+      if (!mine || mine.success)
+        throw new GameError("bad_choice", "Nothing shut in your face this Act.");
+      const other = scene.approaches.find(
+        (a) => a.id === arg.approachId && a.id !== mine.approachId
+      );
+      if (!other) throw new GameError("bad_choice", "That is not another way through.");
+      const extra = rollApproach(
+        {
+          player: p,
+          calling,
+          kit: kitOf(p),
+          scene,
+          approach: other,
+          spendTokens: 0,
+          dread: room.dread,
+          hookCalled: false,
+        },
+        outcomes.length,
+        defaultRng
+      );
+      extra.mods.splice(1, 0, { label: calling.signature.label.toLowerCase(), value: 0 });
+      // A second roll is a second chance at the Deed and a second chance at the
+      // wound. That symmetry is the whole cost of the Signature.
+      outcomes.push(extra);
+      applyOutcome(room, extra, scene);
+      break;
+    }
+
+    default: {
+      // Exhaustive: adding a ninth Signature kind fails to compile here.
+      const never: never = kind;
+      throw new GameError("no_signature", `Unhandled Signature: ${String(never)}`);
+    }
+  }
+
+  p.usedSignature = true;
+  touch(room);
+}
+
+function nameOfIn(room: Room, id: string): string {
+  return findPlayer(room, id)?.name ?? "SOMEBODY";
 }
 
 /**
@@ -1019,6 +1307,7 @@ function playerView(p: Player, viewerId: string | null): PlayerView {
     scars: shown,
     hiddenScarCount: p.scars.filter((s) => s.kept === false).length,
     torches: p.torches,
+    rerolls: p.rerolls,
     usedSignature: p.usedSignature,
     usedBloodPower: p.usedBloodPower,
     hasVoted: p.laurelFor !== null,
@@ -1070,6 +1359,10 @@ export function viewFor(room: Room, playerId: string | null): RoomView {
           spend: act.outcomes ? act.spend : {},
           order: act.outcomes ? act.order : [],
           revealed: act.revealed,
+          // Public before the roll, unlike a choice. Somebody announcing their
+          // Signature is the loudest thing that happens all night, and the table
+          // knowing it should change whether they nominate them.
+          boosted: act.boosted,
           outcomes: act.outcomes,
           myChoice: playerId ? (act.choices[playerId] ?? null) : null,
           committed: Object.keys(act.choices),

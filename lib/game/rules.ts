@@ -16,8 +16,14 @@ import type { Ability, RoomSettings } from "./types";
  * here the thing being read is the point.
  */
 export const TIMINGS = {
-  /** The array and the priority order are revealed. Nothing to decide. */
-  musterMs: 8_000,
+  /**
+   * The array and the priority order are revealed. Nothing to decide, but there
+   * is a lot to read: the shared numbers, what a modifier is, the draft order,
+   * and the fact that first crack at a Calling buys last crack at the gear. Eight
+   * seconds was not enough to reach sentence two, and the fork it teaches here is
+   * what makes the next sixty-five seconds make sense.
+   */
+  musterMs: 16_000,
   /** Rank up to three of eight Callings. */
   draftCallingMs: 35_000,
   /** Rank up to three of twelve pieces of Kit. */
@@ -26,8 +32,17 @@ export const TIMINGS = {
   assignMs: 70_000,
   /** Commit an Approach, and optionally nominate somebody. */
   actMs: 60_000,
-  /** Read the ledger, see what nobody took, keep or hide the Scar. */
-  actResultMs: 30_000,
+  /**
+   * Read the ledger, see what nobody took, call a Signature or a Blood, and keep
+   * or hide the Scar.
+   *
+   * The longest non-decision window in the game on purpose. It has to cover your
+   * own itemised roll, up to five other people's, and two decisions whose default
+   * on timeout costs you: an undecided Scar is hidden for you, which is Renown
+   * off. Thirty seconds meant a first-timer's first wound was usually taxed while
+   * they were still reading.
+   */
+  actResultMs: 45_000,
   /** Cast a Laurel. */
   balladMs: 35_000,
   /** A bot's visible pause, so a table of one human does not snap past them. */
@@ -125,6 +140,24 @@ export const DREAD_MAX = 8;
 export const KEEP_SCAR_DREAD = 1;
 /** Hiding one costs you now, and nobody else anything. */
 export const HIDE_SCAR_RENOWN = 2;
+
+// ---------------------------------------------------------------------------
+// What the Signatures are worth
+//
+// One per Calling, once in the whole run. Bigger and louder than a Blood power,
+// because the Calling is the exclusive draft and the loudest choice a player
+// makes: being the only WARDEN at the table has to mean something the table can
+// see happen.
+// ---------------------------------------------------------------------------
+
+/** Chanter. Declared before the roll, so it is a bet rather than a rescue. */
+export const SIGNATURE_BOOST = 5;
+/** Hedge-witch. Enough to pull the party back under a threshold, not to reset. */
+export const SIGNATURE_CLEAR_DREAD = 3;
+/** Knife. A cut of somebody else's Deed, taken from nobody: the story grows. */
+export const SIGNATURE_STEAL_SHARE = 0.5;
+/** Oathbound. What carrying somebody else's wound is worth to you. */
+export const SIGNATURE_OATH_RENOWN = 4;
 
 // ---------------------------------------------------------------------------
 // What the Blood powers are worth

@@ -100,6 +100,10 @@ describe("Longshank: the free look", () => {
   it("charges a Torch for anybody else, and refuses when there is none", () => {
     const room = atFirstAct({ p0: "hillfolk" });
     const p = engine.findPlayer(room, "p0")!;
+    // Explicitly empty: since `reveal` Kit charges started landing in the same
+    // pocket as `torch` ones, whether the deal left them anything to burn
+    // depends on which item they drew.
+    p.torches = 0;
     expect(() => engine.revealReckless(room, "p0", NOW + 1)).toThrow(/burn/i);
     p.torches = 1;
     engine.revealReckless(room, "p0", NOW + 1);

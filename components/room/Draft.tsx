@@ -63,8 +63,50 @@ export function Draft({ view, post, busy }: PhaseProps) {
     if (await post("/wants", { wants })) setHandedIn(true);
   }
 
+  /**
+   * What the LAST draft gave you.
+   *
+   * `granted` was in the payload from the start and rendered nowhere, which made
+   * the DRAFT_KIT screen the place a first-timer lost the plot: they spend
+   * thirty-five seconds ranking Callings, the tick fires, the screen replaces
+   * itself with a different draft, and nothing ever tells them whether they got
+   * the Knife. Being denied your first choice is the whole point of the draft
+   * (GAME_DESIGN 3.5), and it had no screen.
+   */
+  const settled = kit ? view.callingDraft?.granted : undefined;
+  const mineLast = settled?.[view.me.id];
+  const wanted = view.callingDraft?.myWants ?? [];
+  const missed = wanted[0] && wanted[0] !== mineLast ? wanted[0] : null;
+  const whoGotIt = missed
+    ? Object.entries(settled ?? {}).find(([, id]) => id === missed)?.[0]
+    : undefined;
+
   return (
     <div className="phase-in space-y-6">
+      {mineLast && (
+        <section
+          aria-label="What the Calling draft gave you"
+          className="rounded-lg border border-accent bg-bg-1 p-4"
+        >
+          <p className="label-caps">Settled</p>
+          <h2 className="font-display mt-1 text-2xl text-accent">
+            You are the {CALLING_BY_ID.get(mineLast)?.name ?? mineLast}.
+          </h2>
+          <p className="mt-1 text-sm text-text-hi">
+            {CALLING_BY_ID.get(mineLast)?.blurb}
+          </p>
+          {missed && (
+            <p className="mt-2 text-sm text-text-mid">
+              Not your first choice. The {CALLING_BY_ID.get(missed)?.name ?? missed} went to{" "}
+              {whoGotIt ? nameOf(view, whoGotIt) : "somebody quicker in the order"}.
+            </p>
+          )}
+          <p className="mt-2 text-sm text-text-mid">
+            Now the gear, and this one runs the other way round.
+          </p>
+        </section>
+      )}
+
       <header className="space-y-2">
         <p className="prose-read">
           {kit

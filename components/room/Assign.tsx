@@ -108,6 +108,16 @@ export function Assign({ view, post, busy }: PhaseProps) {
 
   return (
     <div className="phase-in space-y-6">
+      {/*
+        Without this, "where should the 16 go?" has no basis at all, and the
+        auto-place button is the only usable answer: a first-timer presses it and
+        learns nothing. One sentence gives them a reason to disagree with it.
+      */}
+      <p className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-hi">
+        Every encounter offers three ways through and each one tests a different ability, so a
+        high number is only worth what the night asks of it. Spread them and you are never
+        stuck; spike them and you are the only person who can do one thing.
+      </p>
       <p className="prose-read">
         Six numbers, one sheet. Pick a number up, then tap the ability you want it in.
         Tap a filled box to take the number back off.
@@ -187,6 +197,15 @@ export function Assign({ view, post, busy }: PhaseProps) {
                   </span>
                   <span className="sheet-label">
                     {value === null ? "empty" : signed(abilityMod(value))}
+                  </span>
+                  {/*
+                    ABILITY_BLURB was in the aria-label and nowhere else, so a
+                    sighted first-timer placing six numbers was shown "GRIT / 14
+                    / +2" with no idea what Grit is for, on the biggest screen in
+                    the game. The rare inverted accessibility bug.
+                  */}
+                  <span className="mt-1 block text-[11px] leading-tight text-paper-ink-mid">
+                    {ABILITY_BLURB[ability]}
                   </span>
                 </button>
               </li>

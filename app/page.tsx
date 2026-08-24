@@ -79,12 +79,12 @@ const STEPS: [string, string, string][] = [
   [
     "02",
     "Build the character",
-    `Place the six numbers, choose a Blood and pick a Hook out of ${HOOKS.length} pasts. You get ${Math.round(TIMINGS.assignMs / 1000)} seconds and it is the biggest decision in the run, because your Hook also puts a scene into everybody else's night.`,
+    `Place the six numbers and pick a Hook out of ${HOOKS.length} pasts. Your Blood is dealt to you, so the argument is over the numbers. You get ${Math.round(TIMINGS.assignMs / 1000)} seconds and it is the biggest decision in the run, because your Hook also puts a scene into everybody else's night.`,
   ],
   [
     "03",
     "Take on five encounters",
-    `Three ways at every problem, from a pool of ${SCENES.length} scenes. One line pays most, keeps its target number hidden, and only one of you is allowed to take it. You may nominate somebody else for that door, and it costs you if they do not come back.`,
+    `Three ways at every problem, from a pool of ${SCENES.length} scenes. One line pays most, keeps its target number hidden, and only one of you is allowed to take it. You may also put somebody else forward for the encounter, and it costs you if they do not come back.`,
   ],
   [
     "04",
@@ -309,7 +309,7 @@ export default function HomePage() {
         {[
           [
             "Nobody free tonight?",
-            "Fill the empty chairs. They draft properly, they take the door when the numbers say so, and they can be beaten.",
+            "Fill the empty chairs. They take the door the numbers point at and they never freeze on a deadline, which is more than can be said for some people. They also draft at random and they never vote, so beating them is not the same as beating a table.",
           ],
           [
             "Playing with friends",

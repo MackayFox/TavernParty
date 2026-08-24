@@ -7,10 +7,11 @@
  * it. The muster is an eight second beat with no input: the array everybody is
  * about to fight over, and the order they will fight over it in.
  */
+import Link from "next/link";
 import { useState } from "react";
 import { Avatar, Button, Card, Field, Input, Pill } from "@/components/ui";
 import type { RoomView } from "@/lib/game/types";
-import { MIN_PLAYERS, abilityMod } from "@/lib/game/rules";
+import { MIN_PLAYERS, abilityMod, estimateRunMs } from "@/lib/game/rules";
 import { nameOf, signed, type PhaseProps } from "./shared";
 
 export function Waiting({ view, post, busy }: PhaseProps) {
@@ -45,6 +46,23 @@ export function Waiting({ view, post, busy }: PhaseProps) {
           </p>
         </div>
       </Card>
+
+      {/*
+        A cold visitor arriving on a shared code was shown a code, a seat list and
+        a start button, and never told what the game is, how long it takes, or
+        that every phase runs on a clock nobody can pause. There was also no link
+        to the rules anywhere inside the room.
+      */}
+      <p className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-mid">
+        Build a character together, take {view.settings.acts} encounters, and exactly one of
+        you walks out with the Hoard. About {Math.round(estimateRunMs(view.settings) / 60_000)}{" "}
+        minutes, and every phase runs on a clock: nothing waits for anybody, and doing nothing
+        is always a real move rather than a pass.{" "}
+        <Link href="/how-it-works" className="text-accent underline">
+          The rules, in full
+        </Link>
+        .
+      </p>
 
       {!me && <JoinForm post={post} busy={busy} />}
 

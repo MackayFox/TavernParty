@@ -224,6 +224,14 @@ export type ActState = {
   order: string[];
   /** Players who paid to see the reckless target number. */
   revealed: string[];
+  /**
+   * Who has called their Signature into this Act, before it resolves.
+   *
+   * Public on purpose. A Chanter announcing "Everyone Joins In" is the loudest
+   * thing that happens at the table all night, and knowing somebody has done it
+   * should change whether you nominate them.
+   */
+  boosted: string[];
   outcomes: Outcome[] | null;
 };
 
@@ -252,7 +260,16 @@ export type Player = {
   /** Refills only when your Hook is called against you. */
   hookTokens: number;
   scars: Scar[];
+  /**
+   * What buys you a look at a hidden number.
+   *
+   * Kit charges of kind `torch` AND kind `reveal` both land here, because a
+   * torch and a cracked mirror buy exactly the same thing: the Reckless target.
+   * Keeping them as separate resources would be two names for one mechanic.
+   */
   torches: number;
+  /** Kit charges of kind `reroll`. Spent to throw your own die again. */
+  rerolls: number;
   usedSignature: boolean;
   usedBloodPower: boolean;
   /** Secret until the Ballad resolves. Never yourself. */
