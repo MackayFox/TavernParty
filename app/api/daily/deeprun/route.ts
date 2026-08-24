@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
 import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
+import { MAX_FLOORS } from "@/lib/campaign/gate";
 import {
   ARRAY_SIZE,
-  DEPTH,
   KIT_SLOTS,
   puzzleFor,
   run,
@@ -12,6 +12,8 @@ import {
   validBuild,
 } from "@/lib/daily/deeprun";
 import { parFor } from "@/lib/daily/deeprun-par";
+import { defsOf, doorFor, puzzleOf } from "@/lib/campaign/puzzle";
+import { countPlay, getDungeon } from "@/lib/campaign/store";
 
 /**
  * THE DEEP RUN.
@@ -32,13 +34,43 @@ import { parFor } from "@/lib/daily/deeprun-par";
  * before you play it. The fix, if it ever matters, is a signed run token issued
  * on the first POST and required on the rest; the trigger is somebody bothering.
  */
+/**
+ * ONE HANDLER, TWO SOURCES, and this is the best single decision in the feature.
+ *
+ * `?c=CODE` plays somebody's dungeon; no `c` plays tonight's. Everything else
+ * about this file is unchanged, because everything else about it is the part
+ * that matters: the GET is the dungeon without its dice, and the POST replays
+ * only the floors committed to. A second copy of this handler is how you
+ * eventually ship one that forgets to strip the dice.
+ */
+async function sourceFor(url: URL, dateParam?: string) {
+  const code = url.searchParams.get("c");
+  if (!code) {
+    const { date, archive } = resolvePlayDate(dateParam ?? url.searchParams.get("date"));
+    return { kind: "daily" as const, puzzle: puzzleFor(date), defs: undefined, archive, date, row: null };
+  }
+  const row = await getDungeon(code);
+  if (!row || row.visibility === "banned" || !row.publishedAt) return null;
+  return {
+    kind: "dungeon" as const,
+    puzzle: puzzleOf(row),
+    defs: defsOf(row),
+    archive: false,
+    date: row.code,
+    row,
+  };
+}
+
 export async function GET(req: Request) {
-  const { date, archive } = resolvePlayDate(new URL(req.url).searchParams.get("date"));
+  const url = new URL(req.url);
+  const source = await sourceFor(url);
+  if (!source) return NextResponse.json({ error: "No dungeon by that name." }, { status: 404 });
   // Safe to cache in public precisely because the dice are not in it: this is
-  // the dungeon everybody is handed, and it changes at UTC midnight only.
+  // the dungeon everybody is handed, and it changes at UTC midnight only. An
+  // authored one never changes at all, because its dice are pinned to its code.
   return NextResponse.json(
-    { ...puzzleFor(date), archive },
-    { headers: { "Cache-Control": dailyCacheControl(archive) } }
+    { ...source.puzzle, archive: source.archive, dungeon: source.row ? doorFor(source.row) : null },
+    { headers: { "Cache-Control": dailyCacheControl(source.archive) } }
   );
 }
 
@@ -50,14 +82,15 @@ const schema = z.object({
   kitIds: z.array(z.string().min(1).max(60)).length(KIT_SLOTS),
   steps: z
     .array(z.object({ optionId: z.string().min(1).max(60), knack: z.boolean().optional() }))
-    .max(DEPTH),
+    .max(MAX_FLOORS + 1),
 });
 
 export async function POST(req: Request) {
   try {
     const body = schema.parse(await jsonBody(req));
-    const { date, archive } = resolvePlayDate(body.date);
-    const puzzle = puzzleFor(date);
+    const source = await sourceFor(new URL(req.url), body.date);
+    if (!source) return NextResponse.json({ error: "No dungeon by that name." }, { status: 404 });
+    const { puzzle, defs, archive, date } = source;
     const build = {
       callingId: body.callingId,
       placement: body.placement,
@@ -66,12 +99,17 @@ export async function POST(req: Request) {
     const problem = validBuild(puzzle, build);
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
 
-    const result = run(puzzle, build, body.steps);
-    // Over when they are out, done in, or have opened every door.
-    const finished = result.out || result.vigour <= 0 || body.steps.length >= DEPTH;
+    const result = run(puzzle, build, body.steps, defs);
+    // Over when they are out, done in, or have opened every door. Depth comes off
+    // the puzzle now, because an authored dungeon may be three floors or eight.
+    const finished = result.out || result.vigour <= 0 || body.steps.length >= puzzle.rooms.length;
     if (!finished) return NextResponse.json({ ...result, archive, finished });
 
-    const { par, best } = parFor(puzzle);
+    // Read off the row for an authored one: its dice are pinned to its code, so
+    // par is a constant and a cold instance should not burn a search for it.
+    const { par, best } =
+      source.row?.par != null ? { par: source.row.par, best: null } : parFor(puzzle);
+    if (source.row) await countPlay(source.row.code, result.out);
     return NextResponse.json({
       ...result,
       archive,
@@ -80,7 +118,7 @@ export async function POST(req: Request) {
       par,
       /** The best run there was tonight. With the score, and never before it. */
       bestRun: best,
-      share: shareText(date, result, par),
+      share: shareText(source.kind === "dungeon" ? puzzle.label : date, result, par),
     });
   } catch (err) {
     return handleError(err);
