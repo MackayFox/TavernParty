@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Cinzel, EB_Garamond, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { Footer } from "@/components/Footer";
+import { Nav } from "@/components/Nav";
 
 const display = Cinzel({
   subsets: ["latin"],
@@ -76,9 +78,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4">
+          <Nav />
           <main id="main" className="flex flex-1 flex-col">
             {children}
           </main>
+          <Footer />
         </div>
       </body>
     </html>

@@ -40,7 +40,16 @@ thing it depends on exists. Anything marked **(you)** genuinely needs your login
 - [ ] **(you)** Authentication → URL Configuration. Set **Site URL** to
       `https://tavernparty.co.uk` and add it plus `http://localhost:3000` to the
       redirect allowlist.
-- [ ] **(you)** Decide whether "Confirm email" stays on.
+- [ ] **(you)** Decide whether "Confirm email" stays on. Either setting works:
+      `/signup` tries to log you straight in and only shows the "check your email"
+      screen if that fails, so you do not have to tell the app which way you went.
+- [ ] **(you)** Authentication → Emails. Check the confirmation template says
+      Tavern Party and not the name of whichever project the organisation created
+      first. The templates are per project, but the **Site URL** is the thing that
+      decides which domain the link points at, so getting it wrong sends this
+      site's confirmation emails to another site's domain. `/api/auth/signup`
+      passes an explicit `emailRedirectTo` for exactly that reason, but the
+      template's own footer links still come from the dashboard.
 
 This needs a Supabase **personal access token** (`sbp_...`) for the Management API,
 which is not in `SETUP.txt` and cannot be derived from the project keys. Drop a PAT
@@ -132,6 +141,12 @@ out of its own list.
       silently fallen back to the in-memory store. This is the one failure mode
       worth checking by hand, because the fallback looks perfect to one person in
       one tab and breaks the moment there are two players.
+- [ ] **(you)** Make an account, play one run to the Ballad, then load
+      `/history`. That is the only path the tests cannot reach, because it needs a
+      real Supabase session and a run written to `runs`/`run_players`. If the
+      standings show but `/history` is empty, the run finished and the write
+      failed: `persistRun` is deliberately best effort, so it warns to the Vercel
+      log rather than stopping the table seeing its own ending.
 
 ---
 
@@ -140,6 +155,11 @@ out of its own list.
 **Do not run `npm run build` while `npm run dev` is running.** They share `.next`,
 the build deletes the route manifests, and the dev server then 500s on every route.
 It looks exactly like a real bug and it has cost hours twice.
+
+**Do not edit files while a smoke script is running against `npm run dev`
+either.** Same class of problem, quieter symptom: a save triggers a hot reload,
+the reload lands mid-Act, and the next poll comes back 404 as though the table
+had vanished. The game is fine. It cost a wrong diagnosis here already.
 
 **The engine needs no database.** `lib/game/engine.ts` is pure, all randomness is
 injected, and the whole test suite runs without Supabase configured. That is why

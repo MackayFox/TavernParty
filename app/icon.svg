@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#120E0A"/>
+  <!-- One candle between five people and a table. The whole visual direction. -->
+  <rect x="26" y="30" width="12" height="24" rx="2" fill="#E9DDC1"/>
+  <rect x="22" y="52" width="20" height="4" rx="2" fill="#CDBF9E"/>
+  <path d="M32 11 C38 20 40 25 32 30 C24 25 26 20 32 11 Z" fill="#E8B54A"/>
+</svg>
