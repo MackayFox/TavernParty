@@ -260,6 +260,27 @@ describe("Thornborn and Gravewise: the Scar decisions", () => {
     const mine = standingsFor(room.players).find((s) => s.playerId === "p0")!;
     expect(mine.keptScars).toBe(1);
     expect(mine.total).toBe(KEPT_SCAR_VALUE);
+    expect(mine.scarsPaid).toBe(1);
+  });
+
+  it("reports how many kept Scars paid, so no screen has to derive it", () => {
+    // The bug this guards: a below-median player with several kept Scars, one of
+    // them free, earns the value of ONE, and a results screen that works the
+    // figure out by subtracting Renown and Laurels out of the total prints the
+    // value of all of them.
+    const { room, p, now, scar } = withScar("thornborn");
+    engine.decideScar(room, "p0", scar.id, true, now);
+    p.scars.push({ id: "extra-1", sceneId: "x", label: "a bad ear", kept: true });
+    p.scars.push({ id: "extra-2", sceneId: "x", label: "a short finger", kept: true });
+    p.renown = 0;
+    engine.findPlayer(room, "p1")!.renown = 50;
+
+    const mine = standingsFor(room.players).find((s) => s.playerId === "p0")!;
+    expect(mine.keptScars).toBe(3);
+    expect(mine.scarsPaid).toBe(1);
+    expect(mine.total).toBe(KEPT_SCAR_VALUE);
+    // Derivation gets it wrong. That is the entire point of carrying the field.
+    expect(mine.total - mine.renown).not.toBe(mine.keptScars * KEPT_SCAR_VALUE);
   });
 
   it("a Scar kept the ordinary way pays nothing under the median", () => {

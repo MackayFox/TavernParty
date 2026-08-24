@@ -53,7 +53,7 @@ export default async function TablesPage() {
     if (!identity) redirect("/tables?named=0");
     const room = await store.quickMatch();
     await store.mutate(room.code, (r, now) => engine.join(r, { id: identity.id, name }, now));
-    redirect(`/tables/${room.code}`);
+    redirect(`/room/${room.code}`);
   }
 
   return (
@@ -152,7 +152,7 @@ export default async function TablesPage() {
                       </p>
                     ) : (
                       <Link
-                        href={`/tables/${table.code}`}
+                        href={`/room/${table.code}`}
                         className="font-display inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-accent px-5 font-semibold text-ink hover:bg-accent-hover"
                       >
                         Join

@@ -55,6 +55,18 @@ export function Act({ view, post, busy }: PhaseProps) {
     return total;
   }
 
+  /**
+   * What flinching costs right now.
+   *
+   * Through the engine's own multiplier rather than the raw constants, because
+   * `resolveAct` computes the flinch cost with `costMultiplier` and no approach,
+   * so the Reckless exemption never applies to it: on your Failing scene at
+   * Dread 3 or more, not moving costs four times the constant. That is the
+   * number somebody is using to decide whether to move, and printing the
+   * constant understated it by up to 4x.
+   */
+  const flinchMult = costMultiplier({ calling, scene, dread: view.dread });
+
   function costWords(approach: ApproachDef): string {
     const mult = costMultiplier({ calling, scene, dread: view.dread, approach });
     const parts: string[] = [];
@@ -281,8 +293,12 @@ export function Act({ view, post, busy }: PhaseProps) {
           })}
         </ul>
         <p className="text-sm text-text-mid">
-          Do nothing and you Flinch, which is {Math.abs(FLINCH_RENOWN)} Renown off you and{" "}
-          {FLINCH_DREAD} Dread on everybody. It is a move, not a pass.
+          Do nothing and you Flinch, which right now is{" "}
+          {Math.abs(FLINCH_RENOWN) * flinchMult} Renown off you and {FLINCH_DREAD * flinchMult}{" "}
+          Dread on everybody
+          {flinchMult > 1 ? ", because of where this night has got to" : ""}. It is a move, not a
+          pass.
+          {marked ? ` Being Marked and not moving costs you ${MARK_FLINCH_PENALTY} more.` : ""}
         </p>
       </section>
     </div>

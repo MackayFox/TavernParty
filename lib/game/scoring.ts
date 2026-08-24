@@ -65,6 +65,7 @@ export function standingsFor(players: readonly Player[]): Standing[] {
       name: p.name,
       renown: p.renown,
       keptScars,
+      scarsPaid: paying,
       laurels,
       total,
       placement: 0,

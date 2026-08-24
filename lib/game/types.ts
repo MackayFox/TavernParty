@@ -283,6 +283,15 @@ export type Standing = {
   name: string;
   renown: number;
   keptScars: number;
+  /**
+   * How many of those kept Scars actually paid, after the median gate.
+   *
+   * Carried rather than left to be derived, because subtracting Renown and
+   * Laurels out of the total gets the Thornborn case wrong: a below-median
+   * player with three kept Scars, one of them free, earns four and a screen
+   * doing the arithmetic backwards prints "three Scars worn, paying twelve".
+   */
+  scarsPaid: number;
   laurels: number;
   /** The final figure, after the median gate and the laurels. */
   total: number;

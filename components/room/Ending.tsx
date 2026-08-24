@@ -88,8 +88,10 @@ export function Final({ view, post, busy }: PhaseProps) {
       <ol className="space-y-3">
         {standings.map((row) => {
           const isMe = row.playerId === view.me.id;
-          const scarPay = row.total - row.renown - row.laurels * LAUREL_VALUE;
-          const scarsPaid = row.keptScars > 0 && scarPay > 0;
+          // Straight from the server, never derived by subtraction: see the note
+          // on Standing.scarsPaid. A Scar kept with a Blood power pays whatever
+          // your Renown, so the total does not tell you how many paid.
+          const scarPay = row.scarsPaid * KEPT_SCAR_VALUE;
           const body = (
             <>
               <div className="flex flex-wrap items-center gap-2">
@@ -111,9 +113,11 @@ export function Final({ view, post, busy }: PhaseProps) {
                   {row.keptScars} Scar{row.keptScars === 1 ? "" : "s"} worn
                   {row.keptScars === 0
                     ? ""
-                    : scarsPaid
-                      ? `, paying ${row.keptScars * KEPT_SCAR_VALUE}`
-                      : ", paying nothing: below the middle of the table"}
+                    : row.scarsPaid === row.keptScars
+                      ? `, paying ${scarPay}`
+                      : row.scarsPaid > 0
+                        ? `, and only ${row.scarsPaid} of them paid: ${scarPay}, off a Blood that does not care where you finished`
+                        : ", paying nothing: below the middle of the table"}
                 </li>
                 <li>
                   {row.laurels} Laurel{row.laurels === 1 ? "" : "s"}

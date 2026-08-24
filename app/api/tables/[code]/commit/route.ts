@@ -3,11 +3,15 @@ import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
 import * as engine from "@/lib/game/engine";
 import * as store from "@/lib/game/store";
+import { HOOK_TOKENS_MAX } from "@/lib/game/rules";
 import { getIdentity } from "@/lib/identity";
 
 const schema = z.object({
   approachId: z.string().min(1).max(60),
-  spendTokens: z.number().int().min(0).max(2).default(0),
+  // Tideborn start one above the ceiling, so the cap here is MAX + 1, not MAX.
+  // The engine clamps to what the player actually holds; this only has to be
+  // wide enough not to reject a legal spend with a generic zod error.
+  spendTokens: z.number().int().min(0).max(HOOK_TOKENS_MAX + 1).default(0),
 });
 
 /** Commit to one of the three ways through, and how many Hook tokens to spend. */
