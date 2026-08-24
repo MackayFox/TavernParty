@@ -204,6 +204,17 @@ export type ActState = {
   nominations: Record<string, string>;
   /** playerId -> approach id, or "flinch". Redacted until the Act resolves. */
   choices: Record<string, string>;
+  /** playerId -> Hook tokens they chose to spend on it. */
+  spend: Record<string, number>;
+  /**
+   * Who committed, in the order they did it.
+   *
+   * The Reckless line is one door and only one player goes through it, so a
+   * clash needs a deterministic winner. The quicker hand takes it, which is both
+   * the fairest rule available and the one that narrates itself: you both
+   * reached for it in the dark.
+   */
+  order: string[];
   /** Players who paid to see the reckless target number. */
   revealed: string[];
   outcomes: Outcome[] | null;
