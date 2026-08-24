@@ -136,7 +136,15 @@ function answerShapedKeys(value, trail = "") {
 function revealedAnswer(json) {
   if (!json || typeof json !== "object") return null;
   for (const [k, v] of Object.entries(json)) {
-    if (ANSWER_KEY.test(k) && v !== null && v !== undefined) return JSON.stringify(v);
+    if (!ANSWER_KEY.test(k)) continue;
+    // A verdict is not an answer. `solved: false` matches the key pattern, and
+    // searching the initial payload for the string "false" finds `archive:false`
+    // in every single one of them, so a boolean here reports a leak that is not
+    // there. Only a structure or a real string can be the answer being handed
+    // over; the key pattern still catches a boolean on the GET side, where a
+    // `solved` field genuinely would be a leak.
+    if (typeof v === "object" && v !== null) return JSON.stringify(v);
+    if (typeof v === "string" && v.length > 1) return JSON.stringify(v);
   }
   return null;
 }
@@ -146,54 +154,67 @@ function revealedAnswer(json) {
 // ---------------------------------------------------------------------------
 
 /**
- * Turn a puzzle payload into a submission.
+ * Turn a puzzle payload into a submission the route will actually accept.
  *
- * Deliberately structural: it recognises the shape of each of the four dailies
- * rather than importing a schema, so it keeps working while the payloads are
- * still being shaped and fails loudly when it stops recognising one.
+ * One builder per game, written against that route's zod schema. This used to be
+ * a single structural guesser with a chain of `?? ` fallbacks for every
+ * plausible field name, which is a tempting shape for a script written before
+ * the routes exist and a worthless one afterwards: it guessed wrong on all four
+ * and produced a 400 from every daily, which reads as four broken games rather
+ * than as one wrong script.
+ *
+ * A builder returns null when the payload stops looking like the game it is
+ * meant to be, so a contract change fails loudly here instead of quietly posting
+ * something the route happens to tolerate.
  */
-function buildAnswer(payload) {
+const BUILDERS = {
+  /**
+   * Five drinkers, five amounts, one amount each. Closing the ledger is the
+   * final answer. The permutation below is almost certainly the wrong one, and
+   * that is fine: the check is that the server scores it, not that this script
+   * can solve a logic puzzle.
+   */
+  ledger(p) {
+    if (!Array.isArray(p.names) || !Array.isArray(p.amounts)) return null;
+    if (p.names.length !== p.amounts.length) return null;
+    return { assignment: p.names.map((_, i) => i), mode: "close", checksUsed: 0 };
+  },
+
+  /** One door per Act, and deliberately never the Reckless one. */
+  longway(p) {
+    if (!Array.isArray(p.acts) || p.acts.length === 0) return null;
+    const choices = [];
+    for (const act of p.acts) {
+      const doors = act?.doors;
+      if (!Array.isArray(doors) || doors.length === 0) return null;
+      const door = doors.find((d) => !d.reckless) ?? doors[0];
+      if (typeof door?.id !== "string") return null;
+      choices.push({ doorId: door.id, spend: 0 });
+    }
+    return { choices };
+  },
+
+  /** The house array placed one number per ability, plus a Calling and a Kit. */
+  muster(p) {
+    if (!Array.isArray(p.array) || !Array.isArray(p.abilities)) return null;
+    if (p.array.length !== p.abilities.length) return null;
+    const callingId = p.callings?.[0]?.id;
+    const kitId = p.kit?.[0]?.id;
+    if (typeof callingId !== "string" || typeof kitId !== "string") return null;
+    return { placement: p.array.map((_, i) => i), callingId, kitId };
+  },
+
+  /** Six rolls, six obstacles, one roll each. */
+  tableofsix(p) {
+    if (!Array.isArray(p.faces) || !Array.isArray(p.obstacles)) return null;
+    if (p.faces.length !== p.obstacles.length) return null;
+    return { slots: p.obstacles.map((_, i) => i) };
+  },
+};
+
+function buildAnswer(game, payload) {
   if (!payload || typeof payload !== "object") return null;
-
-  // Table of Six: today's six die results, one to each obstacle.
-  const dice = payload.dice ?? payload.rolls ?? payload.faces;
-  const obstacles = payload.obstacles ?? payload.checks ?? payload.targets;
-  if (Array.isArray(dice) && Array.isArray(obstacles)) {
-    return { assignment: obstacles.map((_, i) => i % dice.length) };
-  }
-
-  // The Ledger: a square grid, plus how many CHECKS were spent getting there.
-  const rows = payload.rows ?? payload.debtors ?? payload.names;
-  const cols = payload.columns ?? payload.cols ?? payload.creditors ?? payload.amounts;
-  if (Array.isArray(rows) && Array.isArray(cols)) {
-    return { grid: rows.map((_, i) => i % cols.length), checks: 0 };
-  }
-
-  // The Long Way Down: one Approach per Act.
-  const acts = payload.acts ?? payload.scenes ?? payload.encounters;
-  if (Array.isArray(acts)) {
-    return {
-      choices: acts.map((act) => {
-        const options = act?.approaches ?? act?.options ?? [];
-        const first = options[0];
-        return typeof first === "object" && first !== null ? (first.id ?? 0) : (first ?? 0);
-      }),
-    };
-  }
-
-  // Muster: a character built to a budget against a named encounter.
-  if (payload.encounter || payload.budget !== undefined) {
-    const callings = payload.callings ?? [];
-    const kit = payload.kit ?? [];
-    const idOf = (x) => (typeof x === "object" && x !== null ? x.id : x);
-    return {
-      scores: payload.array ?? payload.houseArray ?? payload.scores ?? null,
-      callingId: idOf(callings[0]) ?? null,
-      kitIds: kit.slice(0, 1).map(idOf).filter(Boolean),
-    };
-  }
-
-  return null;
+  return BUILDERS[game]?.(payload) ?? null;
 }
 
 async function playOne(game) {
@@ -227,7 +248,7 @@ async function playOne(game) {
   );
 
   // 4. Play it ------------------------------------------------------------
-  const answer = buildAnswer(payload);
+  const answer = buildAnswer(game, payload);
   if (
     !check(
       `${game}: this script recognises the payload well enough to answer it`,
