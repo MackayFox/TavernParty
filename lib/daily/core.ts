@@ -4,11 +4,11 @@
  *
  * Nothing in here touches I/O and nothing in here knows an answer, so this is
  * the ONE daily module a client component may import. Every module that can
- * resolve a solution (`longway`, `tableofsix`, `ledger`, `muster`) is server
+ * resolve a solution (`longway`, `deeprun`, `ledger`, `muster`) is server
  * only and reached through `app/api/daily/*`.
  */
 
-export const DAILY_GAMES = ["longway", "tableofsix", "ledger", "muster"] as const;
+export const DAILY_GAMES = ["longway", "deeprun", "ledger", "muster"] as const;
 export type DailyGame = (typeof DAILY_GAMES)[number];
 
 export type DailyMeta = {
@@ -38,15 +38,21 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
     minScore: 0,
     maxScore: 99,
   },
-  tableofsix: {
-    name: "TABLE OF SIX",
-    path: "/daily/tableofsix",
+  /**
+   * Replaced TABLE OF SIX, which was the same puzzle as THE LONG WAY DOWN in a
+   * plainer coat: both were "here are N dice you can already see, assign them to
+   * N targets". This one is the only daily where you do NOT know the number
+   * before you choose, which is the whole reason it is here.
+   */
+  deeprun: {
+    name: "THE DEEP RUN",
+    path: "/daily/deeprun",
     blurb:
-      "Six dice, thrown once for the whole world, and six problems that will not wait. Put the right roll on the right problem.",
-    rule: "Give each obstacle exactly one of today's six rolls.",
-    glyph: "🎲",
-    minScore: -40,
-    maxScore: 60,
+      "Build somebody, take them down six floors, and find out what is in each room when you open it. The same dungeon for everybody, and you will not all come back.",
+    rule: "Every room owns its die. You only see the number once you are in the room.",
+    glyph: "🕯️",
+    minScore: 0,
+    maxScore: 62,
   },
   ledger: {
     name: "THE LEDGER",

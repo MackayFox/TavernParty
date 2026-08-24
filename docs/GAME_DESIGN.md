@@ -20,7 +20,7 @@ situation.
 
 ## 1. What this is
 
-Two to six players. One run of a little over ten minutes. Everybody builds a character, the party
+Two to six players. One run of a little under twelve minutes. Everybody builds a character, the party
 takes on five Acts together, and exactly one of you walks out with the Hoard.
 
 The pitch, in one line: **roll a character, survive the night, and find out
@@ -55,15 +55,20 @@ them there and this table is wrong.
 
 | Phase | Seconds | What happens |
 |---|---:|---|
-| `MUSTER` | 8 | The house array is rolled and the priority order published. Nothing to decide |
+| `MUSTER` | 16 | The house array is rolled and the priority order published. Nothing to decide, but a lot to read |
 | `DRAFT_CALLING` | 35 | Ranked simultaneous commit on eight exclusive Callings |
 | `DRAFT_KIT` | 30 | Ranked simultaneous commit on twelve exclusive pieces of Kit, **reverse priority** |
 | `ASSIGN` | 70 | Place the six house numbers and choose a Hook. The biggest decision in the game |
 | `ACT` ×5 | 60 each | Commit an Approach, and optionally nominate somebody |
-| `ACT_RESULT` ×5 | 30 each | The ledger, what nobody took, and keep-or-hide |
+| `ACT_RESULT` ×5 | 45 each | The ledger, what nobody took, a Signature or a Blood, and keep-or-hide |
 | `BALLAD` | 35 | Laurels are cast, the Hoard is awarded |
 
-Total about 630 seconds, so a little over ten minutes. Fixed regardless of
+Total about 710 seconds, so a little under twelve minutes. It was 630 and two of
+those beats were too short to read: eight seconds of MUSTER did not reach sentence
+two, and thirty seconds of `ACT_RESULT` had to cover your own itemised roll, up to
+five other people's, two spendable once-a-night moves and a keep-or-hide decision
+whose default on timeout costs you Renown. A beat nobody can read is not worth the
+second it saves. Fixed regardless of
 table size, because every phase is simultaneous: a six-player run takes the same
 time as a two-player one, which is the main practical reason this shape was
 chosen over anything turn-based. Nothing waits on a specific human: every phase resolves on
@@ -325,21 +330,43 @@ lives.
 
 ## 7. The four dailies
 
-All four run **the real engine with the dice and inputs pinned from the date**,
-and publish a **par computed by brute force**. No second codebase, and "two
-under" is a better thing to post than "47 out of 62".
+All four pin **the dice and the inputs to the date** and publish a **par computed
+exactly**, not sampled. "Two under" is a better thing to post than "47 out of 62".
 
-1. **The Long Way Down.** Today's five Acts, fixed dice, played solo. Par is the
-   best achievable score, found by exhaustive search.
-2. **Table of Six.** Six d20 results are published for the day, identical
-   worldwide. Assign one to each of six obstacles. A pure assignment problem
-   with a knowable optimum and no prose at all.
+The four are deliberately four DIFFERENT SHAPES, and that constraint has already
+cost one of them its place. The original set had both The Long Way Down and Table
+of Six, which were the same puzzle in different coats: here are N dice you can
+already see, assign them to N targets. Table of Six was the barer of the two and
+it went.
+
+1. **The Long Way Down.** Today's five Acts, fixed dice, played solo, every
+   number visible up front. Assignment under perfect information, and par is the
+   best achievable score by exhaustive search.
+2. **The Deep Run.** A dungeon, six floors and something at the bottom. Build a
+   character on tonight's six numbers, then choose a door per floor, and here is
+   the whole point: **each room owns its die and you only see the number once you
+   are in the room.** The dice are still pinned to the date, so everybody in the
+   world meets the same seven numbers in the same order and two scores mean the
+   same thing, but you are choosing blind. That makes it the only daily where the
+   variable is nerve rather than arithmetic.
+
+   Every room offers two ability checks on different abilities plus one option
+   that always works and always costs Vigour, so no room is ever a wall, only a
+   price. Par stays cheap to compute for a nice reason: because the die is fixed
+   before you choose, there is no probability in the problem at all, so the whole
+   search collapses to a table over (floor, Vigour, knack still in hand).
 3. **The Ledger.** A five by five debt grid solved by constraint propagation
-   from four true statements. Up to three CHECKS, each of which costs you a
-   mark, and the number you used is the score you share.
+   from four true statements. No dice in it anywhere. Up to three CHECKS, each of
+   which costs you a mark, and the number you used is the score you share.
 4. **Muster.** Build a character on a fixed budget to beat today's named
-   encounter. Character creation as its own game, because for a lot of people
-   it always was.
+   encounter. Character creation as its own game, because for a lot of people it
+   always was.
+
+**On generating a daily with an LLM at request time: no.** Two hard reasons
+rather than a cost one. A daily has to be the identical puzzle for everybody or
+the score is not worth posting, and a score has to be checked server-side against
+something deterministic, which a language model is not. Using one offline to help
+author more rooms is a different thing entirely and is worth doing.
 
 ---
 

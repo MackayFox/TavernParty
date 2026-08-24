@@ -15,7 +15,8 @@ import {
   utcDate,
 } from "@/lib/daily/core";
 import * as longway from "@/lib/daily/longway";
-import * as tableofsix from "@/lib/daily/tableofsix";
+import * as deeprun from "@/lib/daily/deeprun";
+import { parFor as deepPar } from "@/lib/daily/deeprun-par";
 import * as ledger from "@/lib/daily/ledger";
 import * as muster from "@/lib/daily/muster";
 import { statsFromRows } from "@/lib/daily/results";
@@ -204,57 +205,26 @@ describe("longway", () => {
   });
 });
 
-describe("tableofsix", () => {
-  it("publishes six dice and six obstacles with six different targets", () => {
+describe("deeprun", () => {
+  it("publishes a whole dungeon with no dice in it", () => {
     for (const date of DATES) {
-      const puzzle = tableofsix.puzzleFor(date);
-      expect(puzzle.faces).toHaveLength(tableofsix.SLOTS);
-      expect(puzzle.obstacles).toHaveLength(tableofsix.SLOTS);
-      expect(new Set(puzzle.obstacles.map((o) => o.tn)).size).toBe(tableofsix.SLOTS);
-      expect(new Set(puzzle.obstacles.map((o) => o.id)).size).toBe(tableofsix.SLOTS);
-      for (const face of puzzle.faces) {
-        expect(face).toBeGreaterThanOrEqual(1);
-        expect(face).toBeLessThanOrEqual(20);
-      }
+      const puzzle = deeprun.puzzleFor(date);
+      expect(puzzle.rooms).toHaveLength(deeprun.DEPTH);
+      expect(puzzle.array).toHaveLength(deeprun.ARRAY_SIZE);
+      expect(puzzle.callings).toHaveLength(deeprun.CALLING_CHOICES);
+      expect(puzzle.kit).toHaveLength(deeprun.KIT_CHOICES);
+      // The number in each room is the one thing the payload must not carry.
+      expect(JSON.stringify(puzzle)).not.toMatch(/"die"|"roll"/);
     }
   });
 
-  it("finds the true optimum over all 720 assignments", () => {
+  it("has a par that is reachable on every day tested", () => {
     for (const date of DATES) {
-      const puzzle = tableofsix.puzzleFor(date);
-      const { par, best } = tableofsix.parFor(puzzle);
-      expect(tableofsix.validSlots(best)).toBe(true);
-      expect(tableofsix.score(puzzle, best).total).toBe(par);
-
-      let brute = -Infinity;
-      const walk = (left: number[], acc: number[]) => {
-        if (left.length === 0) {
-          brute = Math.max(brute, tableofsix.score(puzzle, acc).total);
-          return;
-        }
-        for (let i = 0; i < left.length; i++) {
-          acc.push(left[i]);
-          walk([...left.slice(0, i), ...left.slice(i + 1)], acc);
-          acc.pop();
-        }
-      };
-      walk([0, 1, 2, 3, 4, 5], []);
-      expect(par).toBe(brute);
+      const puzzle = deeprun.puzzleFor(date);
+      const { par, best } = deepPar(puzzle);
+      expect(best, date).not.toBeNull();
+      expect(deeprun.run(puzzle, best!.build, best!.steps).score, date).toBe(par);
     }
-  });
-
-  it("honours a natural twenty and a natural one", () => {
-    const hard = { id: "x", label: "x", ability: "brawn" as const, tn: 20, deed: 9, cost: 3 };
-    const easy = { id: "y", label: "y", ability: "brawn" as const, tn: 2, deed: 4, cost: 1 };
-    expect(tableofsix.valueOf(20, hard)).toBe(9);
-    expect(tableofsix.valueOf(1, easy)).toBe(-1);
-  });
-
-  it("rejects an assignment that is not a permutation", () => {
-    expect(tableofsix.validSlots([0, 1, 2, 3, 4, 5])).toBe(true);
-    expect(tableofsix.validSlots([0, 0, 2, 3, 4, 5])).toBe(false);
-    expect(tableofsix.validSlots([0, 1, 2, 3, 4])).toBe(false);
-    expect(tableofsix.validSlots([0, 1, 2, 3, 4, 6])).toBe(false);
   });
 });
 
@@ -428,7 +398,7 @@ describe("routes", () => {
   it("refuses a claimed score instead of an answer", async () => {
     const routes = [
       ["longway", await import("@/app/api/daily/longway/route")],
-      ["tableofsix", await import("@/app/api/daily/tableofsix/route")],
+      ["deeprun", await import("@/app/api/daily/deeprun/route")],
       ["ledger", await import("@/app/api/daily/ledger/route")],
       ["muster", await import("@/app/api/daily/muster/route")],
     ] as const;
@@ -481,23 +451,44 @@ describe("routes", () => {
     expect(typeof scored.score).toBe("number");
     expect(typeof scored.par).toBe("number");
 
-    const table = await import("@/app/api/daily/tableofsix/route");
-    const six = await json(await table.GET(req("/api/daily/tableofsix?date=2026-09-09")));
-    expect(six.par).toBeUndefined();
-    const result = await json(
-      await table.POST(req("/api/daily/tableofsix", { date: "2026-09-09", slots: [5, 4, 3, 2, 1, 0] }))
+    const deep = await import("@/app/api/daily/deeprun/route");
+    const dungeon = (await json(
+      await deep.GET(req("/api/daily/deeprun?date=2026-09-09"))
+    )) as deeprun.Puzzle & { par?: number };
+    expect(dungeon.par).toBeUndefined();
+    const played = await json(
+      await deep.POST(
+        req("/api/daily/deeprun", {
+          date: "2026-09-09",
+          callingId: dungeon.callings[0].id,
+          placement: [0, 1, 2, 3, 4, 5],
+          kitIds: [dungeon.kit[0].id, dungeon.kit[1].id],
+          steps: dungeon.rooms.map((r: { options: { id: string }[] }) => ({
+            optionId: r.options[0].id,
+          })),
+        })
+      )
     );
-    expect(typeof result.score).toBe("number");
-    expect(typeof result.par).toBe("number");
+    expect(typeof played.score).toBe("number");
+    expect(typeof played.par).toBe("number");
 
-    const bad = await table.POST(req("/api/daily/tableofsix", { date: "2026-09-09", slots: [0, 0, 1, 2, 3, 4] }));
-    expect(bad.status).toBe(400);
+    const rewritten = await deep.POST(
+      req("/api/daily/deeprun", {
+        date: "2026-09-09",
+        callingId: dungeon.callings[0].id,
+        // Not the numbers the house rolled: the same one six times.
+        placement: [0, 0, 0, 0, 0, 0],
+        kitIds: [dungeon.kit[0].id, dungeon.kit[1].id],
+        steps: [],
+      })
+    );
+    expect(rewritten.status).toBe(400);
   });
 
   it("falls back to today on a future or malformed date", async () => {
-    const route = await import("@/app/api/daily/tableofsix/route");
+    const route = await import("@/app/api/daily/deeprun/route");
     for (const raw of ["2099-12-31", "not-a-date"]) {
-      const body = await json(await route.GET(req(`/api/daily/tableofsix?date=${encodeURIComponent(raw)}`)));
+      const body = await json(await route.GET(req(`/api/daily/deeprun?date=${encodeURIComponent(raw)}`)));
       expect(body.date).toBe(utcDate());
     }
   });

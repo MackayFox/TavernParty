@@ -46,7 +46,7 @@ const BASE = flag("base", process.env.SMOKE_BASE ?? "http://localhost:3000").rep
 const ONLY = flag("game", null);
 
 /** Used only if GET /api/daily does not list them. */
-const DEFAULT_GAMES = ["long-way-down", "table-of-six", "ledger", "muster"];
+const DEFAULT_GAMES = ["longway", "deeprun", "ledger", "muster"];
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const FUTURE = "2099-12-31";
@@ -116,7 +116,11 @@ const post = (p, body) => call("POST", p, body);
 // Leak detection
 // ---------------------------------------------------------------------------
 
-const ANSWER_KEY = /^(answer|answers|solution|solutions|correct|expected|secret|key|solved)$/i;
+// `par` and friends belong on a submission reply and nowhere near a GET, so they
+// count as answer-shaped: the longway route calls its par "the answer" in as many
+// words, and a par is a solved puzzle by definition.
+const ANSWER_KEY =
+  /^(answer|answers|solution|solutions|correct|expected|secret|key|solved|par|parline|best|bestbuild|bestslots|bestrun|optimum)$/i;
 
 /** Every key anywhere in the payload that reads like the answer. */
 function answerShapedKeys(value, trail = "") {
@@ -204,11 +208,28 @@ const BUILDERS = {
     return { placement: p.array.map((_, i) => i), callingId, kitId };
   },
 
-  /** Six rolls, six obstacles, one roll each. */
-  tableofsix(p) {
-    if (!Array.isArray(p.faces) || !Array.isArray(p.obstacles)) return null;
-    if (p.faces.length !== p.obstacles.length) return null;
-    return { slots: p.obstacles.map((_, i) => i) };
+  /**
+   * Build somebody and take the first door on every floor.
+   *
+   * This will very likely die halfway down, which is the correct thing for a
+   * smoke test to do: it proves a partial run scores and does not throw, and
+   * "getting out" is a thing the unit tests assert about the optimal line
+   * rather than something a script picking blindly should manage.
+   */
+  deeprun(p) {
+    if (!Array.isArray(p.array) || !Array.isArray(p.rooms)) return null;
+    const callingId = p.callings?.[0]?.id;
+    const kitIds = [p.kit?.[0]?.id, p.kit?.[1]?.id].filter(Boolean);
+    if (typeof callingId !== "string" || kitIds.length !== 2) return null;
+    for (const room of p.rooms) {
+      if (!Array.isArray(room.options) || room.options.length === 0) return null;
+    }
+    return {
+      callingId,
+      placement: p.array.map((_, i) => i),
+      kitIds,
+      steps: p.rooms.map((room) => ({ optionId: room.options[0].id })),
+    };
   },
 };
 
