@@ -233,12 +233,16 @@ export function dailyCacheControl(archive: boolean, from: number = Date.now()): 
 // server to resolve a door and the client to label one. They cannot disagree.
 // ---------------------------------------------------------------------------
 
-/** Does this face, with this total behind it, clear that target number? */
-export function clears(face: number, total: number, tn: number): boolean {
-  if (face === CRIT) return true;
-  if (face === FUMBLE) return false;
-  return total >= tn;
-}
+/**
+ * Does this face, with this total behind it, clear that target number?
+ *
+ * Re-exported from `lib/game/rules.ts` rather than defined here. It was defined
+ * here first, which left the live game's own copy in `lib/game/resolve.ts`
+ * untouched, because the engine may not import from `lib/daily`. Four copies
+ * became two. Two is still one too many, so the rule lives with the other rules
+ * and this is the door the dailies come in by.
+ */
+export { clears } from "@/lib/game/rules";
 
 /**
  * The lowest face that clears `tn` with `bonus` on it, for a die nobody has

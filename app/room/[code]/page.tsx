@@ -16,6 +16,13 @@ import { getGuestId, getIdentity } from "@/lib/identity";
 import type { RoomView } from "@/lib/game/types";
 import { RoomClient } from "./RoomClient";
 
+export const metadata = {
+  // robots.txt stops the crawl, not the indexing: an external link to one of
+  // these is enough for Google to list it without ever fetching it. A room is
+  // gone by the time anybody clicks, and the rest are personal.
+  robots: { index: false, follow: false },
+};
+
 /** A table is live state and it is redacted per viewer. Never cache it. */
 export const dynamic = "force-dynamic";
 

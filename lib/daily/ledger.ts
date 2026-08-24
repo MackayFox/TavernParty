@@ -364,6 +364,6 @@ export function shareText(date: string, correct: boolean, checksUsed: number): s
     `THE LEDGER ${date}`,
     verdict,
     correct ? marks : "▫▫▫▫",
-    "tavernparty.co.uk/daily/ledger",
+    "https://tavernparty.co.uk/daily/ledger",
   ].join("\n");
 }

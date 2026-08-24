@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(login|signup|forgot-password|reset-password|history)",
+        source: "/(login|logout|signup|forgot-password|reset-password|history)",
         headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
       },
     ];

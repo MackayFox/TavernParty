@@ -456,7 +456,7 @@ export function shareText(date: string, run: Run, par: number): string {
     `THE LONG WAY DOWN ${date}`,
     `${run.renown} Renown, ${parPhrase(run.renown, par)}`,
     grid,
-    "tavernparty.co.uk/daily/longway",
+    "https://tavernparty.co.uk/daily/longway",
   ].join("\n");
 }
 

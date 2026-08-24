@@ -7,7 +7,7 @@
  * player needs to make the bet is on this screen in words: what the door needs,
  * what it pays, what it costs, and who the table thinks ought to be taking it.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Button, Pill } from "@/components/ui";
 import { SCENES_BY_ID } from "@/lib/content/scenes";
 import { TAG_MEANING, isTag } from "@/lib/content/tags";
@@ -140,9 +140,19 @@ export function Act({ view, post, busy }: PhaseProps) {
   const act = view.act;
   const me = meOf(view);
   const [spend, setSpend] = useState(0);
-  const [locked, setLocked] = useState(() =>
-    rememberedSpend(view.code, view.act?.index ?? 0)
-  );
+  /**
+   * Read AFTER mount, never in a lazy initialiser.
+   *
+   * `useState(() => ...)` runs during render, and this reads sessionStorage,
+   * which does not exist on the server. Since the room started server-rendering
+   * its first snapshot, that made the first client render disagree with the
+   * server's and React threw the whole tree away and rebuilt it. The effect runs
+   * once after mount instead, so both renders start from the same nothing.
+   */
+  const [locked, setLocked] = useState<number | null>(null);
+  useEffect(() => {
+    setLocked(rememberedSpend(view.code, view.act?.index ?? 0));
+  }, [view.code, view.act?.index]);
   const [nominated, setNominated] = useState<string | null>(null);
 
   if (!act) return null;
@@ -166,7 +176,10 @@ export function Act({ view, post, busy }: PhaseProps) {
    */
   const boost = act.boosted.includes(view.me.id) ? SIGNATURE_BOOST : 0;
   /** Once you have moved, the tokens are locked in; before that, the widget. */
-  const spending = chosen ? locked : spend;
+  // `locked` is null until the effect below reads it back, which is the state
+  // BOTH the server and the first client render see. Falling back to zero keeps
+  // the two identical instead of hydrating into a different tree.
+  const spending = chosen ? (locked ?? 0) : spend;
 
   /** Everything you bring to a roll before the die and before tokens. */
   function bonusFor(approach: ApproachDef): number {
@@ -252,8 +265,11 @@ export function Act({ view, post, busy }: PhaseProps) {
             </ul>
             <p className="mt-2 text-sm text-text-mid">
               Being Marked pays {MARK_BONUS} Renown for taking the Act at all, and costs{" "}
-              {MARK_FLINCH_PENALTY} more than usual for not moving. It also refills your
-              Hook tokens, because your own history has come round.
+              {/* Multiplied, like the figure further down the screen. Printing the
+                  raw constant here while the flinch line printed the scaled one
+                  meant the same rule appeared twice with two different numbers. */}
+              {MARK_FLINCH_PENALTY * flinch.multiplier} more than usual for not moving. It
+              also refills your Hook tokens, because your own history has come round.
             </p>
           </>
         )}
@@ -280,7 +296,7 @@ export function Act({ view, post, busy }: PhaseProps) {
           <p className="font-display mt-1 text-lg text-text-hi">{chosen.label}</p>
           <p className="mt-1 text-sm text-text-mid">
             {ABILITY_LABEL[chosen.ability]}
-            {locked > 0
+            {(locked ?? 0) > 0
               ? `, with ${locked} Hook token${locked === 1 ? "" : "s"} going with it`
               : ", with no Hook tokens on it"}
             . They come off you when the window closes, so your count above still reads

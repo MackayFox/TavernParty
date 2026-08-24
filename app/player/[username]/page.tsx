@@ -13,8 +13,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
   const user = await getUserByUsername(username);
   if (!user) return { title: "No such name", robots: { index: false, follow: false } };
+  const name = user.username;
   return {
-    title: `${user.username} at the table`,
+    // Longer than the bare handle, and carrying a term somebody might search.
+    // Deliberately NOT in the sitemap: a profile is user-generated and thin, and
+    // a sitemap full of them is how a small site spends its crawl budget badly.
+    title: `${name}: Tavern Party Record and Hoards Won`,
+    openGraph: {
+      title: `${name} at the table`,
+      description: `Every run ${name} has played on Tavern Party, and what they walked out with.`,
+      url: `/player/${name}`,
+    },
     description: `Runs, Hoards and Scars for ${user.username} on Tavern Party.`,
     alternates: { canonical: `/player/${user.username}` },
   };

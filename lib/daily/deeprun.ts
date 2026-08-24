@@ -505,6 +505,6 @@ export function shareText(date: string, result: Result, par: number): string {
     ending,
     glyphs,
     `${result.score} of a possible ${par}`,
-    "tavernparty.co.uk/daily/deeprun",
+    "https://tavernparty.co.uk/daily/deeprun",
   ].join("\n");
 }

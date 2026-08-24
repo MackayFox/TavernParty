@@ -1145,6 +1145,11 @@ function rethrow(
       approach,
       spendTokens: 0, // Spent on the first throw, and gone with it.
       dread: room.dread,
+      // The table size, or costMultiplier falls back to the SOLO thresholds and
+      // doubles this roll's cost at Dread 3 while the rest of the Act is using
+      // the party's own number. A reroll has to be the same bet as the throw it
+      // replaces.
+      players: room.players.length,
       hookCalled: mine.hookRefilled,
       /**
        * A Chanter who declared before the roll keeps the declaration.
@@ -1353,6 +1358,7 @@ export function useSignature(
           approach: other,
           spendTokens: 0,
           dread: room.dread,
+          players: room.players.length,
           hookCalled: false,
         },
         outcomes.length,

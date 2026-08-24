@@ -1,7 +1,10 @@
 /**
  * The twelve pieces of Kit, in full.
  *
- * KIT_DETAIL was written for the creation screen and rendered nowhere. It is the
+ * Built from KIT_DETAIL, the same writing the draft screen shows a player mid-run.
+ * It is published here as a page in its own right because the twelve pieces of Kit are
+ * something people search for, and a paragraph only reachable by being
+ * in a live game is a paragraph no search engine will ever see.
  * closest thing this site has to a starting equipment list, and the whole reason
  * it is worth publishing is that every entry is an ordinary object described by
  * the detail that makes it that object: the knot every arm's length, the pick

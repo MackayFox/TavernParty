@@ -103,6 +103,23 @@ export const HOOK_TOKENS_MAX = 2;
 export const CRIT = DIE_SIDES;
 export const FUMBLE = 1;
 
+/**
+ * Does this face, with this total behind it, clear that target number?
+ *
+ * THE ONE COPY. The dailies grew their own version of this and drifted: a
+ * client labelled a guaranteed-fail door "(enough)" and a guaranteed-pass door
+ * "(short)" on the one game whose entire pitch is perfect information. That was
+ * fixed by putting the predicate in `lib/daily/core.ts`, which the engine cannot
+ * import, so the live game kept a fourth copy of the same three lines. It lives
+ * here now, and `lib/daily/core.ts` re-exports it, because the rule is a rule of
+ * the game rather than a rule of the dailies.
+ */
+export function clears(face: number, total: number, tn: number): boolean {
+  if (face === CRIT) return true;
+  if (face === FUMBLE) return false;
+  return total >= tn;
+}
+
 // ---------------------------------------------------------------------------
 // Renown
 // ---------------------------------------------------------------------------

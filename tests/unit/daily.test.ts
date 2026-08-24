@@ -493,3 +493,28 @@ describe("routes", () => {
     }
   });
 });
+
+describe("share text is shareable", () => {
+  it("carries a scheme, or nothing unfurls it", async () => {
+    // A bare host is plain text to Discord, Slack, WhatsApp and X. Without the
+    // scheme the entire Open Graph pass renders as nothing on precisely the
+    // surfaces the share loop runs on, which is a silent and total waste.
+    const mods = await Promise.all([
+      import("@/lib/daily/deeprun"),
+      import("@/lib/daily/ledger"),
+      import("@/lib/daily/longway"),
+      import("@/lib/daily/muster"),
+    ]);
+    for (const m of mods) {
+      const source = Object.values(m).filter((v) => typeof v === "function");
+      expect(source.length).toBeGreaterThan(0);
+    }
+    const fs = await import("node:fs");
+    for (const f of ["deeprun", "ledger", "longway", "muster"]) {
+      const text = fs.readFileSync(`lib/daily/${f}.ts`, "utf8");
+      const hosts = text.match(/["'][^"']*tavernparty\.co\.uk[^"']*["']/g) ?? [];
+      expect(hosts.length, f).toBeGreaterThan(0);
+      for (const h of hosts) expect(h, `${f}: ${h}`).toContain("https://");
+    }
+  });
+});

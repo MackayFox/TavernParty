@@ -1,7 +1,10 @@
 /**
  * The eight Callings, in full, for anybody looking for class ideas.
  *
- * CALLING_DETAIL has been sitting in lib/content/callings.ts unrendered. The
+ * Built from CALLING_DETAIL, the same writing the draft screen shows a player mid-run.
+ * It is published here as a page in its own right because the eight Callings are
+ * something people search for, and a paragraph only reachable by being
+ * in a live game is a paragraph no search engine will ever see.
  * how-it-works page shows the mechanical facts, this one shows the writing, and
  * nothing here is transcribed: change a Calling and the page changes with it.
  */

@@ -17,6 +17,7 @@ import {
   FUMBLE,
   HOOK_TOKEN_VALUE,
   abilityMod,
+  clears,
   dreadThresholds,
 } from "./rules";
 import { d20, type Rng } from "./random";
@@ -155,9 +156,11 @@ export function rollApproach(ctx: RollContext, index: number, rng: Rng): Outcome
   const mods = ledgerFor(ctx, face);
   const total = sumLedger(mods);
 
+  // Through the shared predicate, not a fourth hand-rolled copy of it. This one
+  // happened to be correct; the daily that labelled doors was not, and there is
+  // no way to keep four copies of a rule honest by inspection.
   const crit = face === CRIT;
-  const fumble = face === FUMBLE;
-  const success = crit ? true : fumble ? false : total >= ctx.approach.tn;
+  const success = clears(face, total, ctx.approach.tn);
 
   const mult = costMultiplier({ ...ctx, approach: ctx.approach });
   const renownDelta = success
