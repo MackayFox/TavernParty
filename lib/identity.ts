@@ -93,13 +93,16 @@ export async function getIdentity(create = false): Promise<Identity | null> {
         const { adminClient } = await import("./supabase/admin");
         const { data: profile } = await adminClient()
           .from("profiles")
-          .select("display_name, username")
+          .select("username")
           .eq("id", data.user.id)
           .maybeSingle();
+        // One name, not two. The username is what appears at the table: a
+        // separate display name would just be a second thing to moderate, and
+        // the character already has a Calling and a Blood to be interesting.
         return {
           id: data.user.id,
           kind: "user",
-          displayName: profile?.display_name,
+          displayName: profile?.username,
           username: profile?.username,
         };
       }

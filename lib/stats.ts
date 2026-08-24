@@ -82,24 +82,25 @@ export async function getRunHistory(userId: string, limit = 40): Promise<RunRow[
   });
 }
 
-export async function getPlayerRecord(userId: string): Promise<PlayerRecord> {
-  const empty: PlayerRecord = {
-    runs: 0,
-    hoards: 0,
-    bestTotal: 0,
-    totalRenown: 0,
-    scarsKept: 0,
-    laurels: 0,
-    favouriteCalling: null,
-    favouriteCallingRuns: 0,
-  };
-  const rows = await getRunHistory(userId, 500);
-  if (rows.length === 0) return empty;
+/** Pure, so it can be tested without a database. */
+export function summariseRuns(rows: RunRow[]): PlayerRecord {
+  if (rows.length === 0)
+    return {
+      runs: 0,
+      hoards: 0,
+      bestTotal: 0,
+      totalRenown: 0,
+      scarsKept: 0,
+      laurels: 0,
+      favouriteCalling: null,
+      favouriteCallingRuns: 0,
+    };
 
   const byCalling = new Map<string, number>();
   for (const r of rows) {
     if (r.callingId) byCalling.set(r.callingId, (byCalling.get(r.callingId) ?? 0) + 1);
   }
+  // Alphabetical tiebreak, so a tie renders the same on every reload.
   const favourite = [...byCalling.entries()].sort(
     (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
   )[0];
@@ -116,6 +117,10 @@ export async function getPlayerRecord(userId: string): Promise<PlayerRecord> {
   };
 }
 
+export async function getPlayerRecord(userId: string): Promise<PlayerRecord> {
+  return summariseRuns(await getRunHistory(userId, 500));
+}
+
 export type LeaderboardRow = {
   username: string;
   hoards: number;
@@ -127,33 +132,51 @@ export type LeaderboardRow = {
  * Ranked by Hoards taken, because that is what winning is here, then by best
  * single night. Deliberately not by total Renown accumulated: that rewards
  * playing a lot rather than playing well.
+ *
+ * Pure, so it can be tested without a database.
  */
-export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
-  if (!supabaseConfigured()) return [];
-  const { data, error } = await adminClient()
-    .from("run_players")
-    .select("user_id, total, hoard, profiles(username)")
-    .not("user_id", "is", null)
-    .limit(2000);
-  if (error || !data) return [];
-
+export function rankPlayers(
+  entries: { username: string; total: number; hoard: boolean }[],
+  limit = 50
+): LeaderboardRow[] {
   const byUser = new Map<string, LeaderboardRow>();
-  for (const row of data) {
-    const profile = row.profiles as unknown as { username: string } | null;
-    if (!profile?.username) continue;
-    const entry =
-      byUser.get(profile.username) ??
-      { username: profile.username, hoards: 0, runs: 0, bestTotal: 0 };
-    entry.runs++;
-    if (row.hoard) entry.hoards++;
-    entry.bestTotal = Math.max(entry.bestTotal, (row.total as number) ?? 0);
-    byUser.set(profile.username, entry);
+  for (const e of entries) {
+    if (!e.username) continue;
+    const row =
+      byUser.get(e.username) ?? { username: e.username, hoards: 0, runs: 0, bestTotal: 0 };
+    row.runs++;
+    if (e.hoard) row.hoards++;
+    row.bestTotal = Math.max(row.bestTotal, e.total ?? 0);
+    byUser.set(e.username, row);
   }
-
   return [...byUser.values()]
     .sort(
       (a, b) =>
         b.hoards - a.hoards || b.bestTotal - a.bestTotal || a.username.localeCompare(b.username)
     )
     .slice(0, limit);
+}
+
+export async function getLeaderboard(limit = 50): Promise<LeaderboardRow[]> {
+  if (!supabaseConfigured()) return [];
+  // ponytail: 2000 rows aggregated in Node. Swap for a materialised view when
+  // there are enough runs that this is the slow part of the page.
+  const { data, error } = await adminClient()
+    .from("run_players")
+    .select("total, hoard, profiles(username)")
+    .not("user_id", "is", null)
+    .limit(2000);
+  if (error || !data) return [];
+
+  return rankPlayers(
+    data.map((row) => {
+      const profile = row.profiles as unknown as { username: string } | null;
+      return {
+        username: profile?.username ?? "",
+        total: (row.total as number) ?? 0,
+        hoard: Boolean(row.hoard),
+      };
+    }),
+    limit
+  );
 }
