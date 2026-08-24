@@ -32,12 +32,15 @@ import {
   ARRAY_DICE,
   ARRAY_DROP,
   ARRAY_SIZE,
+  ASHKIN_DREAD,
   DEFAULT_SETTINGS,
   DREAD_DOUBLE_AT,
   DREAD_MAX,
   DREAD_TURN_AT,
+  EMBERKIN_RENOWN,
   FLINCH_DREAD,
   FLINCH_RENOWN,
+  FUMBLE,
   HEARTBEAT_PERSIST_MS,
   HIDE_SCAR_RENOWN,
   HOOK_TOKENS_MAX,
@@ -480,6 +483,10 @@ function beginRun(room: Room, now: number, rng: Rng): void {
   for (const p of room.players) {
     if (!p.scores) p.scores = defaultScores(room, p);
     if (!p.hookId) p.hookId = (pick(HOOKS, rng) ?? HOOKS[0]).id;
+    // Tideborn. A starting bonus and not a raised ceiling: a Hook that gets
+    // called still refills to HOOK_TOKENS_MAX, so the extra token is genuinely
+    // one extra token and the only decision is when to spend it.
+    if (bloodOf(p)?.power.kind === "extraHookToken") p.hookTokens += 1;
   }
   const hooks = room.players.map((p) => hookOf(p)).filter((h): h is Hook => !!h);
   room.deck = buildDeck({ scenes: SCENES, hooks, acts: room.settings.acts }, rng);
@@ -573,9 +580,18 @@ export function revealReckless(room: Room, playerId: string, now: number): void 
   const act = room.act;
   if (!act) throw new GameError("wrong_phase", "Nothing is happening.");
   if (act.revealed.includes(playerId)) return;
-  if (p.torches < REVEAL_COST_TORCHES)
-    throw new GameError("no_torch", "You have nothing left to burn.");
-  p.torches -= REVEAL_COST_TORCHES;
+
+  // Longshank reads the ground ahead once for nothing. Spent automatically the
+  // first time they look, because the alternative is a confirmation dialog
+  // asking whether they would like the free thing.
+  const free = bloodOf(p)?.power.kind === "seeOneReckless" && !p.usedBloodPower;
+  if (free) {
+    p.usedBloodPower = true;
+  } else {
+    if (p.torches < REVEAL_COST_TORCHES)
+      throw new GameError("no_torch", "You have nothing left to burn.");
+    p.torches -= REVEAL_COST_TORCHES;
+  }
   act.revealed.push(playerId);
   touch(room);
 }
@@ -657,20 +673,32 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
 
     const approach = scene.approaches.find((a) => a.id === chosen)!;
     const spend = act.spend[p.id] ?? 0;
-    const out = rollApproach(
-      {
-        player: p,
-        calling: callingOf(p),
-        kit: kitOf(p),
-        scene,
-        approach,
-        spendTokens: spend,
-        dread: room.dread,
-        hookCalled,
-      },
-      i,
-      rng
-    );
+    const ctx = {
+      player: p,
+      calling: callingOf(p),
+      kit: kitOf(p),
+      scene,
+      approach,
+      spendTokens: spend,
+      dread: room.dread,
+      hookCalled,
+    };
+    let out = rollApproach(ctx, i, rng);
+
+    // Hillfolk. A one always fails whatever the ledger says, so there is never
+    // a reason to decline the reroll and no decision worth a prompt: it fires
+    // on the first fumble of the run. Rolling again is literally a second
+    // rollApproach, which is why nothing in resolve.ts had to learn about this.
+    if (out.roll === FUMBLE && bloodOf(p)?.power.kind === "rerollFumble" && !p.usedBloodPower) {
+      p.usedBloodPower = true;
+      out = rollApproach(ctx, i, rng);
+      out.mods.splice(1, 0, {
+        label: "you have been wrong about your footing before",
+        value: 0,
+      });
+      note(room, "roll", `${p.name} picks the die up and throws it again`, p.id);
+    }
+
     // Being Marked pays you for taking the Act at all.
     if (marked) out.renownDelta += MARK_BONUS;
     outcomes.push(out);
@@ -697,11 +725,22 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
   }
 
   // Apply.
+  //
+  // The deltas are rewritten to what actually landed after the clamps at zero
+  // Renown and at DREAD_MAX. Two reasons: the ledger should show what happened
+  // rather than what was intended, and a Blood power that refunds a cost has to
+  // refund the amount that was really taken. Nominations were settled above,
+  // against the intended deed, which is right: your cut is of the job, not of
+  // somebody else's empty purse.
   for (const out of outcomes) {
     const p = findPlayer(room, out.playerId);
     if (!p) continue;
+    const renownBefore = p.renown;
+    const dreadBefore = room.dread;
     p.renown = Math.max(0, p.renown + out.renownDelta);
     room.dread = Math.min(DREAD_MAX, room.dread + out.dreadDelta);
+    out.renownDelta = p.renown - renownBefore;
+    out.dreadDelta = room.dread - dreadBefore;
     if (out.scar) p.scars.push(out.scar);
     if (out.hookRefilled) p.hookTokens = HOOK_TOKENS_MAX;
     const scene2 = SCENES_BY_ID[act.sceneId];
@@ -742,6 +781,9 @@ export function decideScar(
     const free = blood?.power.kind === "keepScarFree" && !p.usedBloodPower;
     if (free) {
       p.usedBloodPower = true;
+      // Flagged, not just untaxed: this one also pays at the Ballad whatever
+      // their Renown. See the note on Scar.free.
+      scar.free = true;
       note(room, "scar", `${p.name} wears it, and the table pays nothing`, p.id);
     } else {
       room.dread = Math.min(DREAD_MAX, room.dread + KEEP_SCAR_DREAD);
@@ -757,6 +799,84 @@ export function decideScar(
       p.renown = Math.max(0, p.renown - HIDE_SCAR_RENOWN);
       note(room, "scar", `${p.name} says nothing about it`, p.id);
     }
+  }
+  touch(room);
+}
+
+/**
+ * The three Blood powers that are a decision rather than a reflex.
+ *
+ * One action for all of them, because they share every precondition: your Blood,
+ * once a run, at ACT_RESULT, against the Act you just played. Three routes and
+ * three buttons would be three copies of the same six guards.
+ *
+ * The other five fire where they belong: Hillfolk on a fumble in `resolveAct`,
+ * Longshank in `revealReckless`, Tideborn in `beginRun`, and Thornborn and
+ * Gravewise in `decideScar`.
+ */
+export function useBloodPower(
+  room: Room,
+  playerId: string,
+  arg: { swap?: [Ability, Ability] },
+  now: number
+): void {
+  requirePhase(room, "ACT_RESULT");
+  const p = requirePlayer(room, playerId);
+  const blood = bloodOf(p);
+  if (!blood) throw new GameError("no_power", "You have no Blood to call on.");
+  if (p.usedBloodPower) throw new GameError("already", "You have spent that already.");
+  const act = room.act;
+  if (!act?.outcomes) throw new GameError("wrong_phase", "Nothing has played out yet.");
+  const out = act.outcomes.find((o) => o.playerId === playerId);
+
+  switch (blood.power.kind) {
+    case "reassignOne": {
+      // Fenborn. Two of your own numbers change places, which is why it can
+      // only ever be a swap: the house array must survive it intact.
+      const swap = arg.swap;
+      if (!swap || swap.length !== 2)
+        throw new GameError("bad_choice", "Name the two numbers to move.");
+      const [a, b] = swap;
+      if (!ABILITIES.includes(a) || !ABILITIES.includes(b))
+        throw new GameError("bad_choice", "Those are not abilities.");
+      if (a === b) throw new GameError("bad_choice", "That is the same number twice.");
+      if (!p.scores) throw new GameError("bad_choice", "You have no sheet to change.");
+      const before = p.scores[a];
+      p.scores[a] = p.scores[b];
+      p.scores[b] = before;
+      p.usedBloodPower = true;
+      note(room, "system", `${p.name} moves, the way fen people do`, p.id);
+      break;
+    }
+
+    case "costToDread": {
+      // Ashkin. The cost never went away, it moved.
+      if (!out || out.renownDelta >= 0)
+        throw new GameError("bad_choice", "Nothing cost you anything this Act.");
+      const refund = -out.renownDelta;
+      p.renown += refund;
+      out.renownDelta = 0;
+      room.dread = Math.min(DREAD_MAX, room.dread + ASHKIN_DREAD);
+      p.usedBloodPower = true;
+      note(room, "dread", `${p.name} finds somebody else's pocket for it`, p.id);
+      break;
+    }
+
+    case "dreadShield": {
+      // Emberkin. Give back exactly the Dread this result added, which after the
+      // clamp at DREAD_MAX may be less than the result said it would be.
+      if (!out || out.dreadDelta <= 0)
+        throw new GameError("bad_choice", "This Act put nothing on the party.");
+      room.dread = Math.max(0, room.dread - out.dreadDelta);
+      out.dreadDelta = 0;
+      p.renown += EMBERKIN_RENOWN;
+      p.usedBloodPower = true;
+      note(room, "system", `${p.name} had a hand out to it already`, p.id);
+      break;
+    }
+
+    default:
+      throw new GameError("no_power", "Yours is not something you choose to spend.");
   }
   touch(room);
 }

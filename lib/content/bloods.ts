@@ -35,8 +35,17 @@
  *
  * Thornborn and Emberkin both spend themselves saving the PARTY a point of
  * Dread, in a game where exactly one player takes the Hoard. Read strictly, a
- * rational drafter never takes either. Both need a personal kicker when the
- * powers are implemented, and GAME_DESIGN §3.3 records what it should be.
+ * rational drafter never takes either, so both got a personal kicker when the
+ * powers were wired up: Thornborn's free Scar also pays out at the Ballad
+ * whatever their Renown (it ignores the median gate), and Emberkin takes
+ * EMBERKIN_RENOWN for the shield. Ashkin needed the reverse treatment, a flat
+ * ASHKIN_DREAD rather than a proportional one, because Renown runs to the dozens
+ * and Dread tops out at eight.
+ *
+ * All eight fire. `tests/unit/blood.test.ts` proves each one, including that the
+ * set is still a bijection, because six of these were printed on the character
+ * sheet and wired to nothing for a while and that is the worst possible state
+ * for a drafted ability to be in.
  */
 import type { Blood } from "@/lib/game/types";
 

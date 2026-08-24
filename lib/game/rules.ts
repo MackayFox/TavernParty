@@ -127,6 +127,29 @@ export const KEEP_SCAR_DREAD = 1;
 export const HIDE_SCAR_RENOWN = 2;
 
 // ---------------------------------------------------------------------------
+// What the Blood powers are worth
+// ---------------------------------------------------------------------------
+
+/**
+ * Ashkin moves their own Renown loss onto the party as Dread.
+ *
+ * Flat, not proportional, because Renown runs to the dozens and Dread tops out
+ * at eight: converting one into the other at any rate makes a single bad Act
+ * able to end the night. Two is enough that the table notices and argues, which
+ * is the whole point of the Blood.
+ */
+export const ASHKIN_DREAD = 2;
+
+/**
+ * Emberkin's personal cut for shielding the party.
+ *
+ * Without it the power is pure charity, and in a game exactly one player wins,
+ * a rational drafter never takes pure charity. Small on purpose: it should read
+ * as a thank-you from the table, not as the reason you did it.
+ */
+export const EMBERKIN_RENOWN = 2;
+
+// ---------------------------------------------------------------------------
 // The Ballad
 // ---------------------------------------------------------------------------
 

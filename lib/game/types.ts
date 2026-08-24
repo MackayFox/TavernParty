@@ -161,6 +161,13 @@ export type Scar = {
   /** Short, in the fiction: "a hand that will not close". */
   label: string;
   kept: boolean | null;
+  /**
+   * Kept with a Blood power rather than by taxing the party. A free Scar pays
+   * out at the Ballad whatever your Renown, which is the whole reason anybody
+   * drafts Thornborn: without it the power spends itself sparing the table one
+   * point of Dread, in a game exactly one person wins.
+   */
+  free?: boolean;
 };
 
 /**

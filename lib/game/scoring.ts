@@ -51,11 +51,15 @@ export function standingsFor(players: readonly Player[]): Standing[] {
   }
 
   const rows: Standing[] = players.map((p) => {
-    const keptScars = p.scars.filter((s) => s.kept === true).length;
+    const kept = p.scars.filter((s) => s.kept === true);
+    const keptScars = kept.length;
     const scarPays = !KEPT_SCAR_NEEDS_MEDIAN || p.renown >= gate;
+    // A Scar kept with a Blood power pays whatever your Renown. That exemption
+    // is Thornborn's entire reason to exist, and it cannot open the degenerate
+    // line back up: it is once a run, so it is worth one Scar, ever.
+    const paying = scarPays ? keptScars : kept.filter((s) => s.free).length;
     const laurels = laurelCounts.get(p.id) ?? 0;
-    const total =
-      p.renown + (scarPays ? keptScars * KEPT_SCAR_VALUE : 0) + laurels * LAUREL_VALUE;
+    const total = p.renown + paying * KEPT_SCAR_VALUE + laurels * LAUREL_VALUE;
     return {
       playerId: p.id,
       name: p.name,

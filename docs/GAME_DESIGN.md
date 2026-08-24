@@ -115,13 +115,33 @@ Scar for free once; Ashkin turn one Cost into Dread; Fenborn may re-assign one
 house number after seeing the first Act. Structural, not numerical, so it
 changes what you do rather than what you add.
 
-**Known hole, to close when the powers are implemented.** Thornborn and Emberkin
-both spend themselves to save the *party* a point of Dread, in a game where
-exactly one player takes the Hoard. Read strictly, nobody should ever draft
-either. Both need a personal kicker: Thornborn's free kept Scar should also
-ignore the median gate in §6, and Emberkin's shield should refund its user a
-point of Renown. Neither is written yet, because the powers are not wired up
-yet, and writing the kicker before the power would be guessing twice.
+All eight are wired. Five fire on their own, because there is no decision worth
+a prompt in them: **Hillfolk** rerolls the first natural 1 of the run (a 1 always
+fails, so declining is never right), **Longshank** reads the first Reckless
+target number without a Torch, **Tideborn** starts one Hook token up, and
+**Thornborn** and **Gravewise** resolve inside the keep-or-hide decision they
+already belong to. The other three are a real choice at `ACT_RESULT`, against the
+Act you just played, and share one engine action (`useBloodPower`): **Fenborn**
+swaps two of their own numbers, **Ashkin** moves their Renown loss onto the party,
+**Emberkin** gives the party back the Dread this result added.
+
+**The altruism hole, closed.** Thornborn and Emberkin both spent themselves to
+save the *party* a point of Dread, in a game where exactly one player takes the
+Hoard. Read strictly, nobody should ever have drafted either. Both got a personal
+kicker: Thornborn's free kept Scar also ignores the median gate in §6, and
+Emberkin takes `EMBERKIN_RENOWN` for the shield. Small on purpose, so it reads as
+a thank-you from the table rather than as the reason you did it.
+
+**Ashkin needed the opposite fix.** "Take the cost as Dread instead" cannot be a
+conversion rate: Renown runs to the dozens and Dread tops out at eight, so any
+proportional rate lets one bad Act end the night. It is a flat `ASHKIN_DREAD`
+against a full refund of whatever the failure actually took, which is enough that
+the table notices and argues about it.
+
+That refund is exact rather than nominal, and paying for it is why `resolveAct`
+rewrites each `Outcome`'s deltas to what landed after the clamps at zero Renown
+and at `DREAD_MAX`. A player with no Renown loses none, so a refund of the
+*intended* cost would hand them Renown they never had.
 
 ### 3.4 The Kit — twelve, exclusive, reverse priority
 
