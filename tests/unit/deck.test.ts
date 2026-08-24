@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDeck, honoured, markedBy, worstUnseen } from "@/lib/game/deck";
+import { TURN_POOL, buildDeck, honoured, markedBy, worstUnseen } from "@/lib/game/deck";
 import type { ApproachDef, Hook, Scene } from "@/lib/game/types";
 import { rngFor } from "./helpers";
 
@@ -130,14 +130,38 @@ describe("dealing the deck", () => {
 });
 
 describe("the Night turning", () => {
-  it("picks the hardest scene nobody has faced yet", () => {
-    const worst = worstUnseen(POOL, ["s1"]);
-    // s5 has the highest reckless target number in the pool.
-    expect(worst?.id).toBe("s5");
+  it("picks from the hardest scenes nobody has faced yet", () => {
+    // Deliberately NOT "the single hardest". Returning the top of a fully
+    // deterministic sort made the climax of the game one fixed card: measured
+    // over 1,500 runs the final Act was the same scene 80.4% of the time, and two
+    // scenes covered 96% of all endings. It picks from the hardest few now.
+    const hardest = [...POOL]
+      .filter((s) => s.id !== "s1")
+      .sort((a, b) => {
+        const tn = (x: typeof a) => x.approaches.find((ap) => ap.reckless)?.tn ?? 0;
+        return tn(b) - tn(a) || a.id.localeCompare(b.id);
+      })
+      .slice(0, TURN_POOL)
+      .map((s) => s.id);
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const worst = worstUnseen(POOL, ["s1"], rngFor(seed));
+      expect(hardest, `seed ${seed}`).toContain(worst?.id);
+    }
+  });
+
+  it("still reaches for the very hardest sometimes", () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      seen.add(worstUnseen(POOL, ["s1"], rngFor(seed))?.id ?? "");
+    }
+    // More than one possible ending, which is the whole point of the change.
+    expect(seen.size).toBeGreaterThan(1);
   });
 
   it("does not offer one the party has already survived", () => {
-    expect(worstUnseen(POOL, ["s5"])?.id).not.toBe("s5");
+    for (let seed = 1; seed <= 20; seed++) {
+      expect(worstUnseen(POOL, ["s5"], rngFor(seed))?.id).not.toBe("s5");
+    }
   });
 
   it("copes when there is nothing left", () => {

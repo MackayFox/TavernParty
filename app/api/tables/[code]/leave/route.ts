@@ -17,7 +17,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ code: string 
     const identity = await getIdentity();
     if (!identity)
       return NextResponse.json({ error: "You are not at this table." }, { status: 401 });
-    await store.mutate(code, (room) => engine.leave(room, identity.id));
+    await store.mutate(code, (room, now) => engine.leave(room, identity.id, now));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return handleError(err);

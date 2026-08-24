@@ -162,7 +162,13 @@ function isPresent(p: Player, now: number): boolean {
   return p.isBot || p.connected || now - (p.disconnectedAt ?? now) < HOST_MIGRATION_GRACE_MS;
 }
 
-function freshPlayer(id: string, name: string, isHost: boolean, isBot = false): Player {
+function freshPlayer(
+  id: string,
+  name: string,
+  isHost: boolean,
+  isBot = false,
+  now = 0
+): Player {
   return {
     id,
     name,
@@ -170,6 +176,7 @@ function freshPlayer(id: string, name: string, isHost: boolean, isBot = false): 
     isBot,
     connected: true,
     disconnectedAt: null,
+    lastSeenAt: now,
     callingId: null,
     bloodId: null,
     kitIds: [],
@@ -263,22 +270,69 @@ export function join(room: Room, who: { id: string; name: string }, now: number)
   const name = who.name.trim().toUpperCase();
   if (!name) throw new GameError("bad_name", "Put a name to your character first.");
 
-  room.players.push(freshPlayer(who.id, name.slice(0, 20), room.players.length === 0));
+  room.players.push(
+    freshPlayer(
+      who.id,
+      name.slice(0, 20),
+      // Host if nobody human is already, not merely if the table is empty: a
+      // table of nothing but bots has no valid host and needs one.
+      !room.players.some((p) => !p.isBot),
+      false,
+      now
+    )
+  );
+  ensureHumanHost(room);
   note(room, "system", `${name} pulls up a chair`, who.id);
   touch(room);
 }
 
-export function leave(room: Room, playerId: string): void {
+/**
+ * THE INVARIANT: a table with a human at it has a human host.
+ *
+ * Breaking it killed tables dead. `leave` handed the chair to `players[0]` with
+ * no check that it was a person, so the common sequence (sit down, add a
+ * stranger, decide not to play) left a BOT holding the host role. `startRun`,
+ * `rematch` and `removeBot` are all host-only, so the next person to arrive could
+ * not start it, could not restart it, and could not even evict the bot squatting
+ * in the chair. The room stayed public and WAITING, and Quick Match sorts by
+ * fullest first, so it was the table the next player got sent to.
+ *
+ * Repairs in place rather than migrating, so rows already in that state fix
+ * themselves on the next tick.
+ */
+function ensureHumanHost(room: Room): void {
+  // A bot never holds the flag, even alongside a valid human host: a stale
+  // isHost on a stranger is a second host, and "the host" is a find() away from
+  // being whichever of them happens to sit earlier in the array.
+  for (const p of room.players) if (p.isBot) p.isHost = false;
+
+  const hosts = room.players.filter((p) => p.isHost);
+  if (hosts.length === 1) return;
+  // Zero (or somehow several): the earliest human seated takes it, so the result
+  // does not depend on iteration order.
+  const heir = hosts[0] ?? room.players.find((p) => !p.isBot);
+  if (!heir) return;
+  for (const p of room.players) p.isHost = false;
+  heir.isHost = true;
+}
+
+export function leave(room: Room, playerId: string, now = Date.now()): void {
   const p = findPlayer(room, playerId);
   if (!p) return;
   if (room.phase === "WAITING") {
     room.players = room.players.filter((x) => x.id !== playerId);
-    if (p.isHost && room.players[0]) room.players[0].isHost = true;
+    // Nobody human left means nobody is coming back: clear the bots out rather
+    // than leaving a public table of strangers for Quick Match to send people to.
+    if (!room.players.some((x) => !x.isBot)) room.players = [];
+    else ensureHumanHost(room);
     note(room, "system", `${p.name} thinks better of it`);
   } else {
     // Mid-run the record stays: their Scars and Renown are part of the night.
     p.connected = false;
-    p.disconnectedAt = Date.now();
+    // The injected clock, not the wall clock. This was the one mutation in the
+    // engine reading Date.now() directly, which made it untestable against a
+    // pinned `now` and inconsistent with every presence check around it.
+    p.disconnectedAt = now;
     note(room, "system", `${p.name} steps outside`, p.id);
   }
   touch(room);
@@ -294,7 +348,9 @@ export function addBot(room: Room, hostId: string, now: number, rng: Rng = defau
   const names = ["OLD MARGET", "TALL FEN", "SIX-FINGER", "WET HARRY", "THE COUSIN", "BRAY"];
   const free = names.filter((n) => !taken.has(n));
   const name = pick(free, rng) ?? `STRANGER ${room.players.length}`;
-  room.players.push(freshPlayer(`bot_${room.players.length}_${name.replace(/\W/g, "")}`, name, false, true));
+  room.players.push(
+    freshPlayer(`bot_${room.players.length}_${name.replace(/\W/g, "")}`, name, false, true, now)
+  );
   note(room, "system", `${name} is already sitting there`);
   touch(room);
 }
@@ -320,22 +376,58 @@ export function heartbeat(room: Room, playerId: string, now: number): void {
   const p = findPlayer(room, playerId);
   if (!p) return;
   const wasAway = !p.connected;
+  const since = now - p.lastSeenAt;
   p.connected = true;
   p.disconnectedAt = null;
-  if (wasAway || now - room.createdAt < HEARTBEAT_PERSIST_MS) touch(room);
+  p.lastSeenAt = now;
+  /**
+   * The persist condition was measured against the ROOM's age, so twenty seconds
+   * after a table was created a heartbeat stopped bumping the version forever.
+   * Two consequences, both bad: `lastSeenAt` would never have reached the
+   * database, and `updated_at` froze, so the thirty-minute reaper deleted lobbies
+   * out from under people who were sitting in them.
+   *
+   * Now it is measured against the PLAYER's own clock, at a third of the timeout,
+   * so it is at most one write per player per few seconds and it is bounded by the
+   * thing it is actually for.
+   */
+  if (wasAway || since > PRESENCE_TIMEOUT_MS / 3 || since > HEARTBEAT_PERSIST_MS) touch(room);
 }
 
+/**
+ * Mark anybody we have not heard from as away.
+ *
+ * This used to be unreachable. It required `connected === true` AND a non-null
+ * `disconnectedAt`, and no code path in the repo could produce that pair: every
+ * writer of a disconnect time also cleared `connected`, and every writer of
+ * `connected` cleared the time. So the Away pill never lit, host migration never
+ * fired, and PRESENCE_TIMEOUT_MS and HOST_MIGRATION_GRACE_MS were dead constants.
+ * A closed tab kept the host chair forever, and `startRun` and `rematch` are both
+ * host-only, so a table could be permanently unstartable.
+ *
+ * It reads `lastSeenAt` now, which is the thing a poll actually updates.
+ */
 export function sweepPresence(room: Room, now: number): void {
   for (const p of room.players) {
     if (p.isBot || !p.connected) continue;
-    if (p.disconnectedAt !== null && now - p.disconnectedAt > PRESENCE_TIMEOUT_MS) {
+    if (now - p.lastSeenAt > PRESENCE_TIMEOUT_MS) {
       p.connected = false;
+      p.disconnectedAt = p.lastSeenAt;
+      note(room, "system", `${p.name} has stopped answering`, p.id);
       touch(room);
     }
   }
 }
 
 export function maybeMigrateHost(room: Room, now: number): boolean {
+  // Heals a table whose host is a bot before anything else looks at it. A bot is
+  // always `isPresent`, so a bot host could never be migrated away from.
+  const humanHosted = room.players.some((p) => p.isHost && !p.isBot);
+  if (!humanHosted && room.players.some((p) => !p.isBot)) {
+    ensureHumanHost(room);
+    touch(room);
+    return true;
+  }
   const host = room.players.find((p) => p.isHost);
   if (!host || isPresent(host, now)) return false;
   const heir = room.players.find((p) => !p.isBot && isPresent(p, now));
@@ -521,7 +613,10 @@ function beginRun(room: Room, now: number, rng: Rng): void {
     if (bloodOf(p)?.power.kind === "extraHookToken") p.hookTokens += 1;
   }
   const hooks = room.players.map((p) => hookOf(p)).filter((h): h is Hook => !!h);
-  room.deck = buildDeck({ scenes: SCENES, hooks, acts: room.settings.acts }, rng);
+  room.deck = buildDeck(
+    { scenes: SCENES, hooks, acts: room.settings.acts, seen: room.seen },
+    rng
+  );
   note(room, "system", "The night starts properly");
   beginAct(room, 1, now, rng);
 }
@@ -544,7 +639,10 @@ function beginAct(room: Room, index: number, now: number, rng: Rng): void {
    * deal time because Dread is not knowable when the deck is built.
    */
   if (index === room.settings.acts && room.dread >= DREAD_TURN_AT) {
-    const worse = worstUnseen(SCENES, room.deck.slice(0, index - 1));
+    // Everything this TABLE has faced, not just this round's deck, so three
+    // rounds in a row do not all end on the same scene.
+    const faced = [...(room.seen ?? []), ...room.deck.slice(0, index - 1)];
+    const worse = worstUnseen(SCENES, faced, rng);
     if (worse) {
       scene = worse;
       room.deck[index - 1] = worse.id;
@@ -1441,9 +1539,17 @@ export function rematch(room: Room, playerId: string, now: number): void {
   const p = requirePlayer(room, playerId);
   if (!p.isHost) throw new GameError("not_host", "Only the host can call for another.");
   for (const player of room.players) {
-    Object.assign(player, freshPlayer(player.id, player.name, player.isHost, player.isBot), {
-      connected: player.connected,
-    });
+    // Presence carries over, because the people at the table have not moved.
+    // Everything else about them is last night and last night is over.
+    Object.assign(
+      player,
+      freshPlayer(player.id, player.name, player.isHost, player.isBot, now),
+      {
+        connected: player.connected,
+        disconnectedAt: player.disconnectedAt,
+        lastSeenAt: player.lastSeenAt,
+      }
+    );
   }
   Object.assign(room, {
     phase: "WAITING",
@@ -1452,11 +1558,22 @@ export function rematch(room: Room, playerId: string, now: number): void {
     priority: [],
     callingDraft: null,
     kitDraft: null,
+    /**
+     * `seen` remembers which scenes this table has already faced, ACROSS rounds.
+     *
+     * Without it a group that hits "Another round" met a repeat scene 63% of the
+     * time, and 96% of the time by the third round, because the deck was built
+     * from the full pool every night as though the table had never played.
+     */
+    seen: [...(room.seen ?? []), ...room.deck],
     deck: [],
     act: null,
     dread: 0,
+    // Round two used to open with round one's night still in the sidebar.
+    log: [],
     standings: undefined,
   } satisfies Partial<Room>);
+  ensureHumanHost(room);
   note(room, "system", "Another round, then");
   touch(room);
 }
@@ -1517,6 +1634,7 @@ function playerView(p: Player, viewerId: string | null): PlayerView {
     isBot: p.isBot,
     connected: p.connected,
     disconnectedAt: p.disconnectedAt,
+    lastSeenAt: p.lastSeenAt,
     callingId: p.callingId,
     bloodId: p.bloodId,
     kitIds: p.kitIds,

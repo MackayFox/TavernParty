@@ -138,6 +138,7 @@ function soloPlayer(scores: Scores, hookTokens: number): Player {
     isBot: false,
     connected: true,
     disconnectedAt: null,
+    lastSeenAt: 0,
     callingId: null,
     bloodId: null,
     kitIds: [],

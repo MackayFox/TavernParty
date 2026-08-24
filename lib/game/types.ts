@@ -261,6 +261,16 @@ export type Player = {
   isBot: boolean;
   connected: boolean;
   disconnectedAt: number | null;
+  /**
+   * The last poll we heard from them.
+   *
+   * Separate from `disconnectedAt` on purpose, and the whole presence system was
+   * dead without it. Every writer of a non-null `disconnectedAt` also set
+   * `connected = false`, and every writer of `connected = true` nulled it, so the
+   * old sweep's guard ("connected AND has a disconnect time") was unsatisfiable
+   * and nothing in production ever marked anybody away.
+   */
+  lastSeenAt: number;
   callingId: string | null;
   bloodId: string | null;
   kitIds: string[];
@@ -347,6 +357,14 @@ export type Room = {
   kitDraft: DraftState | null;
   /** The five scenes, fixed once Hooks are known so Inserts can be honoured. */
   deck: string[];
+  /**
+   * Scene ids this table has already played, across every round of the night.
+   *
+   * Kept so "Another round" is a new night rather than a shuffle of the same one:
+   * a rematch used to repeat a scene 63% of the time because the deck was built
+   * from the whole pool as though the table had never sat down.
+   */
+  seen?: string[];
   act: ActState | null;
   /** Collective. Keeping a Scar taxes the whole party. */
   dread: number;

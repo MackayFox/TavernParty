@@ -75,6 +75,28 @@ export default function RoomPage() {
     return () => clearInterval(id);
   }, [load]);
 
+  /**
+   * Tell the table when the tab goes, rather than making them wait out the
+   * timeout for it.
+   *
+   * `sendBeacon` because it survives the page going away, which `fetch` does not.
+   * The presence sweep is the safety net and this is the fast path: without it a
+   * host closing a tab holds the chair for the whole PRESENCE_TIMEOUT_MS, and with
+   * it the chair moves on in one poll. `pagehide` rather than `unload`, which
+   * mobile Safari does not reliably fire.
+   */
+  useEffect(() => {
+    const url = `/api/tables/${encodeURIComponent(code)}/leave`;
+    const goodbye = () => {
+      // Only when the page is actually going, not on a tab switch: a player who
+      // looks at something else for ten seconds has not left the table.
+      if (document.visibilityState !== "hidden") return;
+      navigator.sendBeacon?.(url, new Blob(["{}"], { type: "application/json" }));
+    };
+    window.addEventListener("pagehide", goodbye);
+    return () => window.removeEventListener("pagehide", goodbye);
+  }, [code]);
+
   // Realtime is an accelerant only: it refetches, it never carries state.
   useEffect(() => {
     const supabase = browserClient();

@@ -96,6 +96,7 @@ const EXAMPLE_PLAYER: Player = {
   isBot: false,
   connected: true,
   disconnectedAt: null,
+  lastSeenAt: 0,
   callingId: CALLING.id,
   bloodId: BLOODS[0].id,
   kitIds: [ITEM.id],

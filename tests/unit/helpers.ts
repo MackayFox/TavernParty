@@ -7,16 +7,28 @@ export function fixedRng(values: readonly number[]): Rng {
   return () => values[i++ % values.length];
 }
 
-/** Deterministic pseudo-random, so a test can be varied without being random. */
+/**
+ * Deterministic pseudo-random, so a test can be varied without being random.
+ *
+ * The state is WARMED before the first value is handed out, and that matters more
+ * than it looks. Raw xorshift on a small seed returns a tiny first number for
+ * every seed in the range a test would use, so `rngFor(1)` through `rngFor(60)`
+ * all produced a first value under 0.2. Any test that seeded this and then made a
+ * single weighted choice was therefore exercising exactly one branch while
+ * appearing to sweep sixty. That silently hid a change that made an outcome
+ * variable: the test still saw one answer and concluded nothing had changed.
+ */
 export function rngFor(seed: number): Rng {
   let s = seed >>> 0 || 1;
-  return () => {
+  const step = () => {
     s ^= s << 13;
     s ^= s >>> 17;
     s ^= s << 5;
     s >>>= 0;
     return s / 4294967296;
   };
+  for (let i = 0; i < 8; i++) step();
+  return step;
 }
 
 /** A die guaranteed to roll `face`. d20 is `1 + floor(rng() * 20)`. */
@@ -41,6 +53,7 @@ export function makePlayer(over: Partial<Player> = {}): Player {
     isBot: false,
     connected: true,
     disconnectedAt: null,
+    lastSeenAt: 0,
     callingId: null,
     bloodId: null,
     kitIds: [],
