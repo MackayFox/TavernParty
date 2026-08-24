@@ -81,6 +81,17 @@ export function Waiting({ view, post, busy }: PhaseProps) {
               {p.id === view.me.id && <span className="text-xs text-text-low">(you)</span>}
               {p.isHost && <Pill>Host</Pill>}
               {p.isBot && <Pill>Stranger</Pill>}
+              {p.isBot && iAmHost && (
+                <button
+                  type="button"
+                  aria-label={`Ask ${p.name} to leave`}
+                  className="min-h-11 min-w-11 rounded-md border border-border-strong text-sm text-text-mid"
+                  disabled={busy}
+                  onClick={() => void post("/bot", { botId: p.id }, "DELETE")}
+                >
+                  ✕
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -118,6 +129,18 @@ export function Waiting({ view, post, busy }: PhaseProps) {
           {nameOf(view, view.players.find((p) => p.isHost)?.id ?? "")} starts it when
           everybody is here.
         </p>
+      )}
+
+      {me && (
+        <div className="border-t border-border-dim pt-3">
+          <Button variant="secondary" disabled={busy} onClick={() => void post("/leave")}>
+            Give up the chair
+          </Button>
+          <p className="mt-1 text-xs text-text-low">
+            There was no way out of a table at all until now, which went badly with Quick Match
+            seating you at the busiest one: land in an abandoned lobby and you sat there.
+          </p>
+        </div>
       )}
     </div>
   );

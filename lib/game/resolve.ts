@@ -150,6 +150,26 @@ export function rollApproach(ctx: RollContext, index: number, rng: Rng): Outcome
     : -ctx.approach.cost.renown * mult;
   const dreadDelta = success ? 0 : ctx.approach.cost.dread * mult;
 
+  // The consequence, itemised the same way the roll is. Doubling is a separate
+  // named line rather than a silently bigger number, because "the situation is
+  // worse" is a thing to read and "you lost eight" is not.
+  const costMods: Modifier[] = [];
+  if (success) {
+    costMods.push({ label: `${ctx.approach.label.toLowerCase()}, done`, value: ctx.approach.deed });
+  } else if (ctx.approach.cost.renown > 0) {
+    costMods.push({ label: "what it cost you", value: -ctx.approach.cost.renown });
+    if (mult > 1)
+      costMods.push({
+        label:
+          ctx.calling && ctx.scene.tags.includes(ctx.calling.failing.tag) && ctx.dread >= DREAD_DOUBLE_AT
+            ? "your Failing, and the state of the night"
+            : ctx.calling && ctx.scene.tags.includes(ctx.calling.failing.tag)
+              ? "your Failing is in this room"
+              : "the state of the night",
+        value: -ctx.approach.cost.renown * (mult - 1),
+      });
+  }
+
   return {
     playerId: ctx.player.id,
     approachId: ctx.approach.id,
@@ -160,6 +180,7 @@ export function rollApproach(ctx: RollContext, index: number, rng: Rng): Outcome
     success,
     renownDelta,
     dreadDelta,
+    costMods,
     scar: success ? null : scarFor(ctx.scene, ctx.approach, index),
     hookRefilled: ctx.hookCalled,
   };
@@ -198,6 +219,12 @@ export function flinch(
     success: false,
     renownDelta: renown,
     dreadDelta: penalties.dread * multiplier,
+    costMods: [
+      { label: "you did not move", value: -penalties.renown * multiplier },
+      ...(marked
+        ? [{ label: "and this one was about you", value: penalties.markPenalty * multiplier }]
+        : []),
+    ],
     scar: null,
     hookRefilled: false,
   };

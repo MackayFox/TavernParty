@@ -492,9 +492,28 @@ function LedgerBody({
         </strong>{" "}
         {sentence}
       </p>
+      {/*
+        The consequence, itemised like the roll. It used to print one figure with
+        the Mark bonus, both doublings and any nomination payout folded into it,
+        on the screen whose own docblock says "never a bare total".
+      */}
+      <dl className={`mt-2 border-t ${rule} pt-1`}>
+        {outcome.costMods.map((mod, i) => (
+          <div
+            key={`${mod.label}-${i}`}
+            className="flex items-baseline justify-between gap-3 py-0.5"
+          >
+            <dt className={`text-sm ${quiet}`}>{mod.label}</dt>
+            <dd className={`num text-sm ${ink}`}>{signed(mod.value)}</dd>
+          </div>
+        ))}
+        <div className={`flex items-baseline justify-between gap-3 border-t ${rule} py-1`}>
+          <dt className={`label-caps ${onPaper ? "text-paper-ink-mid" : ""}`}>Renown</dt>
+          <dd className={`num text-base ${ink}`}>{signed(outcome.renownDelta)}</dd>
+        </div>
+      </dl>
       <p className={`num mt-1 text-sm ${quiet}`}>
-        {signed(outcome.renownDelta)} Renown
-        {outcome.dreadDelta > 0 ? ` · +${outcome.dreadDelta} party Dread` : ""}
+        {outcome.dreadDelta > 0 ? `+${outcome.dreadDelta} party Dread` : "Nothing on the party"}
         {outcome.hookRefilled ? " · Hook tokens back to full" : ""}
       </p>
     </div>

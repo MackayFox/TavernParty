@@ -196,6 +196,16 @@ export type Outcome = {
   success: boolean;
   renownDelta: number;
   dreadDelta: number;
+  /**
+   * Why the Renown moved by that much, named, in the order to read it.
+   *
+   * The roll side of this game never prints a bare total, and for a while the
+   * consequence side always did: a Marked player who won a 3 Renown door read
+   * "+5 Renown" with no line for the 2, and a Failing on a high-Dread scene read
+   * "-8 Renown" where the door had said 2, with both doublings invisible. Same
+   * doctrine, same shape: a list of named parts whose sum is the figure.
+   */
+  costMods: Modifier[];
   scar: Scar | null;
   /** Their Hook was called against them, so its tokens refilled. */
   hookRefilled: boolean;

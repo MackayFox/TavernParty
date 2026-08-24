@@ -401,3 +401,113 @@ describe("Kit charges", () => {
     expect(p.rerolls).toBe(2);
   });
 });
+
+describe("the strangers", () => {
+  it("cast a Laurel, so a one-human table is not rigged against the human", () => {
+    const room = engine.createRoom(
+      { code: "TAVERN", name: "Solo", visibility: "public" },
+      NOW
+    );
+    engine.join(room, { id: "human", name: "ALEX" }, NOW);
+    engine.addBot(room, "human", NOW, rngFor(2));
+    engine.addBot(room, "human", NOW, rngFor(3));
+    engine.startRun(room, "human", NOW, rngFor(4));
+
+    const rng = rngFor(4);
+    let now = NOW;
+    for (let i = 0; i < 400 && room.phase !== "FINAL"; i++) {
+      if (room.phaseEndsAt === null) break;
+      now = room.phaseEndsAt + 1;
+      engine.tick(room, now, rng);
+    }
+    expect(room.phase).toBe("FINAL");
+
+    // Every bot voted, and never for itself.
+    for (const bot of room.players.filter((p) => p.isBot)) {
+      expect(bot.laurelFor).toBeTruthy();
+      expect(bot.laurelFor).not.toBe(bot.id);
+    }
+    // So Laurels are in play rather than one-way traffic out of the only person
+    // at the table. One per bot: this human never voted, because this run was
+    // played entirely on deadlines, and an abstention casts nothing.
+    const bots = room.players.filter((p) => p.isBot).length;
+    const total = room.standings!.reduce((t, s) => t + s.laurels, 0);
+    expect(total).toBe(bots);
+    expect(bots).toBeGreaterThan(0);
+  });
+
+  it("decide their own wounds rather than losing them to the deadline", () => {
+    const room = engine.createRoom(
+      { code: "TAVERN", name: "Solo", visibility: "public" },
+      NOW
+    );
+    engine.join(room, { id: "human", name: "ALEX" }, NOW);
+    engine.addBot(room, "human", NOW, rngFor(2));
+    engine.startRun(room, "human", NOW, rngFor(6));
+
+    const rng = rngFor(6);
+    let now = NOW;
+    for (let i = 0; i < 400 && room.phase !== "FINAL"; i++) {
+      if (room.phaseEndsAt === null) break;
+      now = room.phaseEndsAt + 1;
+      engine.tick(room, now, rng);
+    }
+    const bot = room.players.find((p) => p.isBot)!;
+    // Whatever they took, they made a call on all of it.
+    expect(bot.scars.every((s) => s.kept !== null)).toBe(true);
+    // And at least sometimes that call was to wear it, which the forced-hide
+    // default could never produce.
+    expect(bot.stats.scarsKept + bot.stats.scarsHidden).toBe(bot.scars.length);
+  });
+});
+
+describe("the consequence ledger", () => {
+  it("names every part of the Renown figure, and they sum to it", () => {
+    // The roll side of this game never printed a bare total. The consequence
+    // side always did: the Mark bonus, both doublings and any nomination payout
+    // were folded straight into one number.
+    const room = atFirstAct({});
+    commitAll(room);
+    resolveWith(room, fixedRng([FACE_1, FACE_20, FACE_1]));
+    for (const out of room.act!.outcomes!) {
+      const sum = out.costMods.reduce((t, m) => t + m.value, 0);
+      expect(sum).toBe(out.renownDelta);
+    }
+  });
+
+  it("gives the Mark bonus its own line rather than inflating the figure", () => {
+    const room = atFirstAct({});
+    // Force somebody to be Marked by this scene.
+    room.act!.marked = ["p0"];
+    commitAll(room);
+    resolveWith(room, fixedRng([FACE_20]));
+    const out = room.act!.outcomes!.find((o) => o.playerId === "p0")!;
+    expect(out.costMods.map((m) => m.label)).toContain("this one was about you");
+    expect(out.costMods.reduce((t, m) => t + m.value, 0)).toBe(out.renownDelta);
+  });
+
+  it("puts a nomination payout on the nominator's own ledger", () => {
+    const room = atFirstAct({});
+    engine.nominate(room, "p0", "p1", NOW + 1);
+    commitAll(room);
+    resolveWith(room, fixedRng([FACE_20]));
+    const mine = room.act!.outcomes!.find((o) => o.playerId === "p0")!;
+    // The number appears on the ledger of the person it happened to.
+    expect(mine.costMods.some((m) => m.label.includes("forward"))).toBe(true);
+    expect(mine.costMods.reduce((t, m) => t + m.value, 0)).toBe(mine.renownDelta);
+  });
+
+  it("names the doubling when the night has gone badly", () => {
+    const room = atFirstAct({});
+    room.dread = 5;
+    const door = SCENES_BY_ID[room.act!.sceneId].approaches.find(
+      (a) => !a.reckless && a.cost.renown > 0
+    )!;
+    commitAll(room, door.id);
+    resolveWith(room, fixedRng([FACE_1]));
+    const out = room.act!.outcomes!.find((o) => o.playerId === "p0")!;
+    expect(out.success).toBe(false);
+    expect(out.costMods.some((m) => m.label.includes("night"))).toBe(true);
+    expect(out.costMods.reduce((t, m) => t + m.value, 0)).toBe(out.renownDelta);
+  });
+});

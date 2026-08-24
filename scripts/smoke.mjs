@@ -353,6 +353,20 @@ async function main() {
           );
           check(`Act ${act.index}: every total is the sum of its named sources`, itemised, JSON.stringify(outcomes.map((o) => [o.total, o.mods])).slice(0, 200));
 
+          // Same doctrine on the consequence side, which used to print one
+          // figure with the Mark bonus, both doublings, any nomination payout
+          // and the clamp at zero Renown all folded silently into it.
+          const consequences = outcomes.every(
+            (o) =>
+              Array.isArray(o.costMods) &&
+              o.costMods.reduce((t, m) => t + m.value, 0) === o.renownDelta
+          );
+          check(
+            `Act ${act.index}: every Renown figure is the sum of its named causes`,
+            consequences,
+            JSON.stringify(outcomes.map((o) => [o.renownDelta, o.costMods])).slice(0, 240)
+          );
+
           const scene = SCENES[act.sceneId];
           const onReckless = outcomes.filter((o) => o.approachId === scene?.reckless).length;
           check(`Act ${act.index}: at most one player took the Reckless line`, onReckless <= 1, `${onReckless} took it`);

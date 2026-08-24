@@ -16,7 +16,7 @@ import { DREAD_DOUBLE_AT, DREAD_MAX, DREAD_TURN_AT, TIMINGS } from "@/lib/game/r
 import type { Phase, PlayerView, RoomView } from "@/lib/game/types";
 
 /** POST to a room endpoint. Resolves true when the server accepted it. */
-export type Post = (path: string, body?: unknown) => Promise<boolean>;
+export type Post = (path: string, body?: unknown, method?: "POST" | "DELETE") => Promise<boolean>;
 
 export type PhaseProps = {
   view: RoomView;
@@ -147,6 +147,47 @@ export function DreadMeter({ dread }: { dread: number }) {
 // ---------------------------------------------------------------------------
 // The party
 // ---------------------------------------------------------------------------
+
+/**
+ * What just happened, in order.
+ *
+ * `room.log` came down in every snapshot and nothing rendered it, and for several
+ * things it is the ONLY record: the Reckless scramble Dread, the Hillfolk reroll,
+ * every Signature and Blood power, both nomination payouts, "the night turns" and
+ * "everything costs more now". None of it was on screen anywhere.
+ *
+ * Newest first, because that is what you look at, and capped, because the
+ * interesting part of a log is always the top of it.
+ */
+export function Chronicle({ view, limit = 12 }: { view: RoomView; limit?: number }) {
+  const entries = view.log.slice(0, limit);
+  if (entries.length === 0) return null;
+  return (
+    <section aria-label="What just happened" className="rounded-lg border border-border-dim bg-bg-1">
+      <h2 className="label-caps border-b border-border-dim px-3 py-2">What just happened</h2>
+      <ol className="divide-y divide-border-dim">
+        {entries.map((entry, i) => (
+          <li key={`${entry.at}-${i}`} className="flex items-start gap-2 px-3 py-1.5">
+            {/* A glyph AND the words: never state by colour or icon alone. */}
+            <span aria-hidden className="mt-0.5 shrink-0 text-xs">
+              {LOG_GLYPH[entry.kind]}
+            </span>
+            <span className="min-w-0 flex-1 text-xs text-text-mid">{entry.text}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+const LOG_GLYPH: Record<RoomView["log"][number]["kind"], string> = {
+  draft: "◆",
+  roll: "⚄",
+  scar: "✕",
+  dread: "▲",
+  laurel: "✦",
+  system: "·",
+};
 
 export function PartyRail({ view }: { view: RoomView }) {
   return (

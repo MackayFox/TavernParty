@@ -65,7 +65,7 @@ import {
   TIMINGS,
   abilityMod,
 } from "./rules";
-import { standingsFor } from "./scoring";
+import { median, standingsFor } from "./scoring";
 import {
   ABILITIES,
   GameError,
@@ -576,6 +576,10 @@ export function commitApproach(
 
 export function nominate(room: Room, playerId: string, nomineeId: string, now: number): void {
   requirePhase(room, "ACT");
+  // The module docblock promises every action validates the deadline, and these
+  // two were the exceptions: they took a `now` and never read it.
+  if (room.phaseEndsAt !== null && now > room.phaseEndsAt)
+    throw new GameError("too_late", "You left it too long.");
   requirePlayer(room, playerId);
   requirePlayer(room, nomineeId);
   if (playerId === nomineeId)
@@ -588,6 +592,8 @@ export function nominate(room: Room, playerId: string, nomineeId: string, now: n
 
 export function revealReckless(room: Room, playerId: string, now: number): void {
   requirePhase(room, "ACT");
+  if (room.phaseEndsAt !== null && now > room.phaseEndsAt)
+    throw new GameError("too_late", "You left it too long.");
   const p = requirePlayer(room, playerId);
   const act = room.act;
   if (!act) throw new GameError("wrong_phase", "Nothing is happening.");
@@ -626,7 +632,16 @@ function applyOutcome(room: Room, out: Outcome, scene: Scene): void {
   const dreadBefore = room.dread;
   p.renown = Math.max(0, p.renown + out.renownDelta);
   room.dread = Math.min(DREAD_MAX, room.dread + out.dreadDelta);
-  out.renownDelta = p.renown - renownBefore;
+  const applied = p.renown - renownBefore;
+  // A player with nothing cannot lose anything, and the itemised list has to say
+  // so rather than quietly disagreeing with the figure underneath it.
+  if (applied !== out.renownDelta) {
+    out.costMods.push({
+      label: applied > out.renownDelta ? "there was nothing left to take" : "the books would not carry it",
+      value: applied - out.renownDelta,
+    });
+  }
+  out.renownDelta = applied;
   out.dreadDelta = room.dread - dreadBefore;
   if (out.scar) p.scars.push(out.scar);
   if (out.hookRefilled) p.hookTokens = HOOK_TOKENS_MAX;
@@ -765,8 +780,13 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
       note(room, "roll", `${p.name} picks the die up and throws it again`, p.id);
     }
 
-    // Being Marked pays you for taking the Act at all.
-    if (marked) out.renownDelta += MARK_BONUS;
+    // Being Marked pays you for taking the Act at all, and it gets its own line
+    // rather than quietly inflating the figure: a Marked player winning a 3
+    // Renown door used to read "+5 Renown" with nothing to explain the 2.
+    if (marked) {
+      out.renownDelta += MARK_BONUS;
+      out.costMods.push({ label: "this one was about you", value: MARK_BONUS });
+    }
     outcomes.push(out);
 
     p.hookTokens -= Math.min(spend, p.hookTokens);
@@ -778,14 +798,37 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
   // Nominations pay out on the nominee's result.
   for (const [nominatorId, nomineeId] of Object.entries(act.nominations)) {
     const nominator = findPlayer(room, nominatorId);
+    const nominee = findPlayer(room, nomineeId);
     const result = outcomes.find((o) => o.playerId === nomineeId);
     if (!nominator || !result) continue;
+    // Onto the nominator's OWN outcome, so the number appears on the ledger of
+    // the person it happened to. This was the worst bare total in the product: a
+    // scoring change with no printed cause anywhere on any screen.
+    // Routed through the nominator's OWN outcome rather than written straight to
+    // their Renown. Two reasons: the number then appears on the ledger of the
+    // person it happened to, and exactly one place applies Renown, so the
+    // itemised list can never disagree with the figure it adds up to.
+    const ledger = outcomes.find((o) => o.playerId === nominatorId);
+    const who = nominee?.name ?? "them";
     if (result.success) {
       const cut = Math.round(result.renownDelta * NOMINATION_SHARE);
-      nominator.renown += cut;
+      if (ledger) {
+        ledger.renownDelta += cut;
+        ledger.costMods.push({ label: `you put ${who} forward`, value: cut });
+      } else {
+        nominator.renown += cut;
+      }
       note(room, "roll", `${nominator.name} takes a cut for the suggestion`, nominatorId);
     } else {
-      nominator.renown = Math.max(0, nominator.renown - NOMINATION_PENALTY);
+      if (ledger) {
+        ledger.renownDelta -= NOMINATION_PENALTY;
+        ledger.costMods.push({
+          label: `you sent ${who} and it did not work`,
+          value: -NOMINATION_PENALTY,
+        });
+      } else {
+        nominator.renown = Math.max(0, nominator.renown - NOMINATION_PENALTY);
+      }
       note(room, "roll", `${nominator.name} sent them and it did not work`, nominatorId);
     }
   }
@@ -1144,6 +1187,8 @@ export function useBloodPower(
       const refund = -out.renownDelta;
       p.renown += refund;
       out.renownDelta = 0;
+      // On the list, or the parts stop summing to the figure.
+      out.costMods.push({ label: "somebody else's pocket", value: refund });
       room.dread = Math.min(DREAD_MAX, room.dread + ASHKIN_DREAD);
       p.usedBloodPower = true;
       note(room, "dread", `${p.name} finds somebody else's pocket for it`, p.id);
@@ -1170,6 +1215,23 @@ export function useBloodPower(
 }
 
 function endAct(room: Room, now: number, rng: Rng): void {
+  // A bot decides its own wounds rather than falling through to the default
+  // below. Without this every bot Scar was silently hidden and quietly cost them
+  // Renown, which is not a policy, it is a bot losing to the deadline.
+  //
+  // The policy is the same read a human should make: keep it if you are at or
+  // above the middle of the table, because that is the only case where a kept
+  // Scar pays at the Ballad. It taxes the party a point of Dread, which is
+  // exactly the trade the mechanic is for.
+  const middle = median(room.players.map((p) => p.renown));
+  for (const bot of room.players) {
+    if (!bot.isBot) continue;
+    for (const scar of bot.scars) {
+      if (scar.kept !== null) continue;
+      decideScar(room, bot.id, scar.id, bot.renown >= middle, now);
+    }
+  }
+
   // An undecided Scar is hidden, not kept: it costs the absent player rather
   // than taxing the table for somebody else's closed tab.
   for (const p of room.players) {
@@ -1208,6 +1270,35 @@ export function castLaurel(room: Room, playerId: string, targetId: string, now: 
 }
 
 function finish(room: Room, now: number): void {
+  /**
+   * A bot casts a Laurel like everybody else.
+   *
+   * A Laurel is worth LAUREL_VALUE, the single largest swing in the standings.
+   * Bots not voting meant that in a one-human table the human gave one away and
+   * could never receive one, so the headline "fill the empty chairs" game was
+   * quietly rigged against the only person playing it.
+   *
+   * They vote for whoever wore the most Scars in public, which is both a real
+   * read and the one the fiction would make: you took the wounds, so the song is
+   * about you. Alphabetical tiebreak so a rerun is identical.
+   */
+  for (const bot of room.players) {
+    if (!bot.isBot || bot.laurelFor) continue;
+    const best = room.players
+      .filter((p) => p.id !== bot.id)
+      .sort(
+        (a, b) =>
+          b.scars.filter((s) => s.kept === true).length -
+            a.scars.filter((s) => s.kept === true).length ||
+          b.renown - a.renown ||
+          a.name.localeCompare(b.name)
+      )[0];
+    if (best) {
+      bot.laurelFor = best.id;
+      note(room, "system", `${bot.name} raises a glass to ${best.name}`, bot.id);
+    }
+  }
+
   room.standings = standingsFor(room.players);
   room.phase = "FINAL";
   room.phaseEndsAt = null;

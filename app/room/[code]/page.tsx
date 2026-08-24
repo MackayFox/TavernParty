@@ -31,7 +31,7 @@ import { Ballad, Final } from "@/components/room/Ending";
 import { Draft } from "@/components/room/Draft";
 import { Muster, Waiting } from "@/components/room/Lobby";
 import { ActResult } from "@/components/room/Result";
-import { DreadMeter, PartyRail, PhaseBar, phaseSentence } from "@/components/room/shared";
+import { Chronicle, DreadMeter, PartyRail, PhaseBar, phaseSentence } from "@/components/room/shared";
 import { browserClient } from "@/lib/supabase/browser";
 import type { RoomView } from "@/lib/game/types";
 
@@ -89,12 +89,12 @@ export default function RoomPage() {
   }, [code, load]);
 
   const post = useCallback(
-    async (path: string, body?: unknown): Promise<boolean> => {
+    async (path: string, body?: unknown, method: "POST" | "DELETE" = "POST"): Promise<boolean> => {
       setBusy(true);
       setError(null);
       try {
         const res = await fetch(`/api/tables/${encodeURIComponent(code)}${path}`, {
-          method: "POST",
+          method,
           headers: { "content-type": "application/json" },
           body: JSON.stringify(body ?? {}),
         });
@@ -175,6 +175,7 @@ export default function RoomPage() {
         </div>
         <aside className="min-w-0 space-y-3 lg:sticky lg:top-4 lg:self-start">
           <PartyRail view={view} />
+          <Chronicle view={view} />
         </aside>
       </div>
 
