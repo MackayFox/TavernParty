@@ -88,12 +88,20 @@ async function withRoom<T>(code: string, work: (room: Room, now: number) => T): 
     engine.tick(room, now);
     const result = work(room, now);
     if (room.version === v0) return result; // nothing changed, no write
-    if (phase0 !== "FINAL" && room.phase === "FINAL") {
-      // The run just ended. Write the record before the state, so the final
-      // snapshot a client reads is already the persisted one.
-      await persistRun(room);
-    }
+    const justFinished = phase0 !== "FINAL" && room.phase === "FINAL";
     if (await save(room, v0)) {
+      /**
+       * The record is written AFTER the save wins, not before it.
+       *
+       * It used to run first, on the theory that the snapshot a client reads
+       * should already be persisted. But `save` is version-guarded and can lose,
+       * and the retry loop re-runs `work` and comes back here, so a contended
+       * final tick wrote the same run to `runs` and `run_players` once per
+       * attempt. Six retries, six copies of one night in the permanent record and
+       * six times its contribution to everybody's stats. Losing the race means
+       * another instance is committing this same transition, so it will persist it.
+       */
+      if (justFinished) await persistRun(room);
       void broadcast(room.code, room.version);
       return result;
     }
@@ -152,7 +160,13 @@ export const dbStore: GameStore = {
   },
 
   async listPublicRooms(): Promise<RoomSummary[]> {
-    void cleanupStale();
+    // Sampled, not every call. `cleanupStale` is an unbounded DELETE and this
+    // method is reachable from an unauthenticated page load, so firing it on
+    // every request handed any visitor a free write-amplification lever: hammer
+    // the lobby list and every one of those requests runs a table scan and a
+    // delete. One in twenty-five is plenty to keep the table tidy, and `snapshot`
+    // already samples for the same reason.
+    if (Math.random() < 0.04) void cleanupStale();
     const { data, error } = await adminClient()
       .from("tables")
       .select("code, name, players, max_players, acts, phase")
