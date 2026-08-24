@@ -34,7 +34,14 @@ export function ActResult({ view, post, busy }: PhaseProps) {
   if (!act || !scene || !act.outcomes) return null;
 
   const outcomes = act.outcomes;
-  const mine = outcomes.find((o) => o.playerId === view.me.id);
+  /**
+   * A player can have MORE than one row now: the Sapper's Signature rolls a
+   * second door, and it was pushed onto the list and then rendered by nobody,
+   * along with any Scar it produced. `find` was quietly correct until that
+   * existed and quietly wrong the moment it did.
+   */
+  const mineRows = outcomes.filter((o) => o.playerId === view.me.id);
+  const mine = mineRows[0];
   const others = outcomes.filter((o) => o.playerId !== view.me.id);
   const taken = new Set(outcomes.map((o) => o.approachId));
   const untaken = scene.approaches.filter((a) => !taken.has(a.id));
@@ -92,6 +99,23 @@ export function ActResult({ view, post, busy }: PhaseProps) {
         </Sheet>
       )}
 
+      {mineRows.slice(1).length > 0 && (
+        <p className="text-sm text-accent">
+          You went at this one twice. Both throws are on your sheet, and so is
+          whatever the second one cost you.
+        </p>
+      )}
+
+      {mineRows.slice(1).map((extra, i) => (
+        <Sheet
+          key={`${extra.approachId}-${i}`}
+          title={me?.name ?? "You"}
+          subtitle={`Then: ${approachLabel(extra)}`}
+        >
+          <LedgerBody outcome={extra} sentence={sentence(extra)} onPaper />
+        </Sheet>
+      ))}
+
       {openScar && (
         <Sheet subtitle="You are carrying something out of this" title="The Scar">
           <p className="text-sm text-paper-ink">{openScar.label}</p>
@@ -148,9 +172,9 @@ export function ActResult({ view, post, busy }: PhaseProps) {
       {others.length > 0 && (
         <section aria-label="Everybody else" className="space-y-3">
           <h3 className="label-caps">The rest of the table</h3>
-          {others.map((outcome) => (
+          {others.map((outcome, i) => (
             <article
-              key={outcome.playerId}
+              key={`${outcome.playerId}-${outcome.approachId}-${i}`}
               className="rounded-lg border border-border-dim bg-bg-1 p-4"
             >
               <header className="flex flex-wrap items-center gap-2">

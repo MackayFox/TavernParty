@@ -32,6 +32,7 @@ import {
   ARRAY_DICE,
   ARRAY_DROP,
   ARRAY_SIZE,
+  AFFINITY_BONUS,
   ASHKIN_DREAD,
   DEFAULT_SETTINGS,
   DREAD_DOUBLE_AT,
@@ -134,6 +135,26 @@ function hookOf(p: Player): Hook | undefined {
 }
 function kitOf(p: Player): KitItem[] {
   return p.kitIds.map((id) => KIT_BY_ID.get(id)).filter((k): k is KitItem => !!k);
+}
+
+/**
+ * What a player actually brings to one ability: the score, what their Calling is
+ * trained for, and what they are carrying.
+ *
+ * Exists because three places were sorting on the bare ability modifier and
+ * therefore disagreeing with the Act screen, which has always shown the full
+ * figure: the bot's door choice, the fallback for a player bumped off the
+ * Reckless line, and nothing else. A "best door" that ignores training and Kit is
+ * not the best door.
+ */
+function reachOn(p: Player, ability: Ability): number {
+  let total = abilityMod(p.scores?.[ability] ?? 10);
+  const calling = callingOf(p);
+  if (calling?.affinities.includes(ability)) total += AFFINITY_BONUS;
+  for (const item of kitOf(p)) {
+    if (item.bonus?.ability === ability) total += item.bonus.value;
+  }
+  return total;
 }
 
 /** Players who count as present for auto-play and "everybody is done" checks. */
@@ -670,6 +691,97 @@ function unapplyOutcome(room: Room, out: Outcome): void {
   if (out.scar) p.scars = p.scars.filter((s) => s.id !== out.scar!.id);
 }
 
+/** Labels this function owns. Anything matching is stripped before re-settling. */
+const NOMINATION_LABEL = /^you (put|sent) /;
+
+/**
+ * Pay out every nomination against the CURRENT outcomes, from scratch.
+ *
+ * Idempotent on purpose, and that is the whole point of it existing. It used to
+ * run once inside `resolveAct`, which was fine until a Signature or a Kit charge
+ * could re-roll an outcome afterwards: `rethrow` replaces a row wholesale, so it
+ * silently deleted whatever settlement had been written onto it. Measured both
+ * directions: a +3 cut vanished and its owner went from 8 Renown to 0, and in the
+ * other direction spending a reroll REFUNDED a nomination penalty, which is an
+ * exploit rather than a display bug.
+ *
+ * So: strip every line this function owns, recompute, and adjust the live Renown
+ * by the difference. Safe to call as often as anything changes an outcome.
+ *
+ * The share is split, not paid in full to each nominator. `NOMINATION_SHARE` is
+ * half of the prize, and paying every nominator half of it minted Renown at a big
+ * table: five nominators on one success used to pay out two and a half times the
+ * deed itself.
+ */
+function settleNominations(
+  room: Room,
+  act: ActState,
+  outcomes: Outcome[],
+  opts: { announce?: boolean } = {}
+): void {
+  // Strip first, so a re-settle never stacks on the last one.
+  for (const out of outcomes) {
+    const keep = out.costMods.filter((m) => !NOMINATION_LABEL.test(m.label));
+    if (keep.length === out.costMods.length) continue;
+    const removed = out.costMods.reduce((t, m) => t + m.value, 0) -
+      keep.reduce((t, m) => t + m.value, 0);
+    out.costMods = keep;
+    out.renownDelta -= removed;
+    // The outcome may already be applied, so the live figure has to move too.
+    const owner = findPlayer(room, out.playerId);
+    if (owner) owner.renown = Math.max(0, owner.renown - removed);
+  }
+
+  // Group by nominee, so one success is divided among everybody who pointed at it.
+  const byNominee = new Map<string, string[]>();
+  for (const [nominatorId, nomineeId] of Object.entries(act.nominations)) {
+    byNominee.set(nomineeId, [...(byNominee.get(nomineeId) ?? []), nominatorId]);
+  }
+
+  for (const [nomineeId, nominators] of byNominee) {
+    const result = outcomes.find((o) => o.playerId === nomineeId);
+    if (!result) continue;
+    const who = findPlayer(room, nomineeId)?.name ?? "them";
+
+    for (const nominatorId of nominators) {
+      const nominator = findPlayer(room, nominatorId);
+      if (!nominator) continue;
+      const ledger = outcomes.find((o) => o.playerId === nominatorId);
+      const line = result.success
+        ? {
+            label: `you put ${who} forward`,
+            // Floor, not round: rounding turns a half into a whole and mints the
+            // difference back at exactly two nominators.
+            value: Math.max(
+              1,
+              Math.floor((result.renownDelta * NOMINATION_SHARE) / nominators.length)
+            ),
+          }
+        : { label: `you sent ${who} and it did not work`, value: -NOMINATION_PENALTY };
+
+      if (ledger) {
+        ledger.costMods.push(line);
+        ledger.renownDelta += line.value;
+        // Only the already-applied rows need their live Renown moved; a row that
+        // has not been applied yet gets it in applyOutcome.
+        if (act.outcomes) nominator.renown = Math.max(0, nominator.renown + line.value);
+      } else {
+        nominator.renown = Math.max(0, nominator.renown + line.value);
+      }
+      if (opts.announce) {
+        note(
+          room,
+          "roll",
+          result.success
+            ? `${nominator.name} takes a cut for the suggestion`
+            : `${nominator.name} sent them and it did not work`,
+          nominatorId
+        );
+      }
+    }
+  }
+}
+
 /**
  * Resolve the Act.
  *
@@ -689,10 +801,7 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
     if (!p.isBot || act.choices[p.id]) continue;
     const best = [...scene.approaches]
       .filter((a) => !a.reckless)
-      .sort(
-        (x, y) =>
-          abilityMod(p.scores?.[y.ability] ?? 10) - abilityMod(p.scores?.[x.ability] ?? 10)
-      )[0];
+      .sort((x, y) => reachOn(p, y.ability) - reachOn(p, x.ability))[0];
     const wantsReckless = act.marked.includes(p.id) && reckless;
     act.choices[p.id] = (wantsReckless ? reckless : best).id;
     act.spend[p.id] = wantsReckless ? Math.min(1, p.hookTokens) : 0;
@@ -701,18 +810,31 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
 
   // One door. The quicker hand takes it; everybody else is bumped to the door
   // they are best at, and takes a point of Dread for the scramble.
+  const scrambled = new Set<string>();
   if (reckless) {
     const grabbers = act.order.filter((id) => act.choices[id] === reckless.id);
     for (const loser of grabbers.slice(1)) {
       const p = findPlayer(room, loser);
       if (!p) continue;
+      // The door they are best at, counting what they are TRAINED for and what
+      // they are carrying, not the raw ability alone. Sorting on the bare
+      // modifier sent a Warden bumped off the Reckless line to a door their
+      // Calling is not trained for and their Kit does not help with.
       const fallback = [...scene.approaches]
         .filter((a) => !a.reckless)
-        .sort(
-          (x, y) =>
-            abilityMod(p.scores?.[y.ability] ?? 10) - abilityMod(p.scores?.[x.ability] ?? 10)
-        )[0];
+        .sort((x, y) => reachOn(p, y.ability) - reachOn(p, x.ability))[0];
       act.choices[loser] = fallback.id;
+      scrambled.add(loser);
+      /**
+       * Charged here, BEFORE anybody rolls, and deliberately left here.
+       *
+       * It is inside `dread: room.dread` in every player's roll context below, so
+       * it can already tip the whole Act into doubled costs. Moving the charge
+       * later to make the bookkeeping tidy would quietly change that rule. What
+       * gets fixed instead is the invisibility: the point is handed back below and
+       * re-applied through the outcome, so the Warden's Signature and Emberkin can
+       * both see it and the sum of the outcomes matches the room.
+       */
       room.dread = Math.min(DREAD_MAX, room.dread + 1);
       note(
         room,
@@ -795,43 +917,16 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
     if (out.roll === 20) p.stats.crits++;
   });
 
-  // Nominations pay out on the nominee's result.
-  for (const [nominatorId, nomineeId] of Object.entries(act.nominations)) {
-    const nominator = findPlayer(room, nominatorId);
-    const nominee = findPlayer(room, nomineeId);
-    const result = outcomes.find((o) => o.playerId === nomineeId);
-    if (!nominator || !result) continue;
-    // Onto the nominator's OWN outcome, so the number appears on the ledger of
-    // the person it happened to. This was the worst bare total in the product: a
-    // scoring change with no printed cause anywhere on any screen.
-    // Routed through the nominator's OWN outcome rather than written straight to
-    // their Renown. Two reasons: the number then appears on the ledger of the
-    // person it happened to, and exactly one place applies Renown, so the
-    // itemised list can never disagree with the figure it adds up to.
-    const ledger = outcomes.find((o) => o.playerId === nominatorId);
-    const who = nominee?.name ?? "them";
-    if (result.success) {
-      const cut = Math.round(result.renownDelta * NOMINATION_SHARE);
-      if (ledger) {
-        ledger.renownDelta += cut;
-        ledger.costMods.push({ label: `you put ${who} forward`, value: cut });
-      } else {
-        nominator.renown += cut;
-      }
-      note(room, "roll", `${nominator.name} takes a cut for the suggestion`, nominatorId);
-    } else {
-      if (ledger) {
-        ledger.renownDelta -= NOMINATION_PENALTY;
-        ledger.costMods.push({
-          label: `you sent ${who} and it did not work`,
-          value: -NOMINATION_PENALTY,
-        });
-      } else {
-        nominator.renown = Math.max(0, nominator.renown - NOMINATION_PENALTY);
-      }
-      note(room, "roll", `${nominator.name} sent them and it did not work`, nominatorId);
-    }
+  // Move the scramble's Dread onto the outcome that caused it. Handed back off
+  // room.dread first so applyOutcome re-applies exactly the same point, with the
+  // same clamp, and nothing is charged twice.
+  for (const out of outcomes) {
+    if (!scrambled.has(out.playerId)) continue;
+    room.dread = Math.max(0, room.dread - 1);
+    out.dreadDelta += 1;
   }
+
+  settleNominations(room, act, outcomes, { announce: true });
 
   for (const out of outcomes) applyOutcome(room, out, scene);
 
@@ -920,23 +1015,46 @@ function rethrow(
 
   const at = outcomes.indexOf(mine);
   unapplyOutcome(room, mine);
+  const calling = callingOf(p);
   const again = rollApproach(
     {
       player: p,
-      calling: callingOf(p),
+      calling,
       kit: kitOf(p),
       scene,
       approach,
       spendTokens: 0, // Spent on the first throw, and gone with it.
       dread: room.dread,
       hookCalled: mine.hookRefilled,
+      /**
+       * A Chanter who declared before the roll keeps the declaration.
+       *
+       * This is why a rethrow cannot be "just roll again": the second throw has
+       * to be rebuilt with everything that was true of the first one, and a
+       * Signature announced to the whole table is very much true of it.
+       */
+      boost: act.boosted.includes(p.id)
+        ? {
+            label: (calling?.signature.label ?? "your Signature").toLowerCase(),
+            value: SIGNATURE_BOOST,
+          }
+        : undefined,
     },
     at,
     rng
   );
-  if (act.marked.includes(p.id)) again.renownDelta += MARK_BONUS;
+  // Itemised, not folded in. `resolveAct` prints this line and the rethrow did
+  // not, so a rerolled Marked ledger was off by exactly the bonus.
+  if (act.marked.includes(p.id)) {
+    again.renownDelta += MARK_BONUS;
+    again.costMods.push({ label: "this one was about you", value: MARK_BONUS });
+  }
   again.mods.splice(1, 0, { label, value: 0 });
   outcomes[at] = again;
+  // Replacing the row wholesale threw away the nomination settlement written on
+  // it, in both directions: a cut vanished, and a penalty was refunded by
+  // spending a reroll. Re-settle from scratch over the whole list.
+  settleNominations(room, act, outcomes);
   applyOutcome(room, again, scene);
 }
 
@@ -1097,6 +1215,15 @@ export function useSignature(
         (a) => a.id === arg.approachId && a.id !== mine.approachId
       );
       if (!other) throw new GameError("bad_choice", "That is not another way through.");
+      // Not the Reckless line. One player takes that door and the quicker hand
+      // already settled who, at engine's scramble step; letting a second roll in
+      // through the back would break the exclusivity that nomination, the hidden
+      // target number and the whole contested-door design hang off.
+      if (other.reckless)
+        throw new GameError(
+          "bad_choice",
+          "Somebody already took that door tonight. It only opens once."
+        );
       const extra = rollApproach(
         {
           player: p,
@@ -1115,6 +1242,8 @@ export function useSignature(
       // A second roll is a second chance at the Deed and a second chance at the
       // wound. That symmetry is the whole cost of the Signature.
       outcomes.push(extra);
+      // A new row for a nominated player changes what their nominators are owed.
+      settleNominations(room, act, outcomes);
       applyOutcome(room, extra, scene);
       break;
     }

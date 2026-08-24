@@ -219,10 +219,18 @@ export function flinch(
     success: false,
     renownDelta: renown,
     dreadDelta: penalties.dread * multiplier,
+    /**
+     * Signs matter here and both of these were wrong.
+     *
+     * `penalties.renown` is ALREADY negative (`FLINCH_RENOWN = -1`), so negating
+     * it printed "+1 Renown" for a move that takes Renown away, and the Mark
+     * penalty printed positive for an extra charge. The list summed to the exact
+     * negation of the figure below it, on the most common outcome in the game.
+     */
     costMods: [
-      { label: "you did not move", value: -penalties.renown * multiplier },
+      { label: "you did not move", value: penalties.renown * multiplier },
       ...(marked
-        ? [{ label: "and this one was about you", value: penalties.markPenalty * multiplier }]
+        ? [{ label: "and this one was about you", value: -penalties.markPenalty * multiplier }]
         : []),
     ],
     scar: null,
