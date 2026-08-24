@@ -10,7 +10,15 @@
  * Pure, with the die injected, so every roll in a test is pinned and the dailies
  * can replay a night exactly.
  */
-import { ABILITY_LABEL, AFFINITY_BONUS, CRIT, DREAD_DOUBLE_AT, FUMBLE, HOOK_TOKEN_VALUE, abilityMod } from "./rules";
+import {
+  ABILITY_LABEL,
+  AFFINITY_BONUS,
+  CRIT,
+  FUMBLE,
+  HOOK_TOKEN_VALUE,
+  abilityMod,
+  dreadThresholds,
+} from "./rules";
 import { d20, type Rng } from "./random";
 import type {
   ApproachDef,
@@ -33,6 +41,8 @@ export type RollContext = {
   spendTokens: number;
   /** Collective Dread at the moment of the roll. */
   dread: number;
+  /** How many are at the table. The Dread thresholds scale with it. */
+  players?: number;
   /** True when this scene carries the tag that refills their Hook. */
   hookCalled: boolean;
   /**
@@ -111,11 +121,16 @@ export function sumLedger(mods: readonly Modifier[]): number {
  * scenes. Dread still bites everywhere else, so cowardice is still taxed.
  */
 export function costMultiplier(
-  ctx: Pick<RollContext, "calling" | "scene" | "dread"> & { approach?: { reckless: boolean } }
+  ctx: Pick<RollContext, "calling" | "scene" | "dread"> & {
+    approach?: { reckless: boolean };
+    /** Table size, because the doubling threshold scales with it. Solo if absent. */
+    players?: number;
+  }
 ): number {
   let mult = 1;
   if (ctx.calling && ctx.scene.tags.includes(ctx.calling.failing.tag)) mult *= 2;
-  if (ctx.dread >= DREAD_DOUBLE_AT && !ctx.approach?.reckless) mult *= 2;
+  const { double } = dreadThresholds(ctx.players ?? 1);
+  if (ctx.dread >= double && !ctx.approach?.reckless) mult *= 2;
   return mult;
 }
 
@@ -161,7 +176,9 @@ export function rollApproach(ctx: RollContext, index: number, rng: Rng): Outcome
     if (mult > 1)
       costMods.push({
         label:
-          ctx.calling && ctx.scene.tags.includes(ctx.calling.failing.tag) && ctx.dread >= DREAD_DOUBLE_AT
+          ctx.calling &&
+          ctx.scene.tags.includes(ctx.calling.failing.tag) &&
+          ctx.dread >= dreadThresholds(ctx.players ?? 1).double
             ? "your Failing, and the state of the night"
             : ctx.calling && ctx.scene.tags.includes(ctx.calling.failing.tag)
               ? "your Failing is in this room"

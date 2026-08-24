@@ -132,9 +132,52 @@ export const REVEAL_COST_TORCHES = 1;
  * frightening in Act II. Dread is what makes "everybody flinches" unstable:
  * somebody has to go through the door.
  */
+/**
+ * The solo figures, and the shape everything else scales from.
+ *
+ * Kept as constants because the dailies are one-player games and are tuned
+ * against exactly these, and because the front page and the rules page want a
+ * number to print.
+ */
 export const DREAD_DOUBLE_AT = 3;
 export const DREAD_TURN_AT = 5;
 export const DREAD_MAX = 8;
+
+/**
+ * The same thresholds, per table size.
+ *
+ * Dread is generated PER PLAYER and was measured against a fixed ceiling, so the
+ * escalation that reads as tension at two players was a timetable at six. Mean
+ * party Dread after each Act over 1,500 six-handed runs was 1.68, 4.00, 6.77,
+ * 7.78, 7.98 against a doubling threshold of 3 and a ceiling of 8: the doubling
+ * threshold was crossed in 100% of runs by a mean of Act 2.1, the turning
+ * threshold in 100% by Act 2.7, and 42% of all keep-or-hide decisions happened
+ * with Dread already pinned at the ceiling, where keeping a Scar taxes the party
+ * literally nothing. Every published threshold was a schedule and every Dread
+ * cost in the game was free.
+ *
+ * Linear in the head count, because the supply is. A two-player table keeps
+ * roughly the numbers it was tuned with.
+ */
+export function dreadThresholds(players: number): {
+  double: number;
+  turn: number;
+  max: number;
+} {
+  const n = Math.max(1, players);
+  return { double: 2 + n, turn: 3 + 2 * n, max: 4 + 3 * n };
+}
+
+/**
+ * A night that is going well lets the party breathe.
+ *
+ * Dread had no downward direction at all: every source added and nothing ever
+ * subtracted, so it could only ratchet. One point back when MORE THAN HALF the
+ * players who committed cleared their Act. A majority rather than everybody,
+ * because at six players with realistic success rates "everybody succeeded"
+ * fires about 1.5% of the time and would have been decoration.
+ */
+export const DREAD_RELIEF = 1;
 
 /** Keeping a Scar is a personal gain funded by a tax on everybody. */
 export const KEEP_SCAR_DREAD = 1;
@@ -220,7 +263,17 @@ export const SCARCITY_FLOOR_PLAYERS = 4;
 export const RECKLESS_IS_EXCLUSIVE = true;
 
 export const DEFAULT_SETTINGS: RoomSettings = {
-  maxPlayers: 5,
+  /**
+   * Six, matching MAX_PLAYERS and matching what the product says everywhere.
+   *
+   * It was five, while "two to six players" appeared in nine places across the
+   * front page, the rules page, the about page and the metadata. Nothing in the UI
+   * exposes the setting, and the only two callers of `createRoom` pass no settings
+   * at all, so EVERY table the product could create seated five and a sixth friend
+   * was turned away from a game that had just advertised room for them. Caught by a
+   * balance test that tried to sit six down and was told the table was full.
+   */
+  maxPlayers: MAX_PLAYERS,
   acts: 5,
   actSeconds: TIMINGS.actMs / 1000,
   visibility: "public",

@@ -35,9 +35,7 @@ import {
   AFFINITY_BONUS,
   ASHKIN_DREAD,
   DEFAULT_SETTINGS,
-  DREAD_DOUBLE_AT,
-  DREAD_MAX,
-  DREAD_TURN_AT,
+  DREAD_RELIEF,
   EMBERKIN_RENOWN,
   FLINCH_DREAD,
   FLINCH_RENOWN,
@@ -65,6 +63,7 @@ import {
   SIGNATURE_STEAL_SHARE,
   TIMINGS,
   abilityMod,
+  dreadThresholds,
 } from "./rules";
 import { median, standingsFor } from "./scoring";
 import {
@@ -147,6 +146,11 @@ function kitOf(p: Player): KitItem[] {
  * Reckless line, and nothing else. A "best door" that ignores training and Kit is
  * not the best door.
  */
+/** The Dread thresholds for THIS table. Scale with head count; see rules.ts. */
+function dreadOf(room: Room): { double: number; turn: number; max: number } {
+  return dreadThresholds(room.players.length);
+}
+
 function reachOn(p: Player, ability: Ability): number {
   let total = abilityMod(p.scores?.[ability] ?? 10);
   const calling = callingOf(p);
@@ -638,7 +642,7 @@ function beginAct(room: Room, index: number, now: number, rng: Rng): void {
    * which means the hardest scene nobody has faced. Decided here rather than at
    * deal time because Dread is not knowable when the deck is built.
    */
-  if (index === room.settings.acts && room.dread >= DREAD_TURN_AT) {
+  if (index === room.settings.acts && room.dread >= dreadOf(room).turn) {
     // Everything this TABLE has faced, not just this round's deck, so three
     // rounds in a row do not all end on the same scene.
     const faced = [...(room.seen ?? []), ...room.deck.slice(0, index - 1)];
@@ -750,7 +754,7 @@ function applyOutcome(room: Room, out: Outcome, scene: Scene): void {
   const renownBefore = p.renown;
   const dreadBefore = room.dread;
   p.renown = Math.max(0, p.renown + out.renownDelta);
-  room.dread = Math.min(DREAD_MAX, room.dread + out.dreadDelta);
+  room.dread = Math.min(dreadOf(room).max, room.dread + out.dreadDelta);
   const applied = p.renown - renownBefore;
   // A player with nothing cannot lose anything, and the itemised list has to say
   // so rather than quietly disagreeing with the figure underneath it.
@@ -933,7 +937,7 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
        * re-applied through the outcome, so the Warden's Signature and Emberkin can
        * both see it and the sum of the outcomes matches the room.
        */
-      room.dread = Math.min(DREAD_MAX, room.dread + 1);
+      room.dread = Math.min(dreadOf(room).max, room.dread + 1);
       note(
         room,
         "dread",
@@ -951,7 +955,12 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
     const hookCalled = !!hook && scene.tags.includes(hook.callTag);
 
     if (!chosen) {
-      const mult = costMultiplier({ calling: callingOf(p), scene, dread: room.dread });
+      const mult = costMultiplier({
+        calling: callingOf(p),
+        scene,
+        dread: room.dread,
+        players: room.players.length,
+      });
       outcomes.push(
         flinch(
           p,
@@ -976,6 +985,7 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
       approach,
       spendTokens: spend,
       dread: room.dread,
+      players: room.players.length,
       hookCalled,
       // Chanter. Declared during the Act, so it went on the table before the
       // die did. The label is the Signature's own name, so the ledger reads
@@ -1028,10 +1038,22 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
 
   for (const out of outcomes) applyOutcome(room, out, scene);
 
+  /**
+   * A night going well lets the party breathe. Dread had no downward direction
+   * at all before this: every source added and nothing subtracted, so it could
+   * only ratchet toward the ceiling.
+   */
+  const committed = outcomes.filter((o) => o.approachId !== "flinch");
+  const cleared = committed.filter((o) => o.success).length;
+  if (committed.length > 0 && cleared * 2 > committed.length && room.dread > 0) {
+    room.dread = Math.max(0, room.dread - DREAD_RELIEF);
+    note(room, "dread", "Most of that went well. The room feels bigger");
+  }
+
   act.outcomes = outcomes;
   room.phase = "ACT_RESULT";
   room.phaseEndsAt = now + TIMINGS.actResultMs;
-  if (room.dread >= DREAD_DOUBLE_AT) note(room, "dread", "Everything costs more now");
+  if (room.dread >= dreadOf(room).double) note(room, "dread", "Everything costs more now");
   touch(room);
 }
 
@@ -1061,7 +1083,7 @@ export function decideScar(
       scar.free = true;
       note(room, "scar", `${p.name} wears it, and the table pays nothing`, p.id);
     } else {
-      room.dread = Math.min(DREAD_MAX, room.dread + KEEP_SCAR_DREAD);
+      room.dread = Math.min(dreadOf(room).max, room.dread + KEEP_SCAR_DREAD);
       note(room, "scar", `${p.name} keeps it where everybody can see`, p.id);
     }
   } else {
@@ -1416,7 +1438,7 @@ export function useBloodPower(
       out.renownDelta = 0;
       // On the list, or the parts stop summing to the figure.
       out.costMods.push({ label: "somebody else's pocket", value: refund });
-      room.dread = Math.min(DREAD_MAX, room.dread + ASHKIN_DREAD);
+      room.dread = Math.min(dreadOf(room).max, room.dread + ASHKIN_DREAD);
       p.usedBloodPower = true;
       note(room, "dread", `${p.name} finds somebody else's pocket for it`, p.id);
       break;
@@ -1498,32 +1520,36 @@ export function castLaurel(room: Room, playerId: string, targetId: string, now: 
 
 function finish(room: Room, now: number): void {
   /**
-   * A bot casts a Laurel like everybody else.
+   * A bot casts a Laurel like everybody else, and it cannot be steered.
    *
-   * A Laurel is worth LAUREL_VALUE, the single largest swing in the standings.
-   * Bots not voting meant that in a one-human table the human gave one away and
-   * could never receive one, so the headline "fill the empty chairs" game was
-   * quietly rigged against the only person playing it.
+   * A Laurel is worth LAUREL_VALUE, the single largest swing in the standings, so
+   * bots not voting rigged the one-human table the front page sells: the human
+   * gave one away and could never receive any.
    *
-   * They vote for whoever wore the most Scars in public, which is both a real
-   * read and the one the fiction would make: you took the wounds, so the song is
-   * about you. Alphabetical tiebreak so a rerun is identical.
+   * The first version had them vote for whoever wore the most public Scars, which
+   * read well and was a catastrophe. Kept Scars are public, so the rule was a
+   * lever with a handle on it: measured over 1,200 runs per policy, a human who
+   * kept EVERY Scar took a mean 4.00 of 5 available Laurels and won 78.1% of
+   * games, against 43.1% playing the sensible median rule and 5.2% hiding
+   * everything. It held at every table size (74% against one bot, 82% against
+   * three), so it was not a small-sample artefact: it was the dominant strategy
+   * in the game and it was trivial to find.
+   *
+   * So the vote is a deterministic SCATTER instead: seeded on the bot's own id
+   * and the table's code, which means it spreads across the party, it is
+   * identical on a replay, and there is no behaviour a player can adopt to
+   * attract it. A vote nobody can earn cannot be farmed.
    */
   for (const bot of room.players) {
     if (!bot.isBot || bot.laurelFor) continue;
-    const best = room.players
-      .filter((p) => p.id !== bot.id)
-      .sort(
-        (a, b) =>
-          b.scars.filter((s) => s.kept === true).length -
-            a.scars.filter((s) => s.kept === true).length ||
-          b.renown - a.renown ||
-          a.name.localeCompare(b.name)
-      )[0];
-    if (best) {
-      bot.laurelFor = best.id;
-      note(room, "system", `${bot.name} raises a glass to ${best.name}`, bot.id);
-    }
+    const others = room.players.filter((p) => p.id !== bot.id);
+    if (others.length === 0) continue;
+    const seed = `${bot.id}:${room.code}`;
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    const best = others[hash % others.length];
+    bot.laurelFor = best.id;
+    note(room, "system", `${bot.name} raises a glass to ${best.name}`, bot.id);
   }
 
   room.standings = standingsFor(room.players);

@@ -185,7 +185,10 @@ describe("the Reckless scramble", () => {
     for (const p of room.players) engine.commitApproach(room, p.id, wild.id, 0, NOW + 1);
 
     const dreadBefore = room.dread;
-    resolveWith(room, fixedRng([FACE_20]));
+    // A failing roll on purpose: the relief valve gives the party a point back
+    // when a majority clears their Act, and that would make this assertion about
+    // two different things at once.
+    resolveWith(room, fixedRng([FACE_1]));
     const charged = room.act!.outcomes!.reduce((t, o) => t + o.dreadDelta, 0);
     expect(room.dread - dreadBefore).toBe(charged);
     expect(charged).toBeGreaterThan(0);
