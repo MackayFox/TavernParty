@@ -47,7 +47,7 @@ export const HOOKS: Hook[] = [
     name: "Left the Column",
     blurb: "You walked away from a marching company at night, and nobody has posted it yet.",
     insertTag: "patrol",
-    callTag: "oath",
+    callTag: "cold",
   },
   {
     id: "the-word-in-the-market",
@@ -117,7 +117,7 @@ export const HOOKS: Hook[] = [
     name: "Below Stairs",
     blurb: "You carried coal up the back stair of a great house, and dusted its ledgers on the way.",
     insertTag: "gentry",
-    callTag: "debt",
+    callTag: "fire",
   },
   {
     id: "the-lookout",

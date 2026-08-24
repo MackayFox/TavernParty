@@ -20,7 +20,7 @@ situation.
 
 ## 1. What this is
 
-Two to six players. One 15-minute run. Everybody builds a character, the party
+Two to six players. One run of a little over ten minutes. Everybody builds a character, the party
 takes on five Acts together, and exactly one of you walks out with the Hoard.
 
 The pitch, in one line: **roll a character, survive the night, and find out
@@ -36,8 +36,8 @@ Taken from what people who actually love this hobby say about it:
    everything downstream defaults from it.
 2. **Character creation is not the preamble, it is the product.** People make
    characters for games they will never play, and enjoy it on its own terms.
-   There is an entire game about doing exactly that. So creation gets four of
-   the fifteen minutes, it is competitive, and one of the four dailies is
+   There is an entire game about doing exactly that. So creation gets over two of
+   the ten minutes, it is competitive, and one of the four dailies is
    nothing but creation.
 3. **A background has to be spendable, resolvable, or the thing that gets
    attacked.** Backgrounds die in practice because they are social features that
@@ -48,18 +48,25 @@ Taken from what people who actually love this hobby say about it:
 
 ---
 
-## 2. The shape of fifteen minutes
+## 2. The shape of the run
+
+The figures below are the ones in `lib/game/rules.ts`, not an intention. Change
+them there and this table is wrong.
 
 | Phase | Seconds | What happens |
 |---|---:|---|
-| `MUSTER` | 45 | The house array is rolled and the order of priority is published |
-| `DRAFT_CALLING` | 40 | Ranked simultaneous commit on eight exclusive Callings |
-| `DRAFT_KIT` | 40 | Ranked simultaneous commit on twelve exclusive pieces of Kit, **reverse priority** |
-| `ASSIGN` | 45 | Assign the six house numbers to your six abilities; pick a Hook |
-| `ACT` ×5 | 90 each | An Act: commit an Approach, resolve, keep or hide the Scar |
-| `BALLAD` | 90 | Laurels are cast, the Hoard is awarded |
+| `MUSTER` | 8 | The house array is rolled and the priority order published. Nothing to decide |
+| `DRAFT_CALLING` | 35 | Ranked simultaneous commit on eight exclusive Callings |
+| `DRAFT_KIT` | 30 | Ranked simultaneous commit on twelve exclusive pieces of Kit, **reverse priority** |
+| `ASSIGN` | 70 | Place the six house numbers and choose a Hook. The biggest decision in the game |
+| `ACT` ×5 | 60 each | Commit an Approach, and optionally nominate somebody |
+| `ACT_RESULT` ×5 | 30 each | The ledger, what nobody took, and keep-or-hide |
+| `BALLAD` | 35 | Laurels are cast, the Hoard is awarded |
 
-Total 900 seconds. Nothing waits on a specific human: every phase resolves on
+Total about 630 seconds, so a little over ten minutes. Fixed regardless of
+table size, because every phase is simultaneous: a six-player run takes the same
+time as a two-player one, which is the main practical reason this shape was
+chosen over anything turn-based. Nothing waits on a specific human: every phase resolves on
 its deadline whether or not everybody acted, and the default action is a real
 move rather than a skip (§5.4).
 
@@ -107,6 +114,14 @@ bends the consequence economy rather than the arithmetic: Gravewise may Hide a
 Scar for free once; Ashkin turn one Cost into Dread; Fenborn may re-assign one
 house number after seeing the first Act. Structural, not numerical, so it
 changes what you do rather than what you add.
+
+**Known hole, to close when the powers are implemented.** Thornborn and Emberkin
+both spend themselves to save the *party* a point of Dread, in a game where
+exactly one player takes the Hoard. Read strictly, nobody should ever draft
+either. Both need a personal kicker: Thornborn's free kept Scar should also
+ignore the median gate in §6, and Emberkin's shield should refund its user a
+point of Renown. Neither is written yet, because the powers are not wired up
+yet, and writing the kicker before the power would be guessing twice.
 
 ### 3.4 The Kit — twelve, exclusive, reverse priority
 
@@ -180,9 +195,30 @@ of scenes, a flat pool of tags, and a generator.
 ### 5.2 Three Approaches
 
 Each Act offers exactly three, each with a named ability, a target number, a
-Deed value and a Consequence. One is the **Reckless** line: it pays most, and
-its target number is **hidden** unless somebody spends to reveal it.
-Information is purchasable, which stops every Act being a solved sum.
+Deed value and a Consequence. One is the **Reckless** line: it pays most, its
+target number is **hidden** unless somebody spends to reveal it, and **only one
+player per Act may take it.** Information is purchasable, which stops every Act
+being a solved sum, and exclusivity is what makes nomination a hostile act
+rather than a suggestion.
+
+**The Reckless line is deliberately a bad bet for a player with no claim on it,
+and that is not a balance failure.** Measured across all thirty scenes, a
+normally-trained character (+4) has lower expected Renown on the Reckless line
+than on the best safe line in every single one. The same character, Marked for
+the Act or spending one Hook token, has it as the best line in every single one.
+
+So the door has a natural claimant each Act rather than being a free lunch, the
+Mark publicly says who that is, and nomination is a way of shoving somebody who
+is *not* the claimant into a bet they should not take. If a future change makes
+the Reckless line good for everybody, exclusivity, the Mark, the hidden number
+and nomination all stop mattering at once.
+`tests/unit/content.test.ts` pins both halves of that.
+
+One consequence: **the Reckless line is exempt from the Dread cost doubling.**
+It already carries the worst cost in the scene against a fixed reward, so
+doubling it as Dread climbed made the one contested door strictly worse exactly
+in the Acts where the table is arguing about who takes it. Your own Failing tag
+still doubles it, because your weakness is your weakness.
 
 ### 5.3 The itemised ledger
 
@@ -204,6 +240,13 @@ called Flinch: **−1 Renown, +1 party Dread**, narrated as the character
 hesitating. It scores badly and it taxes everyone, which means an absent player
 is a problem the table can see and reason about rather than a stalled phase.
 One branch in the engine, and it is the complete answer to a closed tab.
+
+**Flinching scales with Dread, like every other cost.** It used to be flat,
+which made standing still the arithmetically correct play the moment Dread
+crossed the threshold: a failed middle line cost four to six Renown and not
+moving cost one. A design that needs "everybody flinches" to be an unstable
+equilibrium cannot also make flinching the cheapest option once things go
+wrong.
 
 ### 5.5 Nomination
 

@@ -88,13 +88,25 @@ export function sumLedger(mods: readonly Modifier[]): number {
  * feeling.
  *
  * - Your Calling's Failing tag on this scene doubles it, because this is
- *   specifically your weakness.
- * - Dread at or above the threshold doubles it for everybody.
+ *   specifically your weakness. Applies to every line, including the Reckless
+ *   one: your weakness is your weakness.
+ * - Dread at or above the threshold doubles it for everybody, EXCEPT on the
+ *   Reckless line.
+ *
+ * That exception is not a kindness, it is a fix. The Reckless line already
+ * carries the worst cost in the scene for a fixed reward, so doubling it as
+ * Dread climbs made the one contested door in the game strictly worse precisely
+ * in the Acts where the table is arguing about who takes it. Exclusivity,
+ * nomination and the hidden target number all hang off somebody wanting that
+ * door, and a review found it was worse than both safe lines in all thirty
+ * scenes. Dread still bites everywhere else, so cowardice is still taxed.
  */
-export function costMultiplier(ctx: Pick<RollContext, "calling" | "scene" | "dread">): number {
+export function costMultiplier(
+  ctx: Pick<RollContext, "calling" | "scene" | "dread"> & { approach?: { reckless: boolean } }
+): number {
   let mult = 1;
   if (ctx.calling && ctx.scene.tags.includes(ctx.calling.failing.tag)) mult *= 2;
-  if (ctx.dread >= DREAD_DOUBLE_AT) mult *= 2;
+  if (ctx.dread >= DREAD_DOUBLE_AT && !ctx.approach?.reckless) mult *= 2;
   return mult;
 }
 
@@ -123,7 +135,7 @@ export function rollApproach(ctx: RollContext, index: number, rng: Rng): Outcome
   const fumble = face === FUMBLE;
   const success = crit ? true : fumble ? false : total >= ctx.approach.tn;
 
-  const mult = costMultiplier(ctx);
+  const mult = costMultiplier({ ...ctx, approach: ctx.approach });
   const renownDelta = success
     ? ctx.approach.deed
     : -ctx.approach.cost.renown * mult;
@@ -155,9 +167,18 @@ export function flinch(
   player: Player,
   scene: Scene,
   marked: boolean,
-  penalties: { renown: number; dread: number; markPenalty: number }
+  penalties: { renown: number; dread: number; markPenalty: number },
+  /**
+   * Flinching scales with the night going badly, exactly like every other cost.
+   *
+   * It used to be flat, which made it the arithmetically correct move as soon as
+   * Dread crossed the threshold: a failed middle line cost four to six Renown
+   * while not moving cost one. That is the precise opposite of the design, which
+   * needs "everybody flinches" to be an unstable equilibrium.
+   */
+  multiplier = 1
 ): Outcome {
-  const renown = penalties.renown - (marked ? penalties.markPenalty : 0);
+  const renown = (penalties.renown - (marked ? penalties.markPenalty : 0)) * multiplier;
   return {
     playerId: player.id,
     approachId: "flinch",
@@ -167,7 +188,7 @@ export function flinch(
     tn: 0,
     success: false,
     renownDelta: renown,
-    dreadDelta: penalties.dread,
+    dreadDelta: penalties.dread * multiplier,
     scar: null,
     hookRefilled: false,
   };

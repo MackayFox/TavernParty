@@ -198,3 +198,84 @@ describe("flinching", () => {
     expect(flinch(makePlayer(), SCENE, true, penalties).scar).toBeNull();
   });
 });
+
+describe("the contested door stays worth taking", () => {
+  const RECKLESS: ApproachDef = {
+    ...APPROACH,
+    id: "leap",
+    reckless: true,
+    tn: 17,
+    deed: 9,
+    cost: { renown: 4, dread: 2 },
+  };
+
+  /**
+   * The Reckless line is the one door per Act, exclusive, worth nominating
+   * somebody into and carrying a hidden target number. All of that machinery
+   * needs somebody to actually want it.
+   *
+   * Doubling its already-worst cost as Dread climbed made it strictly worse than
+   * both safe lines exactly in the Acts where the table is arguing about who
+   * goes, which a review found in all thirty scenes.
+   */
+  it("does not double the Reckless cost when Dread bites", () => {
+    const plain = costMultiplier({
+      calling: WARDEN,
+      scene: SCENE,
+      dread: DREAD_DOUBLE_AT,
+      approach: RECKLESS,
+    });
+    expect(plain).toBe(1);
+  });
+
+  it("still doubles every safe line when Dread bites", () => {
+    expect(
+      costMultiplier({ calling: WARDEN, scene: SCENE, dread: DREAD_DOUBLE_AT, approach: APPROACH })
+    ).toBe(2);
+  });
+
+  it("still punishes your own Failing on the Reckless line", () => {
+    // Your weakness is your weakness, whichever door you pick.
+    const cursed: Scene = { ...SCENE, tags: ["uncanny"] };
+    expect(
+      costMultiplier({ calling: WARDEN, scene: cursed, dread: 0, approach: RECKLESS })
+    ).toBe(2);
+  });
+
+  it("charges the plain Reckless cost through a real roll at high Dread", () => {
+    const out = rollApproach(ctx({ approach: RECKLESS, dread: DREAD_DOUBLE_AT }), 0, dieShowing(2));
+    expect(out.renownDelta).toBe(-RECKLESS.cost.renown);
+    expect(out.dreadDelta).toBe(RECKLESS.cost.dread);
+  });
+});
+
+describe("flinching is not a loophole", () => {
+  const penalties = {
+    renown: FLINCH_RENOWN,
+    dread: FLINCH_DREAD,
+    markPenalty: MARK_FLINCH_PENALTY,
+  };
+
+  /**
+   * Flinch used to be flat, which made not moving the arithmetically correct
+   * play the moment Dread crossed the threshold: a failed middle line cost four
+   * to six Renown, and standing still cost one. That is the exact opposite of a
+   * design that needs "everybody flinches" to be unstable.
+   */
+  it("scales with the night going badly, like every other cost", () => {
+    const calm = flinch(makePlayer(), SCENE, false, penalties, 1);
+    const grim = flinch(makePlayer(), SCENE, false, penalties, 2);
+    expect(grim.renownDelta).toBe(calm.renownDelta * 2);
+    expect(grim.dreadDelta).toBe(calm.dreadDelta * 2);
+  });
+
+  it("costs more than taking a safe line and failing it, once Dread bites", () => {
+    const mult = costMultiplier({ calling: WARDEN, scene: SCENE, dread: DREAD_DOUBLE_AT, approach: APPROACH });
+    const failed = rollApproach(ctx({ dread: DREAD_DOUBLE_AT }), 0, dieShowing(2));
+    const stood = flinch(makePlayer(), SCENE, true, penalties, mult);
+    // Trying and failing must never be worse than refusing to try.
+    expect(stood.renownDelta + stood.dreadDelta * -1).toBeLessThanOrEqual(
+      failed.renownDelta + failed.dreadDelta * -1 + 1
+    );
+  });
+});

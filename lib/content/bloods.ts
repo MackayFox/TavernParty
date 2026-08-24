@@ -8,20 +8,35 @@
  * differ, which is to say in what stopped bothering them years ago.
  *
  * The mechanical rule behind the set is a single line from GAME_DESIGN §3.3: a
- * Blood bends the consequence economy, never the arithmetic. Not one of these
- * adds to a roll. They all edit what a result COSTS, who it costs, or what you
- * knew before you committed, so choosing one changes the shape of your night
- * rather than the size of your numbers. That also keeps the Calling the loudest
- * choice, which is the whole point of making the Calling exclusive and this not.
+ * Blood bends the consequence economy, never the arithmetic. None of these is a
+ * flat bonus. They edit what a result COSTS, who it costs, or what you knew
+ * before you committed, so choosing one changes the shape of your night rather
+ * than the size of your numbers. That also keeps the Calling the loudest choice,
+ * which is the whole point of making the Calling exclusive and this not.
  *
  * The eight map one-to-one onto the eight BloodPower variants, so the set is a
- * bijection and there is no filler. Four of them make failure cheaper for you
- * (Hillfolk, Gravewise, Thornborn) or cheaper for everyone (Emberkin), one makes
- * it cheaper for you by making it more expensive for the party (Ashkin), one
- * buys information (Longshank), one buys a second look at your own build
- * (Fenborn), and one hands you more fuel that other players still control
- * (Tideborn). Every one of them is a decision about when to spend, not a passive
- * plus, because a passive plus is not a choice anybody remembers making.
+ * bijection and there is no filler. Three make failure cheaper for you
+ * (Hillfolk, Gravewise, Thornborn) and one makes it cheaper for everybody
+ * (Emberkin); one makes it cheaper for you by making it dearer for the party
+ * (Ashkin); one buys information (Longshank); one buys a second look at your own
+ * build (Fenborn); and one hands you more fuel that other players still control
+ * (Tideborn).
+ *
+ * Three honest caveats, all found by review rather than by writing:
+ *
+ * Hillfolk's rerollFumble does touch the die, which is the one place the "never
+ * the arithmetic" doctrine bends. It survives because a reroll moves variance
+ * rather than the expected sum, and because being wrong about your own footing
+ * is the whole character of the people.
+ *
+ * Tideborn is the only genuinely passive one: an extra token at the start, with
+ * no decision about when to take it. The decision is displaced into when to
+ * spend it, which is a weaker version of the same thing.
+ *
+ * Thornborn and Emberkin both spend themselves saving the PARTY a point of
+ * Dread, in a game where exactly one player takes the Hoard. Read strictly, a
+ * rational drafter never takes either. Both need a personal kicker when the
+ * powers are implemented, and GAME_DESIGN §3.3 records what it should be.
  */
 import type { Blood } from "@/lib/game/types";
 
