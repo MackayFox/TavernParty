@@ -24,6 +24,10 @@ const COLUMNS: [string, [string, string][]][] = [
       ["How it works", "/how-it-works"],
       ["Online roleplaying games", "/online-roleplaying-games"],
       ["Leaderboard", "/leaderboard"],
+      // An optional account that nothing links to is an account nobody has. The
+      // footer is the right place for it: never a nag, always findable.
+      ["Your record", "/history"],
+      ["Log in", "/login"],
       ["About", "/about"],
       ["Contact", "/contact"],
       ["Privacy and cookies", "/privacy"],

@@ -349,6 +349,63 @@ async function main() {
   check("there are four dailies", games.length === 4 || !!ONLY, `found ${games.length}`);
 
   for (const game of games) await playOne(game);
+  if (!ONLY) await checkLinks();
+}
+
+// ---------------------------------------------------------------------------
+// Every link the site actually offers
+// ---------------------------------------------------------------------------
+
+/**
+ * Follow every internal link in the sitemap and on the pages that carry the nav
+ * and the footer, and check it resolves.
+ *
+ * This exists because both smoke scripts were API-only, and that let two dead
+ * routes ship at once: every Join button in the lobby browser pointed at
+ * /tables/CODE when the room lives at /room/CODE, and "Past days" was in the
+ * nav, the footer AND the sitemap with no page behind it, which actively told
+ * Google to index a 404. Twenty lines would have caught both.
+ */
+async function checkLinks() {
+  console.log(`
+--- links ---`);
+
+  const sitemap = await call("GET", "/sitemap.xml");
+  const listed = [...sitemap.text.matchAll(/<loc>([^<]+)<\/loc>/g)]
+    .map((m) => m[1].replace(/^https?:\/\/[^/]+/, ""))
+    .map((p) => p || "/");
+  check("the sitemap lists something", listed.length > 0, `${listed.length} urls`);
+
+  // Anywhere the shared chrome renders, plus whatever the sitemap advertises.
+  const seeds = ["/", "/daily", "/tables", "/how-it-works", ...listed];
+  const found = new Set(listed);
+  for (const seed of new Set(seeds)) {
+    const page = await call("GET", seed);
+    for (const m of page.text.matchAll(/href="(\/[^"#?]*)"/g)) found.add(m[1] || "/");
+  }
+
+  const dead = [];
+  for (const path of [...found].sort()) {
+    // A room code or a username is not a static route and 404 is the right
+    // answer for a made-up one.
+    if (/^\/(room|player)\//.test(path)) continue;
+    const res = await call("GET", path);
+    if (res.status !== 200) dead.push(`${res.status} ${path}`);
+  }
+  check(
+    `all ${found.size} internal links resolve`,
+    dead.length === 0,
+    dead.slice(0, 8).join(", ")
+  );
+
+  for (const path of listed) {
+    const res = await call("GET", path);
+    if (res.status !== 200) {
+      check(`the sitemap does not advertise a ${res.status}`, false, path);
+      return;
+    }
+  }
+  check("nothing in the sitemap is a dead end", true);
 }
 
 await main().catch((err) => {
