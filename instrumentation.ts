@@ -52,6 +52,53 @@ export async function register() {
         "instance gets its own copy, so two players may not see the same table."
     );
     await seedMemory();
+    return;
+  }
+
+  await checkDatabase();
+}
+
+/**
+ * Ask the database one question at boot, so a misconfiguration says what it is.
+ *
+ * Written after a real deployment spent an afternoon answering "Something went
+ * wrong on our end" to every request that touched a table. The cause was one
+ * sentence long and PostgREST was saying it on every single response: the schema
+ * this site's tables live in was not in the project's exposed list. Nobody reads
+ * a 500 body, and every page that needs no database looked perfect.
+ *
+ * A warning rather than a throw. A site whose dailies work is worth serving even
+ * when its multiplayer cannot, and the four daily games need no database at all.
+ */
+async function checkDatabase() {
+  try {
+    const { adminClient, dbSchema } = await import("@/lib/supabase/admin");
+    const { error } = await adminClient().from("tables").select("code").limit(1);
+    if (!error) {
+      console.warn(`[boot] Database reachable, schema ${dbSchema()}.`);
+      return;
+    }
+    const schema = dbSchema();
+    // PGRST106 is the one that costs an afternoon, so it gets the instructions.
+    const hint =
+      error.code === "PGRST106" || /Invalid schema/i.test(error.message)
+        ? `The schema "${schema}" is not exposed by the API. Add it in the Supabase ` +
+          `dashboard under Settings, API, Exposed schemas, next to "public". Nothing ` +
+          `needs redeploying afterwards: this is read per request.`
+        : error.code === "PGRST205" || /Could not find the table/i.test(error.message)
+          ? `The tables are not in schema "${schema}". Run npm run db:migrate with ` +
+            `SUPABASE_DB_SCHEMA set to the same value this deployment uses.`
+          : "Check the project URL and the service key.";
+    console.warn(
+      `[boot] DATABASE NOT USABLE (${error.code ?? "unknown"}): ${error.message}
+` +
+        `[boot] ${hint}
+` +
+        `[boot] The four dailies need no database and will work. Tables, the Hall ` +
+        `and the dungeon builder will not.`
+    );
+  } catch (err) {
+    console.warn("[boot] Could not reach the database at all.", err);
   }
 }
 
