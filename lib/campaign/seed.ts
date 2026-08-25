@@ -26,7 +26,7 @@
  */
 import { reportFor, mechanicalHash } from "@/lib/campaign/gate";
 import { designOf } from "@/lib/campaign/puzzle";
-import { addPoolRoom, getDungeon, listPool, saveDungeon } from "@/lib/campaign/store";
+import { addPoolRoom, getStoredDungeon, listPool, saveDungeon } from "@/lib/campaign/store";
 import { HOUSE_DEFS } from "@/lib/daily/deeprun";
 import {
   DEMO_BASE_VIGOUR,
@@ -79,7 +79,15 @@ export async function seedHouseContent(): Promise<{
 }
 
 async function seedDemo(): Promise<DemoResult> {
-  const existing = await getDungeon(DEMO_CODE);
+  /*
+   * The STORED row, not the one `getDungeon` will invent.
+   *
+   * `getDungeon` falls back to the bundle so that /d/LNGWLK cannot 404, which
+   * means it always answers for this code. Asking it here made seeding a no-op
+   * forever: it saw a published row, said "already", and never wrote the one the
+   * Hall reads.
+   */
+  const existing = await getStoredDungeon(DEMO_CODE);
   if (existing?.publishedAt) {
     /**
      * Already up. Republish only if the bundle has changed AND nobody has played

@@ -55,7 +55,7 @@ export function Waiting({ view, post, busy }: PhaseProps) {
         to the rules anywhere inside the room.
       */}
       <p className="rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-text-mid">
-        Build a character together, take {view.settings.acts} encounters, and exactly one of
+        Build a character together, go through {view.settings.acts} Acts, and exactly one of
         you walks out with the Hoard. About {Math.round(estimateRunMs(view.settings) / 60_000)}{" "}
         minutes, and every phase runs on a clock: nothing waits for anybody, and doing nothing
         is always a real move rather than a pass.{" "}
@@ -96,6 +96,18 @@ export function Waiting({ view, post, busy }: PhaseProps) {
             </li>
           ))}
         </ul>
+        {/*
+          "Stranger" is the word for a seat the server plays and nothing said so
+          anywhere in the product: a first-timer read the pill as somebody's
+          chosen name. Only when there is one at the table, so it is a caption on
+          something you can see rather than a rule to remember.
+        */}
+        {view.players.some((p) => p.isBot) && (
+          <p className="text-xs text-text-low">
+            A Stranger is a seat the house plays. It takes the door it is best at and it
+            never flinches.
+          </p>
+        )}
       </section>
 
       {iAmHost && (
@@ -137,9 +149,16 @@ export function Waiting({ view, post, busy }: PhaseProps) {
           <Button variant="secondary" disabled={busy} onClick={() => void post("/leave")}>
             Give up the chair
           </Button>
+          {/*
+            This line was a changelog entry shipped as player-facing copy: it
+            told the player what the product used to do wrong instead of what
+            the button does. Both halves of what it does now, because leaving as
+            the last human clears the Strangers out with you, and somebody who
+            has just sat six of them down should know that before pressing it.
+          */}
           <p className="mt-1 text-xs text-text-low">
-            There was no way out of a table at all until now, which went badly with Quick Match
-            seating you at the busiest one: land in an abandoned lobby and you sat there.
+            You come off the seat list and the table carries on without you. If you are the
+            last one here, the Strangers go home too.
           </p>
         </div>
       )}

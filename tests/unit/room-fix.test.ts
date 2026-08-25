@@ -351,5 +351,8 @@ describe("no answer in the bundle", () => {
     const safe = view.act!.scene.approaches.filter((a) => !a.reckless);
     expect(safe.length).toBeGreaterThan(0);
     for (const a of safe) expect(typeof a.tn).toBe("number");
-  });
+    // Winds a whole run forward through the phase machine, which is real work.
+    // States a budget rather than racing vitest's five-second default on a busy
+    // machine, which is a flake that teaches people to re-run.
+  }, 60_000);
 });

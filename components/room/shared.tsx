@@ -59,7 +59,11 @@ export const PHASE_LABEL: Record<Phase, string> = {
   DRAFT_CALLING: "Choosing a Calling",
   DRAFT_KIT: "Choosing your kit",
   ASSIGN: "Making your character",
-  ACT: "The encounter",
+  // "Act", not "encounter". The eyebrow above this heading already reads
+  // "Act 3 of 5", the sentence below it says "Act 3 of 5", the engine phase is
+  // ACT and settings call them acts, so a heading reading "The encounter" put a
+  // second name for the same five things thirty pixels under the first one.
+  ACT: "The Act",
   ACT_RESULT: "What it cost",
   BALLAD: "The ballad",
   FINAL: "Last orders",
@@ -163,6 +167,17 @@ export function DreadMeter({ view }: { view: RoomView }) {
           <span className="text-text-low">/{max}</span>
         </span>
       </div>
+      {/*
+        Dread is on the screen for every phase of a run and was defined on none
+        of them. A player who has not read the rules page watched a number climb
+        and was never told what it counts, whose it is, or that anything can
+        bring it down. Both directions, because the meter that only ever goes up
+        is the one people stop reading.
+      */}
+      <p className="mt-1 text-xs text-text-mid">
+        One number for the whole party: failures and kept Scars push it up, and an Act most
+        of you clear brings it back down.
+      </p>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-bg-3">
         <div
           className={`h-full rounded-full ${tone}`}
@@ -181,8 +196,12 @@ export function DreadMeter({ view }: { view: RoomView }) {
           worse deck.
         </li>
         {/* The scale itself, so nobody reads these against the solo figures the
-            front page prints. */}
-        <li>These move with the size of the table. Yours seats {view.players.length}.</li>
+            front page prints. Not "yours seats N": that sat a line under a seat
+            count written "2 of 6" and was read as the room's capacity, when it
+            is the head count these two figures were worked out from. */}
+        <li>
+          Both figures scale with the head count, and there are {view.players.length} of you.
+        </li>
       </ul>
     </section>
   );

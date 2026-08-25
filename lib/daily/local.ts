@@ -13,6 +13,8 @@
 import { DAILY_GAMES, type DailyGame } from "./core";
 
 const DONE_KEY = "tp_daily_done";
+/** Only days played on their own date. The streak is computed from this one. */
+const COUNTED_KEY = "tp_daily_counted";
 const PROGRESS_PREFIX = "tp_daily_progress";
 const NAME_KEY = "tp_name";
 
@@ -46,8 +48,36 @@ export function readAllDone(): DoneMap {
 
 export function recordDone(game: DailyGame, date: string, score: number): void {
   const map = readJson<DoneMap>(DONE_KEY, {});
+  // The FIRST score for a date stands, the way the server's own write does with
+  // ignoreDuplicates. Overwriting meant replaying a puzzle you had already seen
+  // the answer to could raise the number you had already banked.
+  if (map[game]?.[date] !== undefined) return;
   map[game] = { ...(map[game] ?? {}), [date]: score };
   writeJson(DONE_KEY, map);
+}
+
+/**
+ * WHAT COUNTED, as opposed to what was played.
+ *
+ * Two maps rather than one, and the split is the fix for a real hole: a streak
+ * was computed by walking backwards through the SAME map that records archive
+ * practice, so yesterday's puzzle played today from the archive extended your
+ * streak. Twenty-five archive days are live, so any streak was farmable in a few
+ * minutes, while three separate strings promised the archive did not count.
+ *
+ * `done` still records practice on purpose, because the question it answers is
+ * "have I played this day?" and the calendar needs that. This second map answers
+ * "did that count?", and only a puzzle played on its own date ever enters it.
+ */
+export function recordCounted(game: DailyGame, date: string, score: number): void {
+  const map = readJson<DoneMap>(COUNTED_KEY, {});
+  if (map[game]?.[date] !== undefined) return;
+  map[game] = { ...(map[game] ?? {}), [date]: score };
+  writeJson(COUNTED_KEY, map);
+}
+
+export function readCounted(game: DailyGame): Record<string, number> {
+  return readJson<DoneMap>(COUNTED_KEY, {})[game] ?? {};
 }
 
 export function progressKey(game: DailyGame, date: string): string {
@@ -83,10 +113,18 @@ export function pruneProgress(keepDates: readonly string[]): void {
   }
 }
 
-/** Streaks computed from local storage, for guests. */
+/**
+ * Streaks computed from local storage, for guests.
+ *
+ * From `counted`, never from `done`: `done` includes archive practice, and
+ * walking it backwards is what made a streak farmable from the archive in a few
+ * minutes. `played` and `best` still come from everything, because those are
+ * counts of what somebody did rather than claims about consecutive days.
+ */
 export function localStats(game: DailyGame): { streak: number; played: number; best: number } {
-  const done = readDone(game);
-  const dates = Object.keys(done).sort().reverse();
+  const done = readCounted(game);
+  const everything = readDone(game);
+  const dates = Object.keys(everything).sort().reverse();
   if (dates.length === 0) return { streak: 0, played: 0, best: 0 };
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   const today = iso(new Date());
@@ -100,7 +138,7 @@ export function localStats(game: DailyGame): { streak: number; played: number; b
   return {
     streak,
     played: dates.length,
-    best: Math.max(...Object.values(done)),
+    best: Math.max(...Object.values(everything)),
   };
 }
 

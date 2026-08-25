@@ -150,6 +150,39 @@ export type Puzzle = {
   maxScore: number;
 };
 
+/**
+ * THE PUZZLE AS A PLAYER IS ALLOWED TO SEE IT.
+ *
+ * One field comes out: which ability a door leans on. The screen stopped printing
+ * it on purpose, because reading the room is the game and a player who can rank
+ * three doors by their own modifier never reads a word. Hiding it in the component
+ * while leaving it in the JSON is not hiding it, it is hiding it from people who
+ * do not open devtools, which is the same mistake the Reckless target number made
+ * for months.
+ *
+ * The target number STAYS. It is a fact about the room and this is a bet rather
+ * than a riddle. What goes is the mapping from a door to one of your six numbers.
+ *
+ * The engine keeps the full `Puzzle`: `run` and the par search both need the
+ * ability to resolve anything. This is the shape that crosses the wire, and it is
+ * built at the route boundary for the same reason `viewFor` exists.
+ */
+export type PublicPuzzle = Omit<Puzzle, "rooms"> & {
+  rooms: (Omit<PuzzleRoom, "options"> & {
+    options: Omit<PuzzleOption, "ability">[];
+  })[];
+};
+
+export function publicPuzzle(puzzle: Puzzle): PublicPuzzle {
+  return {
+    ...puzzle,
+    rooms: puzzle.rooms.map((room) => ({
+      ...room,
+      options: room.options.map(({ ability: _ability, ...rest }) => rest),
+    })),
+  };
+}
+
 /** One decision. `knack` is whether they spent their once-a-run move on it. */
 export type Step = { optionId: string; knack?: boolean };
 
@@ -427,7 +460,23 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
       };
     });
 
-  const kitPool = design.kitIds ? KIT.filter((k) => design.kitIds!.includes(k.id)) : KIT;
+  /**
+   * The daily only offers kit that can do something down here.
+   *
+   * Five of the twelve items are charges rather than bonuses, and `charge` is
+   * never read anywhere in the Deep Run: they are multiplayer gear. Offering them
+   * made "take two of these four" a choice with one answer some nights, and on
+   * the house dungeon three of the five on the shelf were inert. Muster already
+   * filters its own pool this way and says why: offering a choice that cannot
+   * matter is worse than offering fewer choices.
+   *
+   * An AUTHOR's list is left exactly as they set it. They chose those items, the
+   * gate warns them about a dud, and silently dropping a card somebody picked is
+   * worse than letting them ship a thin shelf.
+   */
+  const kitPool = design.kitIds
+    ? KIT.filter((k) => design.kitIds!.includes(k.id))
+    : KIT.filter((k) => k.bonus);
   const kit = seededShuffle(kitPool, mulberry32(dateSeed(`${date}:deeprun:kit`)))
     .slice(0, design.kitIds ? kitPool.length : KIT_CHOICES)
     .map((k) => ({

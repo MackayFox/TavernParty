@@ -100,7 +100,10 @@ const DIFFICULTY: [number, string][] = [
   [0.45, "Fair"],
   [0.22, "Stiff"],
   [0.08, "Brutal"],
-  [0, "Only just"],
+  // "Only just" reads as the back half of a sentence when it sits alone in a pill
+  // next to a title, and the difficulty word is the one thing on a browse card
+  // this product claims a player can trust.
+  [0, "Barely possible"],
 ];
 
 /** Checks that need no solve at all. Instant, on every keystroke. */
@@ -133,6 +136,15 @@ export function instantProblems(design: Design): string[] {
       bad.push(`Floor ${i + 1} needs one way through that always works and always costs.`);
     if (new Set(checks.map((o) => o.ability)).size !== checks.length)
       bad.push(`Floor ${i + 1} asks the same ability twice, so the choice is not a choice.`);
+
+    /*
+     * TWO DOORS ON ONE FLOOR CANNOT SHARE AN ID. The runner resolves a submitted
+     * step with find(), so the first match wins: a dungeon published with four
+     * doors all called "same" resolved a Brawn check when the player pressed the
+     * brace. Room ids may repeat across floors, because resolution is per floor.
+     */
+    if (new Set(room.options.map((o) => o.id)).size !== room.options.length)
+      bad.push(`Floor ${i + 1} has two doors with the same id, so the wrong one will open.`);
 
     /**
      * AT LEAST ONE BRACE PER FLOOR MUST BE UNGATED.
@@ -231,7 +243,9 @@ export function reportFor(design: Design): Report {
       par: 0,
       builds: 0,
       out: 0,
-      difficulty: "—",
+      // A word, not a dash. This value goes on the wire and onto a browse card,
+      // and the project forbids em-dashes in anything a player reads.
+      difficulty: "Unrated",
       wallFloor: null,
       notes,
       summary: "Not yet. Fix the blocks above and it will tell you where it stands.",
@@ -379,7 +393,11 @@ export function reportFor(design: Design): Report {
     notes.push({ severity: "good", text: "Nothing wrong with this one. It is ready when you are." });
   }
 
-  const difficulty = ok ? (DIFFICULTY.find(([t]) => share >= t)?.[1] ?? "Only just") : "—";
+  // "Unrated" rather than a dash: this value goes on a browse card, and the
+  // project forbids em-dashes in anything a player reads.
+  const difficulty = ok
+    ? (DIFFICULTY.find(([t]) => share >= t)?.[1] ?? "Barely possible")
+    : "Unrated";
   const summary = ok
     ? `Par is ${par}. ${finished.length} of the ${chars.length} characters you allow get out alive.` +
       (wallFloor ? ` Floor ${wallFloor} is where most of the rest stop.` : "") +

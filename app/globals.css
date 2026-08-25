@@ -16,16 +16,23 @@
   --color-accent: var(--tp-accent);
   --color-accent-hover: var(--tp-accent-hover);
   --color-accent-press: var(--tp-accent-press);
+  /* Mapped because eight selection surfaces already wrote bg-accent-dim and
+     Tailwind generated nothing for it, so every "this one is chosen" tint was
+     silently absent and the choice was carried by the border alone. */
+  --color-accent-dim: var(--tp-accent-dim);
   --color-danger: var(--tp-danger);
   --color-danger-press: var(--tp-danger-press);
   --color-success: var(--tp-success);
   --color-arcane: var(--tp-arcane);
+  --color-arcane-dim: var(--tp-arcane-dim);
   --color-warning: var(--tp-warning);
+  --color-scrim: var(--tp-scrim);
   --color-paper: var(--tp-paper);
   --color-paper-edge: var(--tp-paper-edge);
   --color-paper-rule: var(--tp-paper-rule);
   --color-paper-ink: var(--tp-paper-ink);
   --color-paper-ink-mid: var(--tp-paper-ink-mid);
+  --color-paper-field: var(--tp-paper-field);
 
   --radius-sm: var(--tp-radius-sm);
   --radius-md: var(--tp-radius-md);
@@ -116,7 +123,10 @@ body {
     );
 }
 
-/* A hand-ruled box on the sheet: ability scores, slots, the loot line. */
+/* A hand-ruled box on the sheet: ability scores, slots, the loot line.
+   Deliberately fainter than --tp-paper-field. A box you read is a ruled square
+   on the paper; a box you type into has to look like a well you can put ink in.
+   Do not merge the two, the difference is what tells you which is which. */
 .sheet-box {
   border: 1px solid var(--tp-paper-rule);
   border-radius: 1px;
@@ -156,6 +166,17 @@ body {
 .die-fail {
   border-color: var(--tp-danger);
   color: var(--tp-danger);
+}
+
+/*
+ * The verdict printed under the die. On the dark table it keeps its own colour,
+ * but the ledger also prints a die onto the character sheet, and gold on
+ * parchment measures 1.40:1 — the word was there and unreadable. On paper it
+ * takes the paper's ink, and which verdict it was is carried by the word itself
+ * and by the die's own border, neither of which needs the hue.
+ */
+.sheet .die-verdict {
+  color: var(--tp-paper-ink);
 }
 
 /* ---------------------------------------------------------------

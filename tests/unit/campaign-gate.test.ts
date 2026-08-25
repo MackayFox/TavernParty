@@ -155,7 +155,9 @@ describe("the solve", () => {
     const block = r.notes.find((n) => n.severity === "block");
     expect(block?.text).toMatch(/Nobody gets out of this one/);
     expect(block?.text).toMatch(/floor \d/);
-    expect(r.difficulty).toBe("—");
+    // A word, not a dash: this value reaches a browse card and the project
+    // forbids em-dashes in anything a player reads.
+    expect(r.difficulty).toBe("Unrated");
   });
 
   it("warns about a walkover rather than refusing it", () => {

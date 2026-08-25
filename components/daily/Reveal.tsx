@@ -107,6 +107,16 @@ export function Reveal({
   doneLabel: string;
 }) {
   const ref = useRef<HTMLDialogElement | null>(null);
+  /**
+   * Focus the way on, when there is one.
+   *
+   * `autoFocus={done}` could never work: React honours autoFocus at mount and
+   * `done` is false then. Worse, the skip button that held focus was replaced by
+   * a span at the same instant the primary button stopped being disabled, so
+   * focus fell to the body in the middle of a run. Now the skip button stays
+   * mounted and disabled, and this moves focus deliberately.
+   */
+  const onward = useRef<HTMLButtonElement | null>(null);
   const beats = useMemo(() => beatsFor(line), [line]);
   const reduced = useMemo(() => prefersReducedMotion(), []);
   /** How far through the beats we are. Everything on screen is derived from this. */
@@ -139,6 +149,10 @@ export function Reveal({
     el.addEventListener("cancel", stop);
     return () => el.removeEventListener("cancel", stop);
   }, [skip]);
+
+  useEffect(() => {
+    if (at >= beats.length) onward.current?.focus();
+  }, [at, beats.length]);
 
   // Walk the beats. One timer at a time, cleaned up on every step, so a fast
   // click on the skip button cannot leave a stray timeout behind.
@@ -200,13 +214,18 @@ export function Reveal({
         {line.roll > 0 && (
           <div className="flex items-start gap-4">
             <Die face={showDie ? line.roll : 20} rolling={!showDie} size={56} />
+            {/*
+              NO HAND-WRITTEN DIE ROW HERE. The server already pushes the throw
+              into `mods` as "d20" (lib/daily/deeprun.ts), so printing one of our
+              own put the die in the column twice and the arithmetic stopped
+              adding up in front of the player: "the die 10 / d20 +10 / brawn +3
+              / trained +2 / Total 15". In the most expensive interaction in the
+              product, on every check, on every floor.
+
+              The ledger doctrine is that the total is the sum of the named
+              things above it. One list, from the server, and nothing added.
+            */}
             <dl className="min-w-0 flex-1">
-              {showDie && (
-                <div className="flex items-baseline justify-between gap-3 border-b border-border-dim py-0.5">
-                  <dt className="text-sm text-text-mid">the die</dt>
-                  <dd className="num text-sm text-text-hi">{line.roll}</dd>
-                </div>
-              )}
               {modsShown
                 .filter((m) => m.shown)
                 .map(({ mod }, i) => (
@@ -246,8 +265,15 @@ export function Reveal({
                 : "border-danger bg-danger/10 text-text-hi"
             }`}
           >
+            {/*
+              THE VISIBLE WORD IS THE CLEAR ONE.
+              It used to say "It gives" while the live region six lines below
+              said "Cleared", so the flavour went to the eyes and the plain
+              English went to the screen reader. That is the inversion the
+              codebase calls out in its own comments, and it was doing it here.
+            */}
             <span aria-hidden>{line.cleared ? "✓ " : "✕ "}</span>
-            {line.cleared ? "It gives" : "It does not give"}
+            {line.cleared ? "The floor is cleared" : "It does not open"}
           </p>
         )}
 
@@ -286,18 +312,22 @@ export function Reveal({
             not have to sit through it, and somebody who reads faster than the
             timers should not be held back by them.
           */}
-          {!done ? (
-            <button
-              type="button"
-              onClick={skip}
-              className="min-h-11 px-2 text-sm text-text-mid underline hover:text-text-hi"
-            >
-              Get on with it
-            </button>
-          ) : (
-            <span className="text-xs text-text-low">Escape also does this</span>
-          )}
-          <Button size="lg" onClick={onDone} disabled={!done} autoFocus={done}>
+          {/*
+            The skip stays mounted and goes disabled rather than being swapped for
+            a span, because swapping it was what threw focus to the body. And the
+            hint about Escape is ON the button, since it used to appear only after
+            the beats had finished, which is exactly when Escape stopped doing
+            anything.
+          */}
+          <button
+            type="button"
+            onClick={skip}
+            disabled={done}
+            className="min-h-11 px-2 text-sm text-text-mid underline hover:text-text-hi disabled:opacity-0"
+          >
+            Get on with it, or press Escape
+          </button>
+          <Button size="lg" onClick={onDone} disabled={!done} ref={onward}>
             {doneLabel}
           </Button>
         </footer>

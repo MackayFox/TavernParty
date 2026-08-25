@@ -32,6 +32,7 @@ import { Adventurer, Behind, type Sheet as CharacterSheet } from "@/components/d
 import { Reveal } from "@/components/daily/Reveal";
 import { playOut, setSoundOn, soundOn } from "@/components/daily/sfx";
 import { Runner } from "@/components/daily/Runner";
+import { useLanded } from "@/components/daily/landed";
 import { oneLine, readHero, recordNight, type Hero } from "@/lib/daily/hero";
 import { ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
 import { FAILED_CHECK_EXTRA } from "@/lib/daily/core";
@@ -288,6 +289,14 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    */
   const [hero, setHero] = useState<Hero | null>(null);
   useEffect(() => setHero(readHero()), []);
+  /**
+   * Going down replaces the whole screen, so take the player with you.
+   *
+   * The build block is `{!down && ...}`, so pressing the button unmounts the
+   * button, and focus fell to the body with nothing announced. The same hook the
+   * other three dailies use for the same problem.
+   */
+  const descent = useLanded<HTMLDivElement>(down ? "down" : null);
   // Read after mount: localStorage does not exist while this renders on the
   // server, and disagreeing with the server's HTML throws the tree away.
   useEffect(() => setSound(soundOn()), []);
@@ -396,22 +405,40 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
     setHeld(null);
   }
 
+  /**
+   * GRIT FIRST, THEN WHAT YOU ARE TRAINED FOR.
+   *
+   * This used to put the best number on the first affinity, and that is a bad
+   * build. Measured on 2026-08-25: it put 16 on a Warden's Brawn, while the
+   * server's own par line put 16 on GRIT, and playing the button's build to the
+   * bottom scored 16 against a par of 51.
+   *
+   * The reason is that Grit is the only number that pays twice. It buys Vigour
+   * before you go down, and Vigour left over is points when you come back up.
+   * Everything else pays once, and only up to what a door happens to want:
+   * anything above the target is wasted, and you cannot see the target's die.
+   *
+   * Still not optimal, and it does not claim to be. It is the safe spread, which
+   * is what a first-timer wants from a button.
+   */
   function autoPlace() {
     if (!calling) return;
     const order: Ability[] = [
-      ...calling.affinities,
-      ...data.abilities.filter((a) => !calling.affinities.includes(a)),
+      "grit",
+      ...calling.affinities.filter((a) => a !== "grit"),
+      ...data.abilities.filter((a) => a !== "grit" && !calling.affinities.includes(a)),
     ];
     const byValue = data.array
       .map((value, i) => ({ value, i }))
       .sort((a, b) => b.value - a.value);
     const next = new Array<number | null>(data.abilities.length).fill(null);
     order.forEach((ability, rank) => {
-      next[data.abilities.indexOf(ability)] = byValue[rank].i;
+      const slot = data.abilities.indexOf(ability);
+      if (slot >= 0 && byValue[rank]) next[slot] = byValue[rank].i;
     });
     setSlots(next);
     setHeld(null);
-    setAnnounce("Best numbers on what you are trained for");
+    setAnnounce("Spread the safe way: the best number on Grit");
   }
 
   async function choose(option: Option, knack: boolean) {
@@ -618,10 +645,12 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
             </ul>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="secondary" onClick={autoPlace} disabled={!calling}>
-                Best on what I am trained for
+                Spread it the safe way
               </Button>
-              <span className="sheet-label self-center">
-                Grit also buys you the wind to keep going.
+              <span className="sheet-label self-center max-w-sm">
+                Grit is the only number that pays twice: it buys Vigour before you go down, and
+                Vigour is points if you come back up. Anything above what a door needs is wasted,
+                and you cannot see what a door needs.
               </span>
             </div>
           </Sheet>
@@ -667,11 +696,18 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
             </ul>
           </Card>
 
-          <Button size="lg" disabled={!buildReady} onClick={() => setDown(true)}>
+          <Button
+            size="lg"
+            disabled={!buildReady}
+            onClick={() => {
+              setDown(true);
+              setAnnounce(`Floor 1 of ${data.rooms.length}. ${data.rooms[0]?.title ?? ""}`);
+            }}
+          >
             {buildReady
               ? "Go down"
               : !calling
-                ? "Pick who is going first"
+                ? "Pick who is going down"
                 : placed < data.abilities.length
                   ? `Place ${data.abilities.length - placed} more`
                   : "Take two things with you"}
@@ -681,7 +717,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
 
       {/* --------------------------------------------------------- the crawl */}
       {down && (
-        <div className="mt-6">
+        <div className="mt-6" ref={descent}>
           {/*
             THREE ZONES, and the layout is the thing that says which is which.
             Adam: "there is no clear focus on this is your character, this is what
@@ -758,9 +794,19 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                           {refuses.length > 0 && `Not while you are ${list(refuses)}.`}
                         </p>
                       )}
+                      {/*
+                        A CHECK CANNOT PROMISE AN OUTCOME. This line rendered for
+                        any door with `sets`, so the first door of the house
+                        dungeon read "Works, and you come away carrying the
+                        lantern" directly above "costs 3 if it goes wrong". A
+                        brace does always work; a check does not, and it is the
+                        only door copy that says what will happen.
+                      */}
                       {!shut && (option.sets ?? []).length > 0 && (
                         <p className="mt-1 text-sm text-text-low">
-                          Works, and you come away {list(option.sets ?? [])}.
+                          {option.kind === "brace"
+                            ? `You come away ${list(option.sets ?? [])}.`
+                            : `Get through it and you come away ${list(option.sets ?? [])}.`}
                         </p>
                       )}
 {/*
@@ -796,7 +842,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                       <p className="num mt-1 text-sm text-text-low">
                         {option.kind === "brace"
                           ? `Always works, and clears the floor. Costs ${option.vigour} Vigour, every time.`
-                          : `The room wants ${article(option.tn)} ${option.tn} · costs ${option.vigour + FAILED_CHECK_EXTRA} if it goes wrong, and you do not clear the floor`}
+                          : `The room wants ${article(option.tn)} ${option.tn} · costs ${option.vigour + FAILED_CHECK_EXTRA} Vigour if it goes wrong, and you do not clear the floor`}
                       </p>
                       <div className="mt-3 flex flex-col gap-2">
                         <Button
@@ -897,7 +943,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                         <li key={`${step.optionId}-${i}`}>
                           <span className="num text-text-low">Floor {i + 1}. </span>
                           {option?.label ?? step.optionId}
-                          {step.knack ? ", on the knack" : ""}
+                          {step.knack ? ", on their one trick" : ""}
                         </li>
                       );
                     })}
@@ -958,19 +1004,25 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
           line={pending}
           floor={pending.roomIndex + 1}
           floors={data.rooms.length}
+          /*
+            `finished` also requires that every line has been SEEN, and this dialog
+            only exists while one has not, so it was provably false here: the last
+            floor of every run offered "Press on" and then replaced the room with a
+            score card. The server's own `reply.finished` is the right half to ask.
+          */
           doneLabel={
-            reply && seen + 1 >= reply.lines.length && finished
-              ? "See how it went"
-              : "Press on"
+            reply?.finished && seen + 1 >= reply.lines.length ? "See how it went" : "Press on"
           }
           onDone={() => {
             const wasLast = !!reply && seen + 1 >= reply.lines.length;
             setSeen((n) => n + 1);
             if (wasLast && reply?.out) playOut();
             setAnnounce(
-              wasLast && finished
+              wasLast && reply?.finished
                 ? "The run is over. Your score is below."
-                : `Floor ${Math.min(seen + 2, data.rooms.length)}.`
+                : `Floor ${Math.min(seen + 2, data.rooms.length)}. ${
+                    data.rooms[seen + 1]?.title ?? ""
+                  }`
             );
           }}
         />

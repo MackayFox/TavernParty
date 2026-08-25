@@ -320,11 +320,32 @@ export const DEMO_ROOMS: RoomDef[] = [
 
 /** Wide enough that the solver has real characters to compare, and no wider. */
 export const DEMO_CALLINGS = ["warden", "knife", "hedgewitch", "oathbound"];
+/**
+ * Five things on the shelf, and every one of them can matter.
+ *
+ * The first version put Whetstone, Four Pitch Torches and Cracked Hand Mirror on
+ * here, all three of which are charges rather than ability bonuses and none of
+ * which the Deep Run reads. So "take two of these five" had one real answer, on
+ * the dungeon the front page sends people to.
+ */
 export const DEMO_KIT = [
   "tarred-rope",
-  "whetstone",
-  "pitch-torches",
-  "cracked-mirror",
+  "corrected-map",
+  "short-flask",
+  "wire-signet",
   "brass-tinderbox",
 ];
-export const DEMO_BASE_VIGOUR = 9;
+/**
+ * Eight, not nine, and the reason is a chain worth recording.
+ *
+ * The shelf used to carry three items that do nothing in a Deep Run, so "take two
+ * of five" had one real answer. Fixing that made every character on this dungeon
+ * genuinely better equipped, which took the share who get out from 59% to 72% and
+ * tripped the test that says this must be neither a walk nor a wall.
+ *
+ * One point of starting Vigour puts it back: Fair, par 54, 58% out. Chosen over
+ * raising the targets because every target here was set against the die that
+ * floor will actually throw, and moving them would undo that work for a change
+ * that has nothing to do with any individual door.
+ */
+export const DEMO_BASE_VIGOUR = 8;

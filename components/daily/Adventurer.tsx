@@ -134,17 +134,29 @@ export function Adventurer({ sheet, compact = false }: { sheet: Sheet; compact?:
                 className={`rounded border px-1.5 py-1 text-center ${
                   trained ? "border-accent/60 bg-accent-dim" : "border-border-dim bg-bg-2"
                 }`}
-                // The whole sum, for anybody who cannot see the layout.
-                title={`${ABILITY_LABEL[ability]}: ${score}, giving ${total >= 0 ? "+" : ""}${total}`}
+                /*
+                 * ONE LABEL FOR THE WHOLE CELL, not a `title`.
+                 *
+                 * A title on a non-focusable list item is mouse-only: no touch
+                 * gesture reaches it, it is not in the tab order, and screen
+                 * readers do not reliably announce it. It sat here under a comment
+                 * claiming it was "for anybody who cannot see the layout", which
+                 * was the opposite of true. The three spans are marked hidden so
+                 * the cell is read once, as a sentence, rather than as three
+                 * fragments.
+                 */
+                aria-label={`${ABILITY_LABEL[ability]}: score ${score}${
+                  trained ? ", trained" : ""
+                }, so you bring ${total >= 0 ? "+" : ""}${total}`}
               >
-                <span className="label-caps block text-[10px] leading-tight">
+                <span aria-hidden className="label-caps block text-[10px] leading-tight">
                   {ABILITY_LABEL[ability]}
                 </span>
-                <span className="num block text-lg leading-tight text-text-hi">
+                <span aria-hidden className="num block text-lg leading-tight text-text-hi">
                   {total >= 0 ? "+" : ""}
                   {total}
                 </span>
-                <span className="block text-[10px] leading-tight text-text-low">
+                <span aria-hidden className="block text-[10px] leading-tight text-text-low">
                   {score}
                   {trained ? " · trained" : ""}
                 </span>
@@ -246,9 +258,10 @@ export function Behind({
               {line.title}
               <span className="text-text-low"> · {line.label}</span>
             </span>
+            {/* "no" is not a status and a bare minus four is not a quantity. */}
             <span className="num shrink-0 text-xs text-text-low">
-              {line.cleared ? "cleared" : "no"}
-              {line.vigourSpent > 0 ? ` · −${line.vigourSpent}` : ""}
+              {line.cleared ? "cleared" : "failed"}
+              {line.vigourSpent > 0 ? ` · −${line.vigourSpent} Vigour` : ""}
             </span>
           </li>
         ))}

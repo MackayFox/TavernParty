@@ -106,6 +106,24 @@ export async function createDungeon(
   ownerKey: string
 ): Promise<DungeonRow> {
   const now = new Date().toISOString();
+  /**
+   * A NEW DRAFT ARRIVES WITH THREE FLOORS ON IT, off the shared shelf.
+   *
+   * It used to open empty, which contradicted the page that sent you there: /write
+   * promises "six of those is a real dungeon" and a two minute job, and then handed
+   * over a blank card. The gate's first verdict was therefore a block, the sidebar
+   * opened on "Not yet" in red, and the only instruction was to start from nothing.
+   *
+   * Three is the minimum a dungeon may have, so the desk opens on a REAL par and a
+   * real difficulty word, and the job in front of the author is "make this yours"
+   * rather than "begin". The desk's own comment says why that matters: nobody
+   * abandons an edit, and plenty of people abandon a blank card.
+   */
+  const shelf = await listPool();
+  const opening = shelf
+    .filter((entry) => entry.shared)
+    .slice(0, 3)
+    .map((entry, i) => ({ ...entry.room, id: `r${i + 1}-${entry.id}` }));
   for (let attempt = 0; attempt < 8; attempt++) {
     /**
      * After a few unlucky rolls, stop trusting the roll.
@@ -122,6 +140,9 @@ export async function createDungeon(
         : generateDungeonCode(mixedRng(attempt, Date.now()));
     const row: DungeonRow = {
       ...emptyDraft(code, authorName, ownerKey),
+      // Ids are rewritten per draft so two authors editing the same shelf room
+      // never collide, and so the gate's duplicate-id check has nothing to catch.
+      rooms: opening,
       authorId,
       createdAt: now,
       updatedAt: now,
@@ -140,6 +161,34 @@ export async function createDungeon(
     }
   }
   throw new Error("Could not open a new one. Try again.");
+}
+
+/**
+ * What is ACTUALLY STORED, with no fallback to the bundle.
+ *
+ * Exists because the fallback broke seeding in a way nothing noticed: `seedDemo`
+ * asked `getDungeon(DEMO_CODE)`, got the bundled row back with `publishedAt`
+ * already set, concluded the dungeon was up, and returned without ever writing
+ * it. So the row `listByVisibility` reads never existed and the Hall was
+ * permanently empty, on the surface the front page sells twice as the thing that
+ * makes this site different.
+ *
+ * The lesson is narrow and worth stating: a read that invents a row must not be
+ * the read a writer uses to decide whether to write.
+ */
+export async function getStoredDungeon(code: string): Promise<DungeonRow | null> {
+  const key = code.toUpperCase();
+  if (!supabaseConfigured()) return memDungeons.get(key) ?? null;
+  const { data, error } = await adminClient()
+    .from("dungeons")
+    .select("*")
+    .eq("code", key)
+    .maybeSingle();
+  if (error) {
+    console.error("[campaign] getStoredDungeon failed", error);
+    return null;
+  }
+  return data ? fromDb(data) : null;
 }
 
 export async function getDungeon(code: string): Promise<DungeonRow | null> {

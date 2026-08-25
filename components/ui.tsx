@@ -20,10 +20,13 @@ export function Button({
   size = "md",
   className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+}: React.ComponentPropsWithRef<"button"> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "md" | "lg";
 }) {
+  // Takes a ref, like Card and Input. Needed because a screen that moves focus
+  // deliberately has to be able to point at the button it is moving focus to.
+  //
   const tone = {
     primary:
       "bg-accent text-ink font-semibold hover:bg-accent-hover active:bg-accent-press",
@@ -135,9 +138,22 @@ export function Sheet({
   className?: string;
   children?: React.ReactNode;
 }) {
+  /**
+   * The default width applies only where the caller has not named one.
+   *
+   * max-w-xl was hardcoded, and most sheets sit in a wider column with cards
+   * above and below them, so a stacked screen stepped in and out horizontally as
+   * each section turned out to be a different width from the last. A caller can
+   * now pass its own max-w-* and have it mean something.
+   *
+   * Read off the className rather than added as a `width` prop, so the callers
+   * already passing max-w-none keep working untouched, and so no screen depends
+   * on Tailwind's utility ordering to settle which of two max-widths wins.
+   */
+  const width = /(?:^|\s)max-w-/.test(className) ? "" : "max-w-xl";
   return (
     <article
-      className={`sheet tp-anim-sheet mx-auto w-full max-w-xl p-5 sm:p-6 ${className}`}
+      className={`sheet tp-anim-sheet mx-auto w-full ${width} p-5 sm:p-6 ${className}`}
       style={torn ? { filter: "saturate(0.72)" } : undefined}
     >
       {(title || subtitle) && (
@@ -254,7 +270,10 @@ export function Avatar({
  * already decided the face and the server is authoritative about it.
  *
  * A critical or a fumble is marked with a word as well as a colour, because a
- * red 1 and a gold 20 must still be distinguishable in greyscale.
+ * red 1 and a gold 20 must still be distinguishable in greyscale. The word
+ * carries what the rule is, not just its name: "Critical" and "Fumble" were
+ * printed under the die and defined nowhere, so a first-timer watching a 1 beat
+ * a total of 24 had no way to know the face had overruled the sum.
  */
 export function Die({
   face,
@@ -267,8 +286,17 @@ export function Die({
   rolling?: boolean;
   size?: number;
 }) {
-  const crit = face === sides;
-  const fumble = face === 1;
+  /**
+   * A die still in the air has no verdict.
+   *
+   * `crit` and `fumble` used to be read off `face` alone, and a caller showing a
+   * placeholder while the die tumbles has to pass SOME face. The Deep Run's
+   * reveal passes 20, so for the first second of every single roll the die wore
+   * the gold critical border, printed the word "Critical" underneath, and told a
+   * screen reader "rolled 20, a critical". Then it landed on a 7.
+   */
+  const crit = !rolling && face === sides;
+  const fumble = !rolling && face === 1;
   const tone = crit ? "die-crit" : fumble ? "die-fail" : "";
   return (
     <span className="inline-flex flex-col items-center gap-1">
@@ -276,15 +304,23 @@ export function Die({
         className={`die ${tone} ${rolling ? "tp-anim-roll" : ""}`}
         style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }}
         role="img"
-        aria-label={`d${sides} rolled ${face}${crit ? ", a critical" : fumble ? ", a fumble" : ""}`}
+        aria-label={
+          rolling
+            ? `d${sides}, still rolling`
+            : `d${sides} rolled ${face}${crit ? ", a critical, always clears" : fumble ? ", a fumble, always fails" : ""}`
+        }
       >
-        {face}
+        {/* A die in the air shows no number, or it shows one it is not going to land on. */}
+        {rolling ? <span aria-hidden>&middot;&middot;</span> : face}
       </span>
       {(crit || fumble) && (
+        // Capped and centred rather than left to run: the die is a flex item in
+        // a ledger row, and a single unbroken line of gloss widened the column
+        // and squeezed the numbers beside it. Two short lines instead.
         <span
-          className={`font-mono text-[10px] font-bold uppercase tracking-[0.1em] ${crit ? "text-accent" : "text-danger"}`}
+          className={`die-verdict font-mono max-w-[6.5rem] text-center text-[10px] font-bold uppercase leading-tight tracking-[0.1em] ${crit ? "text-accent" : "text-danger"}`}
         >
-          {crit ? "Critical" : "Fumble"}
+          {crit ? "Critical: always clears" : "Fumble: always fails"}
         </span>
       )}
     </span>

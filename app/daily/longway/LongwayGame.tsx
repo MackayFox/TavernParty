@@ -16,6 +16,7 @@ import { Announcer, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/compone
 import { postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
+import { TAG_MEANING, isTag } from "@/lib/content/tags";
 import { reachNote } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import {
@@ -32,6 +33,15 @@ import type { Ability } from "@/lib/game/types";
 
 const GAME = "longway" as const;
 const FLINCH = "flinch";
+
+/**
+ * Say what a tag means rather than printing the slug, the way Act does on the
+ * dark and the Callings page does in the rules. The tags decide what Marks you
+ * and which scene doubles your costs, so an Act headed "CLERGY · OATH" with no
+ * gloss anywhere hid the two rules the player is being asked to plan around.
+ * Falls back to the slug because these arrive as plain strings from the route.
+ */
+const tagMeaning = (tag: string): string => (isTag(tag) ? TAG_MEANING[tag] : tag);
 
 type Door = {
   id: string;
@@ -284,10 +294,14 @@ export function LongwayGame({ date }: { date?: string | null }) {
                       <span className="num text-xl leading-none text-paper-ink">
                         {data.who.scores[ability]}
                       </span>
-                      <span className="sheet-label">
+                      {/* "trained", not "tr". Nothing on the sheet said what the
+                          abbreviation was short for, and it is the one word that
+                          explains why two of the six numbers are worth more than
+                          they look. Muster spells it out in the same place. */}
+                      <span className="sheet-label text-center">
                         {mod >= 0 ? "+" : ""}
                         {mod}
-                        {trained ? " tr" : ""}
+                        {trained ? " trained" : ""}
                       </span>
                     </div>
                   );
@@ -309,7 +323,13 @@ export function LongwayGame({ date }: { date?: string | null }) {
                 </div>
                 <div>
                   <dt className="sheet-label">Failing, on a {data.who.failingTag} scene</dt>
-                  <dd>{data.who.failingText}</dd>
+                  {/* The meaning first, then the Calling's own line, which is the
+                      order the Callings page uses. Knowing which of tonight's
+                      five Acts is the bad one is the whole plan, and it cannot
+                      depend on having read the rules page for the slug. */}
+                  <dd>
+                    {tagMeaning(data.who.failingTag)}. {data.who.failingText}
+                  </dd>
                 </div>
               </dl>
             </Sheet>
@@ -366,9 +386,13 @@ export function LongwayGame({ date }: { date?: string | null }) {
               {latest.doorId !== FLINCH ? (
                 <p className="num mt-1 text-text-hi">
                   {latest.total} against {latest.tn}.{" "}
+                  {/* "It works", not "It gives": the announcer has said "It works"
+                      since the first version of this screen, and the ledger below
+                      says "It worked". The eye was getting a third word for the
+                      one outcome, and the vaguest of the three. */}
                   <span className={latest.success ? "text-success" : "text-danger"}>
                     <span aria-hidden>{latest.success ? "✓ " : "✕ "}</span>
-                    {latest.success ? "It gives" : "It does not"}
+                    {latest.success ? "It works" : "It does not"}
                   </span>
                 </p>
               ) : null}
@@ -398,15 +422,26 @@ export function LongwayGame({ date }: { date?: string | null }) {
                 {act.tags.map((tag) => (
                   <Pill key={tag}>{tag}</Pill>
                 ))}
-                {act.marked ? (
-                  <Pill tone="arcane">Marked: this one is about you, and it pays +2</Pill>
-                ) : null}
-                {act.tags.includes(data.who.failingTag) ? (
-                  <Pill tone="warning">
-                    Your failing is in this room: every cost here is doubled
-                  </Pill>
-                ) : null}
               </p>
+              <p className="mt-1 text-xs text-text-low">
+                {act.tags.map(tagMeaning).join(" · ")}
+              </p>
+              {/* The two warnings are not tags and do not belong in the glossed
+                  row: one is about you, the other about the bill. Held behind a
+                  guard so a quiet Act does not leave an empty row's margin
+                  hanging above the doors. */}
+              {act.marked || act.tags.includes(data.who.failingTag) ? (
+                <p className="mt-2 flex flex-wrap gap-1.5">
+                  {act.marked ? (
+                    <Pill tone="arcane">Marked: this one is about you, and it pays +2</Pill>
+                  ) : null}
+                  {act.tags.includes(data.who.failingTag) ? (
+                    <Pill tone="warning">
+                      Your failing is in this room: every cost here is doubled
+                    </Pill>
+                  ) : null}
+                </p>
+              ) : null}
 
               {tokens > 0 ? (
                 <label className="mt-4 block">

@@ -449,8 +449,15 @@ export function parFor(puzzle: Puzzle): { par: number; line: Choice[] } {
  * and no scene names, so nothing here spoils tonight for the next person.
  */
 export function shareText(date: string, run: Run, par: number): string {
+  /*
+   * SHAPES, NOT HUES. This was a green square against a red one, which is the
+   * same glyph twice for a deuteranope, on the one artefact of this product that
+   * travels and gets read by strangers. The Deep Run and the Ledger were already
+   * using filled and hollow blocks; this now matches them, and a flinch keeps its
+   * own mark rather than being a differently coloured failure.
+   */
   const grid = run.ledgers
-    .map((l) => (l.doorId === FLINCH ? "⬛" : l.success ? "🟩" : "🟥"))
+    .map((l) => (l.doorId === FLINCH ? "▪" : l.success ? "▰" : "▱"))
     .join("");
   return [
     `THE LONG WAY DOWN ${date}`,

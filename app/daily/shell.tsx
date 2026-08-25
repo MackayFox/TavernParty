@@ -20,7 +20,7 @@ import {
   prettyDate,
   type DailyGame,
 } from "@/lib/daily/core";
-import { localStats, pruneProgress, recordDone } from "@/lib/daily/local";
+import { localStats, pruneProgress, recordCounted, recordDone } from "@/lib/daily/local";
 
 /**
  * Fetch one night's puzzle.
@@ -108,6 +108,10 @@ export async function finishDaily(
   archive: boolean
 ): Promise<number> {
   recordDone(game, date, score);
+  // Practice does not build a streak, and until now it did: the streak walked the
+  // same map this line writes, so replaying yesterday from the archive extended
+  // it, while three strings in this file and the archive page promised otherwise.
+  if (!archive) recordCounted(game, date, score);
   // Progress keys are per game per date and nothing was ever clearing them, so a
   // regular player's localStorage grew forever until the quota refused a write.
   // `writeProgress` swallows that failure, so the symptom would have been the

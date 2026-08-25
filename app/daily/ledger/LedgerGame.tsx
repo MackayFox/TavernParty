@@ -135,8 +135,8 @@ export function LedgerGame({ date }: { date?: string | null }) {
 
   /**
    * Closing settles the day and cannot be undone, and the button sits next to one
-   * that merely costs a mark. A mis-tap was the entire game, so it takes two, and
-   * any change to the grid disarms it again.
+   * that merely costs one off the tally. A mis-tap was the entire game, so it
+   * takes two, and any change to the grid disarms it again.
    */
   function armOrClose() {
     if (!arming) {
@@ -188,7 +188,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
         setClosed(res);
         setAnnounce(
           res.solved
-            ? `The ledger balances. ${res.score} of ${res.maxScore} marks.`
+            ? `The ledger balances. ${res.score} of ${res.maxScore} on the tally.`
             : "The ledger does not balance. The true figures are now shown."
         );
       }

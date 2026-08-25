@@ -58,8 +58,24 @@ export async function POST(req: Request) {
       /** Every daily answers with `score` and `par`, whatever it calls them inside. */
       score: result.cleared,
       par,
-      /** The build that clears the most doors tonight. Shown once it is over. */
-      bestBuild: best,
+      /**
+       * THE ANSWER SHEET, AND ONLY ONCE IT CANNOT BE USED.
+       *
+       * This used to come back on every submission, including a miss, so the
+       * obvious move was to post any build, read the winner out of the response
+       * and post that. Verified: a deliberately bad build returned 2 of 4 along
+       * with the exact winning build, and posting it back returned 4 of 4.
+       *
+       * Now it arrives when the run already matched par, where it is a
+       * confirmation rather than a hint, or on an archive day, which is explicitly
+       * practice and where knowing the answer is the point.
+       */
+      bestBuild: result.cleared >= par || archive ? best : null,
+      /** On a miss, the door they gave up rather than the build they should have had. */
+      missed:
+        result.cleared >= par || archive
+          ? null
+          : result.trials.find((t) => !t.cleared)?.label ?? null,
       share: shareText(date, result, par, puzzle.encounter),
     });
   } catch (err) {

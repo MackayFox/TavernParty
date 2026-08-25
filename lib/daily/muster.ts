@@ -344,7 +344,8 @@ function permutations(n: number): number[][] {
 }
 
 export function shareText(date: string, result: Result, par: number, encounter: string): string {
-  const grid = result.trials.map((t) => (t.cleared ? "🟩" : "🟥")).join("");
+  // Shapes, not hues: see the note in longway.ts. No state by colour alone.
+  const grid = result.trials.map((t) => (t.cleared ? "▰" : "▱")).join("");
   return [
     `MUSTER ${date}`,
     `${encounter}: ${result.cleared} of ${result.trials.length}, ${parPhrase(result.cleared, par)}`,

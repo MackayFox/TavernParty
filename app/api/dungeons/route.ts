@@ -31,12 +31,34 @@ export async function POST(req: Request) {
   }
 }
 
-/** The desk index: your drafts, and the shelf you can pick rooms off. */
+/**
+ * The desk index: your drafts, and the shelf you can pick rooms off.
+ *
+ * THE SHELF COMES DOWN WITHOUT ITS OUTCOMES. The house's twenty rooms are the same
+ * twenty the Deep Run deals from, so serving them whole handed out the win and
+ * lose prose for every floor of tonight's daily, to anybody, without so much as a
+ * cookie. The shelf list only ever renders a title, the setup, each door's promise
+ * and which ability it asks for, so the outcomes were never needed here.
+ *
+ * The desk gets them back for a room it has actually picked up, because an author
+ * has to be able to read what they are publishing.
+ */
+function shelfSafe(entry: Awaited<ReturnType<typeof listPool>>[number]) {
+  return {
+    ...entry,
+    room: {
+      ...entry.room,
+      options: entry.room.options.map(({ win: _win, lose: _lose, ...rest }) => rest),
+    },
+  };
+}
+
 export async function GET() {
   try {
     const identity = await getIdentity();
-    if (!identity) return NextResponse.json({ mine: [], pool: await listPool() });
-    return NextResponse.json({ mine: await listByOwner(identity.id), pool: await listPool() });
+    const pool = (await listPool()).map(shelfSafe);
+    if (!identity) return NextResponse.json({ mine: [], pool });
+    return NextResponse.json({ mine: await listByOwner(identity.id), pool });
   } catch (err) {
     return handleError(err);
   }

@@ -11,18 +11,30 @@ import { useState } from "react";
 import { Avatar, Button, Pill } from "@/components/ui";
 import { CALLING_DETAIL } from "@/lib/content/callings";
 import { KIT_DETAIL } from "@/lib/content/kit";
+import { TAG_MEANING, isTag } from "@/lib/content/tags";
 import { ABILITY_LABEL, DRAFT_RANKS } from "@/lib/game/rules";
 import { reversePriority } from "@/lib/game/draft";
 import { CALLING_BY_ID, KIT_BY_ID, nameOf, type PhaseProps } from "./shared";
 
 const RANK_WORD = ["1st choice", "2nd choice", "3rd choice"];
 
-/** Display words for the three charge kinds. */
-const CHARGE_NOUN: Record<"reroll" | "reveal" | "torch", string> = {
-  reroll: "reroll",
-  reveal: "look ahead",
-  torch: "torch",
+/**
+ * Display words for the three charge kinds, singular and plural both spelled out.
+ *
+ * The plural used to be the singular with an s on the end, which advertised "2
+ * torchs" and "2 look aheads" on the cards a player is ranking against a clock.
+ * A torch takes -es and a look ahead pluralises on the head noun, so there is no
+ * rule here worth encoding: the plural is content, the same as the singular is.
+ * Same three pairs of words the published gear list uses.
+ */
+const CHARGE_NOUN: Record<"reroll" | "reveal" | "torch", readonly [string, string]> = {
+  reroll: ["reroll", "rerolls"],
+  reveal: ["look ahead", "looks ahead"],
+  torch: ["torch", "torches"],
 };
+
+/** `Calling.failing.tag` is a plain string on the type. Say the word, not the slug. */
+const tagMeaning = (tag: string) => (isTag(tag) ? TAG_MEANING[tag] : tag);
 
 export function Draft({ view, post, busy }: PhaseProps) {
   const kit = view.phase === "DRAFT_KIT";
@@ -262,8 +274,14 @@ function CallingBody({ id }: { id: string }) {
           <dd className="inline text-text-hi">{calling.signature.label}</dd>
         </div>
         <div>
+          {/* The slug stays, because that is the word the Act screen prints on a
+              scene and the two have to be recognisable as the same thing. What
+              was missing is what it means: "Failing on CROWD" is not a fact
+              anybody can rank eight Callings by in thirty-five seconds. */}
           <dt className="label-caps inline">Failing on {calling.failing.tag} </dt>
-          <dd className="inline text-text-mid">{calling.failing.text}</dd>
+          <dd className="inline text-text-mid">
+            {tagMeaning(calling.failing.tag)}. {calling.failing.text}
+          </dd>
         </div>
       </dl>
       <details className="mt-2">
@@ -292,8 +310,8 @@ function KitBody({ id }: { id: string }) {
         )}
         {item.charge && (
           <Pill tone="arcane">
-            {item.charge.uses} {CHARGE_NOUN[item.charge.kind]}
-            {item.charge.uses === 1 ? "" : "s"}
+            {item.charge.uses}{" "}
+            {CHARGE_NOUN[item.charge.kind][item.charge.uses === 1 ? 0 : 1]}
           </Pill>
         )}
       </p>

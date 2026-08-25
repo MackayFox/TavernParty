@@ -45,9 +45,15 @@
 
   --tp-border: #352c24;      /* decorative divider — NOT control edges */
   --tp-border-strong: #4a3e33;
+
   /* Control edges need 3:1 against every surface they sit on.
      Measured: 3.9:1 on bg-0, 3.4:1 on bg-3. */
   --tp-border-input: #8a7660;
+
+  /* The scrim behind a modal. Warm rather than neutral black: a grey scrim over
+     this palette reads as a dialog borrowed from another product. Exists because
+     the dialog backdrop had nothing to reach for and used Tailwind's bg-black. */
+  --tp-scrim: rgba(9, 6, 4, 0.74);
 
   /* ---------- Ink on dark ----------
      Measured against bg-0 and against bg-3, the worst case. */
@@ -86,6 +92,12 @@
   --tp-paper-rule: #c3b391;       /* hand-ruled box lines */
   --tp-paper-ink: #221a10;        /* 13.3:1 on paper */
   --tp-paper-ink-mid: #5a4b34;    /* 6.3:1 on paper — labels, meta */
+  /* A writable box on the sheet: an input, a select, a line to fill in. Stays
+     translucent rather than an opaque tint so the laid-paper tooth and the
+     candle bloom read straight through it, which is what makes a field on the
+     sheet look ruled rather than pasted on. This is the token the campaign
+     builder's eleven bg-white/40 fields were reaching for. */
+  --tp-paper-field: rgba(255, 255, 255, 0.42);
 
   /* ---------- Party colours ----------
      index = hash(playerId) % 8. Every one is light enough to carry

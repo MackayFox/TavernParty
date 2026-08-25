@@ -218,6 +218,7 @@ describe("deeprun", () => {
     }
   });
 
+  // Eight exhaustive solves. States a budget rather than racing the default.
   it("has a par that is reachable on every day tested", () => {
     for (const date of DATES) {
       const puzzle = deeprun.puzzleFor(date);
@@ -225,7 +226,7 @@ describe("deeprun", () => {
       expect(best, date).not.toBeNull();
       expect(deeprun.run(puzzle, best!.build, best!.steps).score, date).toBe(par);
     }
-  });
+  }, 60_000);
 });
 
 describe("ledger", () => {

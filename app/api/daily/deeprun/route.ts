@@ -6,6 +6,7 @@ import { MAX_FLOORS } from "@/lib/campaign/gate";
 import {
   ARRAY_SIZE,
   KIT_SLOTS,
+  publicPuzzle,
   puzzleFor,
   run,
   shareText,
@@ -71,7 +72,14 @@ export async function GET(req: Request) {
   // the dungeon everybody is handed, and it changes at UTC midnight only. An
   // authored one never changes at all, because its dice are pinned to its code.
   return NextResponse.json(
-    { ...source.puzzle, archive: source.archive, dungeon: source.row ? doorFor(source.row) : null },
+    {
+      // Redacted: which ability each door tests does not cross the wire. See
+      // publicPuzzle. The target number does, because that is a fact about the
+      // room and this is a bet rather than a riddle.
+      ...publicPuzzle(source.puzzle),
+      archive: source.archive,
+      dungeon: source.row ? doorFor(source.row) : null,
+    },
     { headers: { "Cache-Control": dailyCacheControl(source.archive) } }
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
+import { readSpent, writeSpent } from "@/lib/daily/spent";
 import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import {
   MAX_CHECKS,
@@ -42,18 +43,22 @@ const schema = z.object({
   /** One amount index per person, in the order the names were sent. */
   assignment: z.array(z.number().int()).length(PEOPLE),
   mode: z.enum(["check", "close"]),
-  checksUsed: z.number().int().min(0).max(MAX_CHECKS).default(0),
+  /*
+   * `checksUsed` IS GONE FROM THE WIRE. It used to be sent by the client and
+   * trusted, with a note calling that cosmetic because enumerating 120
+   * arrangements would take 120 requests. It would not: `correctRows` is a
+   * fitness score, so you filter rather than enumerate. Somebody solved it in
+   * five requests, each one claiming three checks spent, then closed claiming
+   * zero and was congratulated for balancing it first time. See lib/daily/spent.
+   */
 });
 
 /**
  * A check says how many rows are right and never which ones. Closing the ledger
  * is free, final, and the only response that ever contains the answer.
  *
- * ponytail: the check count comes from the client, because a daily has no server
- * side session to keep it in and nothing else in the product needs one. It is
- * cosmetic, in the same way that Wordle cannot stop you opening a second tab,
- * and the rate limit below is what stops the checks being used as an oracle:
- * enumerating all 120 ledgers by hand would take 120 requests.
+ * The count of checks spent is kept in a signed cookie rather than in the body,
+ * so an honest score and a cheated one are no longer the same number.
  */
 export async function POST(req: Request) {
   try {
@@ -67,11 +72,27 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
+    const spent = await readSpent("ledger", date);
+
     if (body.mode === "check") {
+      // Refused rather than silently free: a fourth check that answers is a
+      // fourth check, whatever the score afterwards claims.
+      if (spent >= MAX_CHECKS) {
+        return NextResponse.json(
+          {
+            error: `That is all three checks. Close the ledger and see how you did.`,
+            spent,
+          },
+          { status: 400 }
+        );
+      }
+      await writeSpent("ledger", date, spent + 1);
       return NextResponse.json({
         mode: "check",
         correctRows: rowsCorrect(date, body.assignment),
         rows: PEOPLE,
+        spent: spent + 1,
+        left: MAX_CHECKS - (spent + 1),
       });
     }
 
@@ -80,11 +101,12 @@ export async function POST(req: Request) {
       mode: "close",
       archive,
       solved,
-      score: scoreFor(solved, body.checksUsed),
+      // Scored against what was actually spent, not against what was claimed.
+      score: scoreFor(solved, spent),
       maxScore: MAX_SCORE,
-      checksUsed: body.checksUsed,
+      checksUsed: spent,
       solution: solutionFor(date),
-      share: shareText(date, solved, body.checksUsed),
+      share: shareText(date, solved, spent),
     });
   } catch (err) {
     return handleError(err);

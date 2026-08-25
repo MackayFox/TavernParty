@@ -261,7 +261,9 @@ describe("the solver", () => {
     // CI box is not this machine. It is here to catch an order of magnitude, not
     // a wobble.
     expect(ms).toBeLessThan(8000);
-  });
+    // The assertion inside is 8s, so the test itself needs more than vitest's
+    // 5s default or the budget can never be reached to be measured.
+  }, 60_000);
 });
 
 describe("the gate", () => {
