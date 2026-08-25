@@ -23,6 +23,39 @@ thing it depends on exists. Anything marked **(you)** genuinely needs your login
 
 ---
 
+## 1a. The free-tier path, if the plan is not bought yet
+
+Everything below this section assumes Tavern Party gets its own Supabase project,
+which is what it should have. If the plan cannot be bought yet and you want
+multiplayer working with real people tonight, it can lodge inside a project that
+already exists.
+
+Four of its tables collide by name with the sites already deployed (`profiles`,
+`daily_results`, `rate_limits`, `contact_messages`) and so do two functions, so
+sharing `public` is not an option: it would put two games' daily scores in one
+table and two sites' usernames in one pool. So it gets its own **schema** instead.
+
+- [ ] **(you)** In the existing project: Settings, API, **Exposed schemas**, add
+      `tavern` next to `public`. This is the one step that cannot be done from
+      here, and without it every query returns "schema must be one of the
+      following", which is at least a clear error.
+- [ ] **(me)** Put `SUPABASE_DB_SCHEMA=tavern` in `.env.local` alongside that
+      project's URL and keys, then `npm run db:migrate`. The runner creates the
+      schema, grants usage to the PostgREST roles, and keeps its own ledger of
+      applied migrations inside it, so the two sites cannot mistake each other's
+      migrations for their own.
+- [ ] **(you)** Note that the two sites then share one pool of **auth users**. An
+      account made on the other site can log in here, and its username here is a
+      separate row in a separate table. For a network of sites that is arguably
+      the behaviour you want; it is worth knowing either way.
+
+**Undoing it is one value.** When the plan has room, make the dedicated project,
+drop `SUPABASE_DB_SCHEMA`, and run the migrations again. Nothing in the code needs
+unpicking, which is exactly why this is an environment variable rather than a
+rename of four tables.
+
+---
+
 ## 1. Supabase project
 
 - [ ] **(you)** Create the project. Region **London (eu-west-2)** to sit next to the

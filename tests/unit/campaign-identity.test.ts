@@ -11,7 +11,7 @@
  * that date's seed, and assert it produces byte-identical results to the daily.
  * If this ever fails, the builder is running a second game and nobody has said so.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   BASE_VIGOUR,
   HOUSE_DEFS,
@@ -132,5 +132,23 @@ describe("an author narrows what may be brought", () => {
     expect(p.callings.map((c) => c.id).sort()).toEqual(["knife", "sapper"]);
     expect(p.kit).toHaveLength(3);
     expect(p.baseVigour).toBe(7);
+  });
+});
+
+describe("which schema this site talks to", () => {
+  it("is public unless it is told otherwise", async () => {
+    const { dbSchema } = await import("@/lib/supabase/admin");
+    vi.stubEnv("SUPABASE_DB_SCHEMA", "");
+    expect(dbSchema()).toBe("public");
+    vi.stubEnv("SUPABASE_DB_SCHEMA", "   ");
+    expect(dbSchema()).toBe("public");
+  });
+
+  it("takes a schema name and trims it", async () => {
+    const { dbSchema } = await import("@/lib/supabase/admin");
+    // Set when this site is a lodger in another site's Supabase project, because
+    // four of its table names collide with the sites already there.
+    vi.stubEnv("SUPABASE_DB_SCHEMA", " tavern ");
+    expect(dbSchema()).toBe("tavern");
   });
 });

@@ -65,7 +65,38 @@ async function connect() {
 const client = await connect();
 const cmd = process.argv[2] ?? "migrate";
 
+/**
+ * Which schema the migrations build in.
+ *
+ * `public` unless this site is a lodger in somebody else's Supabase project, in
+ * which case four of its table names collide with the sites already there. See
+ * lib/supabase/admin.ts for the whole argument. Every migration is written with
+ * unqualified names, so setting the search path is all it takes: nothing in the
+ * SQL knows or cares.
+ *
+ * The grants are not optional. PostgREST connects as `authenticator` and switches
+ * role, so without USAGE on the schema every query fails with a permission error
+ * that names a role nobody has heard of.
+ */
+const schema = (process.env.SUPABASE_DB_SCHEMA ?? "").trim() || "public";
+
 try {
+  if (schema !== "public") {
+    console.log(`schema: ${schema}`);
+    await client.query(`create schema if not exists ${schema}`);
+    await client.query(`grant usage on schema ${schema} to anon, authenticated, service_role`);
+    await client.query(
+      `alter default privileges in schema ${schema} grant all on tables to anon, authenticated, service_role`
+    );
+    await client.query(
+      `alter default privileges in schema ${schema} grant all on functions to anon, authenticated, service_role`
+    );
+  }
+  // Everything below runs inside the chosen schema, including the ledger of what
+  // has been applied: two sites in one database need two ledgers, or the second
+  // one thinks the first one's migrations were its own.
+  await client.query(`set search_path to ${schema}, public`);
+
   await client.query(
     `create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())`
   );

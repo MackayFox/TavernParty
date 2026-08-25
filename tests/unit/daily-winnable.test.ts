@@ -30,7 +30,7 @@ describe("a year of dailies", () => {
       if (!anybodyGetsOut(puzzleFor(date))) bad.push(date);
     }
     expect(bad).toEqual([]);
-  });
+  }, 60_000);
 
   it("agrees with the solver on a sample", () => {
     // The cheap check ignores knacks and takes one placement, so it is a lower
@@ -49,7 +49,10 @@ describe("a year of dailies", () => {
       });
       expect(rep.out, `${date} had nobody get out`).toBeGreaterThan(0);
     }
-  });
+    // Thirteen full enumerations. Two seconds alone and more when the suite is
+    // running everything at once, so it states a budget rather than racing the
+    // default and failing on a busy machine for no reason.
+  }, 60_000);
 
   it("still gives everybody in the world the same dungeon", () => {
     // The re-draw must be a pure function of the date, or two people playing the
