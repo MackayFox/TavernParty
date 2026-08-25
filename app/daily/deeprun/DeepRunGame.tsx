@@ -28,6 +28,9 @@ import {
   Spinner,
 } from "@/components/ui";
 import { postJson } from "@/components/client";
+import { Adventurer, Behind, type Sheet as CharacterSheet } from "@/components/daily/Adventurer";
+import { Reveal } from "@/components/daily/Reveal";
+import { playOut, setSoundOn, soundOn } from "@/components/daily/sfx";
 import { ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
 import { FAILED_CHECK_EXTRA } from "@/lib/daily/core";
 import type { Ability } from "@/lib/game/types";
@@ -250,11 +253,37 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
 
   // The descent.
   const [steps, setSteps] = useState<Step[]>(saved?.steps ?? []);
+  /**
+   * How many resolved floors the player has actually WATCHED.
+   *
+   * The server is the authority on what happened and `reply.lines` is that answer,
+   * but a line the player has not been shown yet must not appear behind them and
+   * must not advance the room. So this is the cursor, and everything on screen is
+   * derived from it: the room you are facing is `rooms[seen]`, the history is the
+   * first `seen` lines, and a reveal is open whenever the server knows about a
+   * floor that you do not.
+   *
+   * Restoring a saved run sets it to the end, because a reveal is an event and an
+   * event you have already lived through is not one you want replayed on reload.
+   */
+  const [seen, setSeen] = useState<number>(saved?.reply?.lines.length ?? 0);
+  const [sound, setSound] = useState(true);
+  // Read after mount: localStorage does not exist while this renders on the
+  // server, and disagreeing with the server's HTML throws the tree away.
+  useEffect(() => setSound(soundOn()), []);
   const [reply, setReply] = useState<RunReply | null>(saved?.reply ?? null);
   const [streak, setStreak] = useState<number | null>(null);
   const recorded = useRef(false);
 
-  const finished = !!reply?.finished;
+  /**
+   * The run is over AND the player has watched the floor that ended it.
+   *
+   * `reply.finished` is the server's answer and arrives with the last line. Using
+   * it directly put the score and the share card on screen behind a dialog still
+   * revealing the roll that produced them, which gives away the ending before the
+   * beat that earns it.
+   */
+  const finished = !!reply?.finished && !!reply && seen >= reply.lines.length;
 
   // Written on every change rather than at the end, because the end is exactly
   // what a lost run never reaches. The initial state is the stored state, so the
@@ -345,8 +374,13 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
       });
       setSteps(next);
       setReply(result);
-      const line = result.lines[result.lines.length - 1];
-      if (line) setAnnounce(`${line.cleared ? "Cleared" : "Not cleared"}. ${line.text}`);
+      /*
+       * Deliberately NOT announcing here any more, and deliberately not scrolling.
+       * The reveal opens on the new line, it is a modal, so focus moves into it and
+       * the announcement comes from its own live region at the moment the outcome
+       * is shown rather than the moment the request returned. Announcing both
+       * would read the result out twice, once before the player has seen it.
+       */
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -354,8 +388,18 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
     }
   }
 
-  const vigour = reply ? reply.vigour : null;
-  const room = data.rooms[steps.length];
+  /**
+   * Everything the screen shows is derived from `seen`, not from `steps`.
+   *
+   * `steps` is what has been committed to the server; `seen` is what the player
+   * has been shown. Between a click and the end of the reveal those differ by one,
+   * and that gap is the whole of the interaction: the room behind the dialog is
+   * still the room you just left, and it becomes the next one when you press on.
+   */
+  const behind = reply ? reply.lines.slice(0, seen) : [];
+  const pending = reply && seen < reply.lines.length ? reply.lines[seen] : null;
+  const vigour = behind.length > 0 ? behind[behind.length - 1].vigourAfter : (reply?.vigour ?? null);
+  const room = data.rooms[seen];
   const knackSpent = steps.some((s) => s.knack);
   /**
    * What they are carrying, straight off the last line the server sent.
@@ -364,12 +408,50 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    * says what is in hand afterwards, so this screen has no state of its own to get
    * wrong, and a reloaded tab is right for free.
    */
-  const carrying: string[] =
-    reply?.lines.length ? reply.lines[reply.lines.length - 1].marks ?? [] : [];
+  const carrying: string[] = behind.length ? (behind[behind.length - 1].marks ?? []) : [];
   const holding = new Set(carrying);
 
+  /**
+   * Your character, as one object, built in one place.
+   *
+   * The per-ability sum is here and NOT on the doors, and that distinction is the
+   * whole point: what you bring is yours to see, which door wants which ability is
+   * not. `bonusFor` used to compute the same thing per door, which is what let
+   * somebody play the game without reading a word of it.
+   */
+  const sheet: CharacterSheet | null = calling
+    ? {
+        callingName: calling.name,
+        callingBlurb: calling.blurb,
+        abilities: data.abilities,
+        scores: Object.fromEntries(
+          data.abilities.map((ability, i) => {
+            const slot = slots[i];
+            return [ability, slot === null ? 0 : data.array[slot]];
+          })
+        ) as CharacterSheet["scores"],
+        affinities: calling.affinities,
+        kit: kitIds
+          .map((id) => data.kit.find((k) => k.id === id))
+          .filter((k): k is NonNullable<typeof k> => !!k)
+          .map((k) => ({ name: k.name, ability: k.ability, value: k.value })),
+        knack: { label: calling.knack.label, text: calling.knack.text },
+        knackSpent,
+        vigour: vigour ?? data.baseVigour,
+        baseVigour: data.baseVigour,
+        floor: Math.min(seen + 1, data.rooms.length),
+        floors: data.rooms.length,
+        carrying,
+      }
+    : null;
+
   return (
-    <section className="mx-auto w-full max-w-2xl py-8">
+    /*
+     * Wide enough for the room and your sheet side by side once the descent
+     * starts. The build screen keeps its own narrower column below, because a
+     * form spread over 72rem is harder to read, not easier.
+     */
+    <section className={`mx-auto w-full py-8 ${down ? "max-w-5xl" : "max-w-2xl"}`}>
       {!dungeon && <DailyHeader game={GAME} date={data.date} archive={data.archive} />}
       <RuleLine game={GAME} />
 
@@ -531,78 +613,29 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
 
       {/* --------------------------------------------------------- the crawl */}
       {down && (
-        <div className="mt-6 space-y-4">
-          <Card className="flex flex-wrap items-center justify-between gap-3">
-            <span className="label-caps">
-              {calling?.name} · floor {Math.min(steps.length + 1, data.rooms.length)} of{" "}
-              {data.rooms.length}
-            </span>
-            <span className="num text-text-hi">
-              {/* Never a bar alone: the number and the word are both here. */}
-              Vigour {vigour ?? data.baseVigour}
-              {vigour !== null && vigour <= 2 ? " · nearly done" : ""}
-            </span>
-            {!knackSpent && calling && <Pill tone="accent">{calling.knack.label} in hand</Pill>}
-          </Card>
+        <div className="mt-6">
+          {/*
+            THREE ZONES, and the layout is the thing that says which is which.
+            Adam: "there is no clear focus on this is your character, this is what
+            is happening right now, this is what has happened."
 
+            On a wide screen: the room and its doors on the left, your sheet and
+            what is behind you in a sticky column on the right, so all of it fits
+            one screen and your abilities never scroll away. On a narrow screen:
+            three facts in a strip above the room, the room, then the sheet under
+            it, because a phone has no column to spare and a sticky panel on a
+            phone is a thing covering the game.
+          */}
           <ErrorNote message={error} />
 
-          {reply?.lines.map((line) => (
-            <article
-              key={line.roomIndex}
-              className="rounded-lg border border-border-dim bg-bg-1 p-4"
-            >
-              <header className="flex flex-wrap items-center gap-2">
-                <span className="label-caps">Floor {line.roomIndex + 1}</span>
-                <span className="font-display text-text-hi">{line.title}</span>
-                <Pill tone={line.cleared ? "success" : "danger"}>
-                  {line.cleared ? "✓ Cleared" : "✕ Not cleared"}
-                </Pill>
-              </header>
-              <p className="mt-1 text-sm text-text-mid">{line.label}</p>
-              {line.roll > 0 && (
-                <div className="mt-2 flex items-start gap-3">
-                  <Die face={line.roll} size={44} />
-                  <dl className="min-w-0 flex-1">
-                    {line.mods.map((mod, i) => (
-                      <div
-                        key={`${mod.label}-${i}`}
-                        className="flex items-baseline justify-between gap-3 border-b border-border-dim py-0.5"
-                      >
-                        <dt className="text-sm text-text-mid">{mod.label}</dt>
-                        <dd className="num text-sm text-text-hi">
-                          {mod.value >= 0 ? "+" : ""}
-                          {mod.value}
-                        </dd>
-                      </div>
-                    ))}
-                    <div className="flex items-baseline justify-between gap-3 py-0.5">
-                      <dt className="label-caps">Total</dt>
-                      <dd className="num text-text-hi">{line.total}</dd>
-                    </div>
-                    {line.tn !== null && (
-                      <div className="flex items-baseline justify-between gap-3">
-                        <dt className="label-caps">Needed</dt>
-                        <dd className="num text-text-hi">{line.tn}</dd>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-              )}
-              <p className="prose-read mt-2">{line.text}</p>
-              {line.vigourSpent > 0 && (
-                <p className="num mt-1 text-sm text-danger">
-                  ✕ {line.vigourSpent} Vigour, {line.vigourAfter} left
-                </p>
-              )}
-              {(line.gained?.length ?? 0) > 0 && (
-                <p className="mt-1 text-sm text-text-hi">
-                  <span aria-hidden>&#9670; </span>
-                  You come away {list(line.gained ?? [])}.
-                </p>
-              )}
-            </article>
-          ))}
+          {sheet && (
+            <div className="mb-3 lg:hidden">
+              <Adventurer sheet={sheet} compact />
+            </div>
+          )}
+
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
+            <div className="min-w-0 space-y-4">
 
           {!finished && room && (
             <article className="tp-anim-reveal rounded-lg border border-border-strong bg-bg-1 p-4">
@@ -697,18 +730,40 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                           ? `Always works, and clears the floor. Costs ${option.vigour} Vigour, every time.`
                           : `The room wants ${article(option.tn)} ${option.tn} · costs ${option.vigour + FAILED_CHECK_EXTRA} if it goes wrong, and you do not clear the floor`}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Button disabled={busy || shut} onClick={() => void choose(option, false)}>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <Button
+                          size="lg"
+                          disabled={busy || shut}
+                          onClick={() => void choose(option, false)}
+                        >
                           {option.label}
                         </Button>
+                        {/*
+                          THE KNACK BUTTON USED TO SAY ONLY THE KNACK'S NAME.
+                          "Price the door", on its own, next to a door, with no
+                          indication of what it did, whether it was free, or that
+                          there was only ever one of them. Adam asked what it was
+                          supposed to mean and he was right to.
+
+                          It now says what it is, what it does and that it is the
+                          only one you get. The explanation sits under the button
+                          rather than in a tooltip, because a tooltip is not a
+                          thing a thumb can hover over.
+                        */}
                         {canKnack && (
-                          <Button
-                            variant="secondary"
-                            disabled={busy || shut}
-                            onClick={() => void choose(option, true)}
-                          >
-                            {calling!.knack.label}
-                          </Button>
+                          <div className="rounded-md border border-accent/40 bg-accent-dim/40 p-2">
+                            <Button
+                              variant="secondary"
+                              className="w-full"
+                              disabled={busy || shut}
+                              onClick={() => void choose(option, true)}
+                            >
+                              Use your one trick: {calling!.knack.label}
+                            </Button>
+                            <p className="mt-1 text-xs text-text-mid">
+                              {calling!.knack.text} Once tonight, and you have not used it.
+                            </p>
+                          </div>
                         )}
                       </div>
                     </li>
@@ -790,7 +845,67 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
               {!dungeon && <NextUp game={GAME} archive={reply.archive} streak={streak} />}
             </>
           )}
+            </div>
+
+            {/* ------------------------------------------------- this is you */}
+            <aside className="min-w-0 space-y-3 lg:sticky lg:top-4">
+              {sheet && (
+                <div className="hidden lg:block">
+                  <Adventurer sheet={sheet} />
+                </div>
+              )}
+              <Behind lines={behind} par={reply?.par ?? null} />
+              {sheet && (
+                <div className="lg:hidden">
+                  <Adventurer sheet={sheet} />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !sound;
+                  setSound(next);
+                  setSoundOn(next);
+                }}
+                aria-pressed={sound}
+                className="min-h-11 w-full rounded-lg border border-border-dim px-3 text-sm text-text-mid hover:text-text-hi"
+              >
+                <span aria-hidden>{sound ? "🔊 " : "🔇 "}</span>
+                Sound {sound ? "on" : "off"}
+              </button>
+            </aside>
+          </div>
         </div>
+      )}
+
+      {/*
+        THE REVEAL. Open whenever the server knows about a floor the player has not
+        been shown. It is the answer to "you click an option and the page stays
+        scrolled down so you do not even know what has happened": a modal moves
+        focus by itself, so there is nothing to scroll to.
+      */}
+      {pending && sheet && (
+        <Reveal
+          key={pending.roomIndex}
+          line={pending}
+          floor={pending.roomIndex + 1}
+          floors={data.rooms.length}
+          doneLabel={
+            reply && seen + 1 >= reply.lines.length && finished
+              ? "See how it went"
+              : "Press on"
+          }
+          onDone={() => {
+            const wasLast = !!reply && seen + 1 >= reply.lines.length;
+            setSeen((n) => n + 1);
+            if (wasLast && reply?.out) playOut();
+            setAnnounce(
+              wasLast && finished
+                ? "The run is over. Your score is below."
+                : `Floor ${Math.min(seen + 2, data.rooms.length)}.`
+            );
+          }}
+        />
       )}
 
       <Announcer message={announce} />

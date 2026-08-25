@@ -214,12 +214,41 @@ body {
   animation: tp-reveal var(--tp-dur-emphatic) var(--tp-ease-out) both;
 }
 
+/*
+ * The outcome dialog: what just happened, in front of you.
+ *
+ * A native <dialog> so focus containment, Escape and inertness of the page behind
+ * it come from the platform rather than from a hand-rolled focus trap. These rules
+ * are only the parts the platform leaves to us: where it sits, how tall it may get
+ * before it scrolls, and the fact that it arrives rather than appears.
+ */
+.tp-dialog {
+  margin: auto;
+  max-height: min(84vh, 44rem);
+  overflow-y: auto;
+  animation: tp-reveal var(--tp-dur-reveal) var(--tp-ease-out) both;
+}
+.tp-dialog::backdrop {
+  animation: tp-fade var(--tp-dur-reveal) var(--tp-ease-out) both;
+}
+
+@keyframes tp-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Static fallbacks, not nothing: the sheet keeps its slight tilt so it still
      reads as paper that was put down rather than a rendered panel. */
   .tp-anim-roll,
   .tp-anim-reveal,
-  .phase-in {
+  .phase-in,
+  .tp-dialog,
+  .tp-dialog::backdrop {
     animation: none;
   }
   .tp-anim-sheet {
