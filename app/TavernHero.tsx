@@ -157,6 +157,17 @@ export function TavernHero() {
         >
           Or look at the open tables
         </a>
+        {/*
+          The only hero-level mention, and it belongs here: on your own, the thing
+          to do is write one. The shelf of other people's is one click further in,
+          because a shelf with one dungeon on it is not a hero claim.
+        */}
+        <a
+          href="/write"
+          className="inline-flex min-h-11 items-center underline hover:text-text-hi"
+        >
+          Or write a dungeon
+        </a>
         <Pill tone="accent">Free · nothing to install</Pill>
       </p>
     </div>

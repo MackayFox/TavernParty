@@ -52,7 +52,7 @@ export function WriteIndex() {
     <section className="mx-auto w-full max-w-3xl py-8">
       <p className="label-caps">The desk</p>
       <h1 className="font-display mt-1 text-3xl font-bold uppercase text-text-hi sm:text-4xl">
-        Write one of your own
+        Write a dungeon people can finish
       </h1>
       <p className="prose-read mt-3 text-text-mid">
         Pick some floors, say what they may bring, and send somebody the link. You do not have to

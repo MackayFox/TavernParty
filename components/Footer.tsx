@@ -16,8 +16,10 @@ const COLUMNS: [string, [string, string][]][] = [
       ["Quick match", "/"],
       ["Open tables", "/tables"],
       ["All four dailies", "/daily"],
-      ["The Hall", "/dungeons"],
+      // The gloss goes on the link, never the room name on its own. "The Hall"
+      // tells a stranger nothing; the page keeps the name as its eyebrow.
       ["Write a dungeon", "/write"],
+      ["Dungeons people wrote", "/dungeons"],
       ...DAILY_GAMES.map((g) => [DAILY_META[g].name, DAILY_META[g].path] as [string, string]),
       ["Past days", "/daily/archive"],
     ],

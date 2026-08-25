@@ -208,6 +208,80 @@ export default function HomePage() {
           three of them publish a par worked out by brute force. Two under is a better thing to
           post than a number out of sixty.
         </p>
+        {/*
+          The single biggest missed sentence on the site, until now. The page bragged
+          about the brute-forced par and never mentioned that the same machine is
+          handed to anybody who wants to write a dungeon of their own.
+        */}
+        <p className="mt-2 text-sm text-text-mid">
+          That brute force is not kept for the dailies.{" "}
+          <Link href="/write" className="text-accent underline">
+            Write a dungeon of your own
+          </Link>{" "}
+          and it runs over yours the moment you save, and tells you what par is before anybody
+          else opens it.
+        </p>
+      </section>
+
+      {/* ------------------------------------------------------ write your own */}
+      {/*
+        THE HEADLINE SLOT, and until now this page did not mention the feature at
+        all: a grep for "dungeon" over this file returned nothing, across 811 words,
+        seven internal links and four buttons. Adam called the Desk and the Hall the
+        USPs and he is right, and they were reachable only from a footer row and the
+        bottom of a dropdown labelled with a promise about something else.
+      */}
+      <section>
+        <p className="label-caps">The third thing you can do here</p>
+        <h2 className="mt-1 font-display text-2xl font-bold sm:text-3xl">
+          Write a dungeon, and find out what you wrote
+        </h2>
+        <div className="prose-read mt-3 flex flex-col gap-3 text-text-mid">
+          <p>
+            Three to eight floors, and something at the bottom of them. Every floor gets two
+            doors that ask for different abilities and one that always works and always costs,
+            so somebody who arrives with nothing is out of pocket rather than stuck. You decide
+            which Callings are allowed, what is on the shelf, and how much wind they start with.
+            Six rooms off the shared shelf is a real dungeon and takes about two minutes; writing
+            every floor yourself takes an evening.
+          </p>
+          <p>
+            Then the interesting part. A solver plays{" "}
+            <strong className="text-text-hi">every character your settings allow</strong>, all of
+            them perfectly, and tells you the truth: what par is, how many of them get out alive,
+            which floor stops the rest, and which door nobody would ever take. It refuses to
+            publish a dungeon nobody can finish. So the difficulty word on the card was measured
+            rather than claimed, and nobody can call a walkover brutal.
+          </p>
+          <p>
+            One rule makes a dungeon feel like a place rather than a list. A door can leave a word
+            on you, and a door further down can want it or refuse it: take the lantern on the
+            first floor and the crack on the third is a squeeze instead of a gamble, or wade the
+            water and the rope on the bridge will not have a wet man on it.
+          </p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/write"
+            className="font-display inline-flex min-h-14 items-center justify-center rounded-md bg-accent px-7 text-lg font-semibold text-ink hover:bg-accent-hover"
+          >
+            Write a dungeon
+          </Link>
+          <Link
+            href="/d/LNGWLK"
+            className="font-display inline-flex min-h-14 items-center justify-center rounded-md border border-border-strong bg-bg-2 px-7 text-lg font-medium text-text-hi hover:border-accent/50"
+          >
+            Play ours first
+          </Link>
+        </div>
+        <p className="mt-2 text-sm text-text-low">
+          Or read{" "}
+          <Link href="/dungeons" className="underline">
+            the ones people have written
+          </Link>
+          , ranked by how many of the players who actually finished them thought they were worth
+          the evening.
+        </p>
       </section>
 
       {/* --------------------------------------------------- what a character is */}
