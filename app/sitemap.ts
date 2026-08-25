@@ -36,6 +36,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/daily`, changeFrequency: "daily", priority: 0.9 },
     ...dailies,
     { url: `${BASE}/daily/archive`, changeFrequency: "daily", priority: 0.6 },
+    // The desk itself is indexable and worth indexing: "make your own dungeon"
+    // is a real query. Individual dungeons are NOT here, because unlisted is the
+    // default and a person decides what goes in the Hall.
+    { url: `${BASE}/write`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${BASE}/how-it-works`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE}/characters`, changeFrequency: "monthly", priority: 0.8 },
     ...characters,

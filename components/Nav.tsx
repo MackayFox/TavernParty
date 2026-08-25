@@ -87,6 +87,9 @@ export function DailyMenu() {
           >
             Past days
           </Link>
+          <Link role="menuitem" href="/write" className={item} onClick={() => setOpen(false)}>
+            Write a dungeon
+          </Link>
         </div>
       )}
     </div>

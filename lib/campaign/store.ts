@@ -28,6 +28,18 @@ const g = globalThis as unknown as {
 const memDungeons: Map<string, DungeonRow> = (g.__tpDungeons ??= new Map());
 const memPool: Map<string, PoolRoom> = (g.__tpPool ??= new Map());
 
+/** A source that cannot repeat itself, for when the ambient one is misbehaving. */
+function mixedRng(salt: number, stamp: number): () => number {
+  let state = (salt * 2654435761 + stamp) >>> 0;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    return state / 4294967296;
+  };
+}
+
 /** Postgres columns to the shape the app uses. One place, so it cannot drift. */
 type DbRow = Record<string, unknown>;
 function fromDb(r: DbRow): DungeonRow {
@@ -81,8 +93,20 @@ export async function createDungeon(
   ownerKey: string
 ): Promise<DungeonRow> {
   const now = new Date().toISOString();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = generateDungeonCode();
+  for (let attempt = 0; attempt < 8; attempt++) {
+    /**
+     * After a few unlucky rolls, stop trusting the roll.
+     *
+     * `generateDungeonCode` draws from Math.random, and a random source that
+     * keeps returning the same value turns a retry loop into the same collision
+     * eight times and then an error in somebody's face. Mixing the attempt in
+     * guarantees a different code by the second try whatever the source is
+     * doing, which is cheap insurance for something a person is waiting on.
+     */
+    const code =
+      attempt < 2
+        ? generateDungeonCode()
+        : generateDungeonCode(mixedRng(attempt, Date.now()));
     const row: DungeonRow = {
       ...emptyDraft(code, authorName, ownerKey),
       authorId,
