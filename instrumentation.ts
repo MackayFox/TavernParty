@@ -51,5 +51,35 @@ export async function register() {
         "in-memory store. On a single server that works; on a serverless host each " +
         "instance gets its own copy, so two players may not see the same table."
     );
+    await seedMemory();
+  }
+}
+
+/**
+ * Put the shelf and the house's own dungeon in the in-memory store.
+ *
+ * Only on memstore, and that condition is the whole point. With a database the
+ * shelf is seeded once with `npm run seed:rooms` and stays there; without one it
+ * dies with the process, so every restart left the Hall empty and the desk with
+ * nothing to pick from. Somebody opening the builder for the first time on a
+ * fresh server met a shelf with nothing on it, which is exactly the cold start
+ * the shelf exists to prevent.
+ *
+ * Deliberately quiet about failure. This is a convenience for a server with no
+ * database, and a site that runs is worth more than a site that refuses to start
+ * because its demo content did not load.
+ */
+async function seedMemory() {
+  try {
+    const { seedHouseContent } = await import("@/lib/campaign/seed");
+    const { rooms, demo } = await seedHouseContent();
+    console.warn(
+      `[boot] Shelf seeded with ${rooms} rooms. ` +
+        (demo?.published
+          ? `The Stone Walk is up: ${demo.difficulty}, par ${demo.par}.`
+          : "The Stone Walk did not publish, which means the gate refused it.")
+    );
+  } catch (err) {
+    console.warn("[boot] Could not seed the house content.", err);
   }
 }

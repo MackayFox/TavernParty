@@ -47,7 +47,7 @@ THE STONE WALK (${d.code}) is already up. ${d.difficulty}, par ${d.par}.`);
 } else if (!d.published) {
   console.log(`
 THE STONE WALK did NOT publish. The gate said:`);
-  for (const n of d.report?.notes ?? []) console.log(`  [${n.severity}] ${n.text}`);
+  for (const n of d.notes ?? []) console.log(`  [${n.severity}] ${n.text}`);
   process.exitCode = 1;
 } else {
   console.log(`
