@@ -180,16 +180,37 @@ export function ownedBy(row: DungeonRow, identityId: string | null | undefined):
 
 /** The Hall. Only ever listed rows, and only ever ones a person put there. */
 export async function listPublished(limit = 40): Promise<DungeonRow[]> {
+  return listByVisibility("listed", limit);
+}
+
+/** The queue a human works through. Submitted, oldest first: nobody waits twice. */
+export async function listSubmitted(limit = 50): Promise<DungeonRow[]> {
   if (!supabaseConfigured()) {
     return [...memDungeons.values()]
-      .filter((d) => d.visibility === "listed")
+      .filter((d) => d.visibility === "submitted")
+      .sort((a, b) => (a.publishedAt ?? "").localeCompare(b.publishedAt ?? ""))
+      .slice(0, limit);
+  }
+  const { data } = await adminClient()
+    .from("dungeons")
+    .select("*")
+    .eq("visibility", "submitted")
+    .order("published_at", { ascending: true })
+    .limit(limit);
+  return (data ?? []).map(fromDb);
+}
+
+async function listByVisibility(v: Visibility, limit: number): Promise<DungeonRow[]> {
+  if (!supabaseConfigured()) {
+    return [...memDungeons.values()]
+      .filter((d) => d.visibility === v)
       .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
       .slice(0, limit);
   }
   const { data } = await adminClient()
     .from("dungeons")
     .select("*")
-    .eq("visibility", "listed")
+    .eq("visibility", v)
     .order("published_at", { ascending: false })
     .limit(limit);
   return (data ?? []).map(fromDb);

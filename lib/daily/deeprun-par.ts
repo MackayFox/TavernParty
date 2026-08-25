@@ -160,16 +160,47 @@ export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: S
     return best;
   };
 
-  return walk(0, startingVigour(characterFor(puzzle, build)), true);
+  return walk(0, startingVigour(characterFor(puzzle, build), puzzle.baseVigour), true);
 }
 
 const PAR_CACHE = new Map<string, { par: number; best: { build: Build; steps: Step[] } | null }>();
+
+/**
+ * Everything about a dungeon that can change its par, and nothing else.
+ *
+ * The cache used to be keyed on the seed alone, which was correct for exactly as
+ * long as the only dungeon was the daily: there the seed is the date and the date
+ * decides every room. An authored dungeon's seed is its CODE, which stays put
+ * while the author moves the numbers around, so the desk solved a draft once and
+ * then showed that same par for the rest of the process's life. Tune a floor,
+ * watch nothing happen.
+ *
+ * Prose is deliberately absent. Rewriting what a door SAYS must not throw away a
+ * solve, because that is what an author does most of.
+ */
+function mechanicalKey(puzzle: Puzzle): string {
+  return [
+    puzzle.seed,
+    puzzle.baseVigour,
+    puzzle.array.join(","),
+    puzzle.callings.map((c) => c.id).join(","),
+    puzzle.kit.map((k) => k.id).join(","),
+    puzzle.rooms
+      .map(
+        (r) =>
+          `${r.id}${r.boss ? "!" : ""}:` +
+          r.options.map((o) => `${o.id}/${o.kind}/${o.ability ?? "-"}/${o.tn ?? "-"}/${o.vigour}`).join("+")
+      )
+      .join(";"),
+  ].join("|");
+}
 
 export function parFor(puzzle: Puzzle): {
   par: number;
   best: { build: Build; steps: Step[] } | null;
 } {
-  const cached = PAR_CACHE.get(puzzle.seed);
+  const key = mechanicalKey(puzzle);
+  const cached = PAR_CACHE.get(key);
   if (cached) return cached;
 
   // Which abilities does tonight actually ask about? Grit always counts, because
@@ -217,7 +248,11 @@ export function parFor(puzzle: Puzzle): {
   }
 
   const answer = { par, best };
-  PAR_CACHE.set(puzzle.seed, answer);
+  // ponytail: a draft solves once per edit, so the key space is now unbounded
+  // rather than one entry per day. Drop the lot when it gets silly; a real LRU
+  // when a cold solve on a busy instance shows up in a trace.
+  if (PAR_CACHE.size > 500) PAR_CACHE.clear();
+  PAR_CACHE.set(key, answer);
   return answer;
 }
 

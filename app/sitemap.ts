@@ -40,6 +40,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // is a real query. Individual dungeons are NOT here, because unlisted is the
     // default and a person decides what goes in the Hall.
     { url: `${BASE}/write`, changeFrequency: "monthly", priority: 0.7 },
+    // The Hall IS indexable: it only ever contains dungeons a person shelved by
+    // hand, so it is the one place player-made content is safe to point search at.
+    { url: `${BASE}/dungeons`, changeFrequency: "daily", priority: 0.7 },
     { url: `${BASE}/how-it-works`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE}/characters`, changeFrequency: "monthly", priority: 0.8 },
     ...characters,

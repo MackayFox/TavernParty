@@ -371,8 +371,23 @@ export function characterFor(puzzle: Puzzle, build: Build): Character {
   };
 }
 
-export function startingVigour(who: Character): number {
-  return BASE_VIGOUR + Math.max(0, abilityMod(who.scores.grit));
+/**
+ * How much Vigour a character walks in with.
+ *
+ * The base belongs to the DUNGEON, not to this module. It used to read the
+ * constant, which meant an author could set the dial to 5, the desk would call
+ * it "thin", the door would say "which is thin", and every run would quietly
+ * start on 9: a setting displayed in three places and applied in none.
+ *
+ * Found by asking why an eight-floor fixture that should be unsurvivable
+ * published three times in a hundred. It did, because the dial that was supposed
+ * to starve it was decorative.
+ *
+ * Both readers pass it, the runner and the par search. If they ever disagree,
+ * par stops describing the game anybody is playing.
+ */
+export function startingVigour(who: Character, base = BASE_VIGOUR): number {
+  return base + Math.max(0, abilityMod(who.scores.grit));
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +418,7 @@ export function run(
 ): Result {
   const who = characterFor(puzzle, build);
   const lines: Line[] = [];
-  let vigour = startingVigour(who);
+  let vigour = startingVigour(who, puzzle.baseVigour);
   let knackLeft = true;
   let roomsCleared = 0;
   let bossBeaten = false;

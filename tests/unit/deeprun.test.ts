@@ -263,3 +263,112 @@ describe("sharing", () => {
     for (const room of puzzle.rooms) expect(text).not.toContain(room.title);
   });
 });
+
+/**
+ * THE AUTHOR'S VIGOUR DIAL.
+ *
+ * It used to be decorative. `startingVigour` read the module constant, so a
+ * dungeon set to 5 played exactly like one set to 9, while the desk called it
+ * "thin", the door said "which is thin", and the solver priced it at 9. A setting
+ * shown in three places and applied in none.
+ *
+ * Found by asking why an eight-floor fixture that should have been unsurvivable
+ * published 3% of the time. It did, because the dial meant to starve it did
+ * nothing. Both readers are asserted here: the runner and the par search, because
+ * if they ever disagree par stops describing the game anybody is playing.
+ */
+describe("the dungeon's own Vigour", () => {
+  const design = (baseVigour: number) => ({
+    seed: "VIGOUR",
+    label: "The Dial",
+    rooms: [...DEEP_ROOMS.filter((r) => r.band === 1).slice(0, 2), DEEP_BOSSES[0]],
+    callingIds: null,
+    kitIds: null,
+    baseVigour,
+  });
+
+  it("is what a run actually starts with", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    const thin = puzzleFrom(design(5));
+    const fat = puzzleFrom(design(13));
+    const build = (p: ReturnType<typeof puzzleFrom>): Build => ({
+      callingId: p.callings[0].id,
+      placement: p.array.map((_, i) => i),
+      kitIds: [p.kit[0].id, p.kit[1].id],
+    });
+    // Brace the first floor, so it costs and nothing is left to the dice, and
+    // read the Vigour AFTER it. The final number is clamped at zero, so comparing
+    // finished runs compares two floors rather than two starting points.
+    const thinRun = run(thin, build(thin), braceEverything(thin), design(5).rooms);
+    const fatRun = run(fat, build(fat), braceEverything(fat), design(13).rooms);
+    expect(fatRun.lines[0].vigourAfter - thinRun.lines[0].vigourAfter).toBe(8);
+  });
+
+  it("changes what the solver thinks par is", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    // More wind to start with can only ever buy a better line, never a worse one.
+    expect(parFor(puzzleFrom(design(13))).par).toBeGreaterThan(
+      parFor(puzzleFrom(design(5))).par
+    );
+  });
+
+  it("starves a dungeon that costs more than it hands out", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    const p = puzzleFrom(design(5));
+    const b: Build = {
+      callingId: p.callings[0].id,
+      placement: p.array.map((_, i) => i),
+      kitIds: [p.kit[0].id, p.kit[1].id],
+    };
+    // Bracing three real floors on five Vigour: the run stops rather than
+    // finishing on a technicality.
+    const result = run(p, b, braceEverything(p), design(5).rooms);
+    expect(result.out).toBe(false);
+  });
+});
+
+/**
+ * THE PAR CACHE.
+ *
+ * It was keyed on the seed alone, which was right for exactly as long as the only
+ * dungeon was the daily: there the seed is the date and the date decides every
+ * room. An authored dungeon's seed is its code, and the code stays put while the
+ * author moves the numbers around, so the desk solved a draft once and then
+ * showed that par for the rest of the process's life. Tune a floor, watch nothing
+ * happen, publish a number from a dungeon you already changed.
+ */
+describe("par is cached on the dungeon, not on its name", () => {
+  it("re-solves when the rooms change under the same seed", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    const base = {
+      seed: "SAMECODE",
+      label: "A draft, mid-edit",
+      callingIds: null,
+      kitIds: null,
+      baseVigour: 9,
+    };
+    const easy = parFor(
+      puzzleFrom({ ...base, rooms: DEEP_ROOMS.filter((r) => r.band === 1).slice(0, 3) })
+    ).par;
+    const harder = parFor(
+      puzzleFrom({ ...base, rooms: DEEP_ROOMS.filter((r) => r.band === 3).slice(0, 3) })
+    ).par;
+    // Different dungeon, same name: two solves, two answers.
+    expect(harder).not.toBe(easy);
+  });
+
+  it("re-solves when only the Vigour dial moves", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    const rooms = DEEP_ROOMS.filter((r) => r.band === 2).slice(0, 3);
+    const of = (baseVigour: number) =>
+      parFor(puzzleFrom({ seed: "DIAL", label: "d", rooms, callingIds: null, kitIds: null, baseVigour })).par;
+    expect(of(13)).toBeGreaterThan(of(5));
+  });
+
+  it("still answers the same dungeon with the same number", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    const rooms = DEEP_ROOMS.filter((r) => r.band === 2).slice(0, 3);
+    const design = { seed: "STABLE", label: "s", rooms, callingIds: null, kitIds: null, baseVigour: 9 };
+    expect(parFor(puzzleFrom(design)).par).toBe(parFor(puzzleFrom(design)).par);
+  });
+});

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getDungeon } from "@/lib/campaign/store";
+import { getDungeon, ownedBy } from "@/lib/campaign/store";
 import { doorFor } from "@/lib/campaign/puzzle";
+import { hasMarked, standingOf } from "@/lib/campaign/hall";
+import { getIdentity } from "@/lib/identity";
 import { Door } from "./Door";
 
 type Props = { params: Promise<{ code: string }> };
@@ -47,5 +49,19 @@ export default async function DoorPage({ params }: Props) {
   // A draft is visible to nobody but its author, and the desk is where they see
   // it. Anybody else gets the same answer as a code that never existed.
   if (!row.publishedAt) notFound();
-  return <Door door={doorFor(row)} />;
+
+  const identity = await getIdentity();
+  const [standing, marked] = await Promise.all([
+    standingOf(row.code),
+    identity ? hasMarked(row.code, identity.id) : Promise.resolve(false),
+  ]);
+  return (
+    <Door
+      door={doorFor(row)}
+      standing={standing}
+      marked={marked}
+      mine={ownedBy(row, identity?.id)}
+      visibility={row.visibility}
+    />
+  );
 }

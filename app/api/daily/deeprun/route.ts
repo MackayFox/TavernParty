@@ -14,6 +14,8 @@ import {
 import { parFor } from "@/lib/daily/deeprun-par";
 import { defsOf, doorFor, puzzleOf } from "@/lib/campaign/puzzle";
 import { countPlay, getDungeon } from "@/lib/campaign/store";
+import { recordRun } from "@/lib/campaign/hall";
+import { getIdentity } from "@/lib/identity";
 
 /**
  * THE DEEP RUN.
@@ -109,7 +111,23 @@ export async function POST(req: Request) {
     // par is a constant and a cold instance should not burn a search for it.
     const { par, best } =
       source.row?.par != null ? { par: source.row.par, best: null } : parFor(puzzle);
-    if (source.row) await countPlay(source.row.code, result.out);
+    if (source.row) {
+      await countPlay(source.row.code, result.out);
+      // The FIRST run per person is the one kept: it is the one played blind,
+      // and after it you know all of this dungeon's numbers.
+      const who = await getIdentity(true);
+      if (who) {
+        await recordRun({
+          code: source.row.code,
+          playerKey: who.id,
+          score: result.score,
+          par,
+          finished: result.out,
+          depth: result.depth,
+          stoppedOn: result.out ? null : result.depth,
+        });
+      }
+    }
     return NextResponse.json({
       ...result,
       archive,

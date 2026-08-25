@@ -118,13 +118,27 @@ const GOOD = {
   baseVigour: 9,
 };
 
-/** Legal at the wire and impossible in play. */
+/**
+ * Legal at the wire and impossible in play.
+ *
+ * Eight floors, the highest target and the highest cost the wire will carry,
+ * against the least Vigour anybody may start with, AND only one Calling with the
+ * bare two things on the shelf.
+ *
+ * That last part is not decoration. A dungeon's dice come from its code, the
+ * server picks the code, and clearing a check costs nothing, so with three
+ * Callings and four kit this fixture published on 3% of codes: a lucky set of
+ * eight dice plus one of 108 builds walks out of it. Narrowing the allowed
+ * characters took that to 0 in 250 codes, with never more than two survivors on
+ * the worst one. The unit test pins its code instead, which a script talking to a
+ * real server over HTTP cannot do.
+ */
 const IMPOSSIBLE = {
   ...GOOD,
   title: "Nobody Comes Back",
-  // Eight floors, the highest target and the highest cost the wire will carry,
-  // against the least Vigour anybody may start with.
   rooms: Array.from({ length: 8 }, (_, i) => room(`x${i}`, 3, "brawn", 20, "wits", 20, 8)),
+  callingIds: ["warden"],
+  kitIds: ["tarred-rope", "whetstone"],
   baseVigour: 5,
 };
 
@@ -146,9 +160,13 @@ async function main() {
     `status ${refused.status}`
   );
   check(
-    "and it names the floor they stop on",
-    /floor \d/.test(JSON.stringify(refused.json?.report?.notes ?? [])),
-    JSON.stringify(refused.json?.report?.notes ?? []).slice(0, 160)
+    // Either honest refusal: nobody gets out (which names the floor that stops
+    // them), or so few do that it is a lock rather than a dungeon. Both are the
+    // gate doing its job, and which one you get depends on the dice the server's
+    // code chose.
+    "and it says something useful about why",
+    /floor \d|lock, not a dungeon/.test(JSON.stringify(refused.json?.report?.notes ?? [])),
+    JSON.stringify(refused.json?.report?.notes ?? []).slice(0, 200)
   );
 
   // ---- the happy path ---------------------------------------------------
@@ -243,8 +261,67 @@ async function main() {
     `${shelf.json?.mine?.length ?? 0} drafts`
   );
 
+  // ---- the Hall ----------------------------------------------------------
+  // The rule worth proving over HTTP: a mark is impossible without a finished
+  // run, and the front shelf is not reachable from a form. Bev finished the run
+  // above, so she may say it was good. Alex never played it, so he may not.
+  const bevMark = await bev.call("POST", `/api/dungeons/${code}/mark`, {});
+  check("somebody who got out can say it was worth their time", bevMark.ok, `status ${bevMark.status}`);
+  check(
+    "and the standing counts them",
+    bevMark.json?.standing?.marks === 1 && bevMark.json?.standing?.finishers === 1,
+    JSON.stringify(bevMark.json?.standing)
+  );
+  const twice = await bev.call("POST", `/api/dungeons/${code}/mark`, {});
+  check("saying it twice is still once", twice.json?.standing?.marks === 1, JSON.stringify(twice.json?.standing));
+
+  const carol = jar();
+  await carol.call("GET", "/api/dungeons");
+  const unearned = await carol.call("POST", `/api/dungeons/${code}/mark`, {});
+  check(
+    "somebody who never went down cannot rate it",
+    unearned.status === 403,
+    `status ${unearned.status} ${String(unearned.json?.error ?? "").slice(0, 60)}`
+  );
+
+  const hall = await carol.call("GET", "/api/dungeons/hall");
+  check(
+    "the Hall does not list a dungeon nobody shelved",
+    !JSON.stringify(hall.json?.fresh ?? []).includes(code),
+    "an unlisted dungeon reached the front page"
+  );
+
+  const submitted = await alex.call("POST", `/api/dungeons/${code}/submit`, {});
+  check("its author can ask for a place in the Hall", submitted.ok, `status ${submitted.status}`);
+  const notMine = await bev.call("POST", `/api/dungeons/${code}/submit`, {});
+  check("somebody else cannot submit it", notMine.status === 403, `status ${notMine.status}`);
+  const stillOut = await carol.call("GET", "/api/dungeons/hall");
+  check(
+    "asking is not the same as being on the shelf",
+    !JSON.stringify(stillOut.json?.fresh ?? []).includes(code),
+    "a submission listed itself"
+  );
+
+  const queue = await alex.call("GET", "/api/admin/dungeons");
+  check(
+    "the moderation queue is not a door a guest can rattle",
+    queue.status === 404,
+    `status ${queue.status}`
+  );
+
+  // ---- the author's own numbers -------------------------------------------
+  const log = await alex.call("GET", `/api/dungeons/${code}/log`);
+  check("the author can read what really happened", log.ok, `status ${log.status}`);
+  check(
+    "and it sets the solver's guess beside it",
+    typeof log.json?.predicted === "number" && log.json?.plays >= 1,
+    JSON.stringify(log.json).slice(0, 140)
+  );
+  const peekLog = await bev.call("GET", `/api/dungeons/${code}/log`);
+  check("nobody else can read it", peekLog.status === 403, `status ${peekLog.status}`);
+
   // ---- the pages ---------------------------------------------------------
-  for (const path of ["/write", `/d/${code}`]) {
+  for (const path of ["/write", "/dungeons", `/d/${code}`]) {
     const res = await fetch(`${BASE}${path}`);
     check(`${path} answers`, res.status === 200, `status ${res.status}`);
   }

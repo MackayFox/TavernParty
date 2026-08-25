@@ -110,10 +110,24 @@ describe("the loop", () => {
   });
 
   it("refuses to publish one the gate is unhappy with, and says why", async () => {
-    // Legal at the wire and impossible in play: eight floors at the maximum cost
-    // a door may carry, against the least Vigour anybody may start with.
+    /**
+     * Legal at the wire and impossible in play: eight floors at the maximum cost
+     * a door may carry, against the least Vigour anybody may start with.
+     *
+     * THE CODE IS PINNED, and that is the whole point of the fixture rather than
+     * tidiness. A dungeon's dice come from its code, so a random code is a random
+     * dungeon, and "impossible" is a property of the dice as much as of the
+     * numbers: clearing a check costs nothing, so a code whose eight dice all
+     * happen to be high is a dungeon a lucky build walks out of. Measured at 3%
+     * of codes, which is exactly the frequency this test used to fail at, and
+     * which read as a flake in the gate rather than as a fixture choosing its own
+     * dungeon. HHHHHH throws 8, 12, 3, 9, 1, 7, 8, 14: nobody gets out, on any of
+     * the 108 characters these settings allow.
+     */
+    vi.spyOn(Math, "random").mockReturnValue(5 / 29 + 0.001);
     const eight = Array.from({ length: 8 }, (_, i) => room(`b${i}`, 20, 8));
     const code = await draft({ ...good, rooms: eight, baseVigour: 5 });
+    expect(code).toBe("HHHHHH");
     const params = Promise.resolve({ code });
     const res = await publish.POST(req(`/api/dungeons/${code}/publish`, {}), { params });
     expect(res.status).toBe(400);
