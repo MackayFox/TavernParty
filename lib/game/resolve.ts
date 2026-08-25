@@ -122,7 +122,18 @@ export function sumLedger(mods: readonly Modifier[]): number {
  * scenes. Dread still bites everywhere else, so cowardice is still taxed.
  */
 export function costMultiplier(
-  ctx: Pick<RollContext, "calling" | "scene" | "dread"> & {
+  ctx: {
+    calling: RollContext["calling"];
+    /**
+     * Only the tags, structurally.
+     *
+     * It used to demand a whole `Scene`, which is authored content, which meant
+     * the one client component that needs this arithmetic had to import all thirty
+     * scenes to satisfy a function that reads one array of strings. Asking for
+     * what it uses lets the screen pass the redacted scene the server sent.
+     */
+    scene: { tags: readonly string[] };
+    dread: number;
     approach?: { reckless: boolean };
     /** Table size, because the doubling threshold scales with it. Solo if absent. */
     players?: number;

@@ -11,7 +11,6 @@
 import { useState } from "react";
 import { Avatar, Button, Die, Pill, Sheet } from "@/components/ui";
 import { BLOODS } from "@/lib/content/bloods";
-import { SCENES_BY_ID } from "@/lib/content/scenes";
 import {
   ABILITY_LABEL,
   ASHKIN_DREAD,
@@ -29,7 +28,7 @@ const BLOOD_BY_ID = new Map(BLOODS.map((b) => [b.id, b]));
 
 export function ActResult({ view, post, busy }: PhaseProps) {
   const act = view.act;
-  const scene = act ? SCENES_BY_ID[act.sceneId] : undefined;
+  const scene = act?.scene;
   const me = meOf(view);
   if (!act || !scene || !act.outcomes) return null;
 
@@ -68,7 +67,13 @@ export function ActResult({ view, post, busy }: PhaseProps) {
       return "You could see the whole thing and you stayed where you were.";
     const approach = scene?.approaches.find((a) => a.id === outcome.approachId);
     if (!approach) return "";
-    return outcome.success ? approach.win : approach.lose;
+    /**
+     * The prose is optional on the view because it only comes down once the Act
+     * has resolved, and this screen only renders then. The fallback is empty
+     * rather than a guess: a missing line is a redaction working, not a bug to
+     * paper over with invented text.
+     */
+    return (outcome.success ? approach.win : approach.lose) ?? "";
   }
 
   return (
@@ -306,7 +311,7 @@ function SignatureCall({
   const me = meOf(view);
   const calling = me?.callingId ? CALLING_BY_ID.get(me.callingId) : undefined;
   const act = view.act;
-  const scene = act ? SCENES_BY_ID[act.sceneId] : undefined;
+  const scene = act?.scene;
   const [targetId, setTargetId] = useState("");
   const [doorId, setDoorId] = useState("");
 

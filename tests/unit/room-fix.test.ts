@@ -274,3 +274,82 @@ describe("the sheet ASSIGN opens on", () => {
     expect(new Set(ids.map(suggestedHookId)).size).toBeGreaterThan(1);
   });
 });
+
+describe("no answer in the bundle", () => {
+  /**
+   * THE LEAK THIS GUARDS.
+   *
+   * `Act.tsx` and `Result.tsx` are client components and they imported
+   * `SCENES_BY_ID`, so every scene in the game shipped in the JavaScript bundle:
+   * all thirty of them, their outcome prose, and every hidden Reckless target
+   * number. The server redacted `recklessTn` scrupulously, the UI honoured it,
+   * and the number was in devtools the whole time.
+   *
+   * That is not cosmetic. The Torch, Longshank's seeOneReckless and the
+   * Reckoner's Signature all SELL that number, so a player who opened the bundle
+   * got three of the game's rewards for nothing.
+   *
+   * A source-level assertion rather than a bundle one, because it fails in the
+   * right place: the moment somebody adds the import, not twenty minutes later in
+   * a size report nobody reads.
+   */
+  const CLIENT_FILES = [
+    "components/room/Act.tsx",
+    "components/room/Result.tsx",
+    "components/room/Draft.tsx",
+    "components/room/Assign.tsx",
+    "components/room/Ending.tsx",
+    "components/room/Lobby.tsx",
+    "components/room/shared.tsx",
+    "app/room/[code]/RoomClient.tsx",
+  ];
+
+  it("keeps the scenes out of every client component in the room", async () => {
+    const { readFileSync } = await import("node:fs");
+    const guilty: string[] = [];
+    for (const file of CLIENT_FILES) {
+      const src = readFileSync(file, "utf8");
+      if (/from "@\/lib\/content\/scenes"/.test(src)) guilty.push(file);
+    }
+    expect(guilty).toEqual([]);
+  });
+
+  it("hides the Reckless number in the view until it is bought", async () => {
+    const engine = await import("@/lib/game/engine");
+    const { SCENES_BY_ID } = await import("@/lib/content/scenes");
+    const { rngFor } = await import("./helpers");
+
+    const now = Date.UTC(2026, 7, 25, 20, 0, 0);
+    const room = engine.createRoom(
+      { code: "TAVERN", name: "The Test", visibility: "public", settings: {} },
+      now
+    );
+    for (const [i, name] of ["ALEX", "BEV", "CHRIS"].entries()) {
+      engine.join(room, { id: `p${i}`, name }, now);
+    }
+    engine.startRun(room, "p0", now, rngFor(12));
+    const rng = rngFor(12);
+    let clock = now;
+    for (let i = 0; i < 20 && room.phase !== "ACT"; i++) {
+      clock = room.phaseEndsAt! + 1;
+      engine.tick(room, clock, rng);
+    }
+    expect(room.phase).toBe("ACT");
+
+    const reckless = SCENES_BY_ID[room.act!.sceneId].approaches.find((a) => a.reckless)!;
+    const view = engine.viewFor(room, "p0");
+    const payload = JSON.stringify(view);
+
+    expect(view.act?.recklessTn).toBeNull();
+    // The number itself, in the one place it could hide now that the scene comes
+    // down with the view.
+    expect(view.act?.scene.approaches.find((a) => a.reckless)?.tn).toBeNull();
+    // And no outcome prose before there are outcomes.
+    expect(payload).not.toContain(reckless.win);
+    expect(payload).not.toContain(reckless.lose);
+    // The safe doors keep their numbers: this is a bet, not a riddle.
+    const safe = view.act!.scene.approaches.filter((a) => !a.reckless);
+    expect(safe.length).toBeGreaterThan(0);
+    for (const a of safe) expect(typeof a.tn).toBe("number");
+  });
+});

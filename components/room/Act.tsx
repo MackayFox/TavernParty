@@ -9,7 +9,6 @@
  */
 import { useEffect, useState } from "react";
 import { Avatar, Button, Pill } from "@/components/ui";
-import { SCENES_BY_ID } from "@/lib/content/scenes";
 import { TAG_MEANING, isTag } from "@/lib/content/tags";
 import { DIE_RULE, faceNeeded } from "@/lib/daily/core";
 import { costMultiplier, sumLedger } from "@/lib/game/resolve";
@@ -27,7 +26,7 @@ import {
   abilityMod,
   dreadThresholds,
 } from "@/lib/game/rules";
-import type { ApproachDef, Calling, Modifier, Scene } from "@/lib/game/types";
+import type { ApproachView, Calling, Modifier, SceneView } from "@/lib/game/types";
 import { CALLING_BY_ID, KIT_BY_ID, meOf, nameOf, signed, type PhaseProps } from "./shared";
 
 /**
@@ -50,7 +49,7 @@ import { CALLING_BY_ID, KIT_BY_ID, meOf, nameOf, signed, type PhaseProps } from 
  */
 export function flinchCost(input: {
   calling: Calling | undefined;
-  scene: Scene;
+  scene: SceneView;
   dread: number;
   players: number;
   marked: boolean;
@@ -156,8 +155,14 @@ export function Act({ view, post, busy }: PhaseProps) {
   const [nominated, setNominated] = useState<string | null>(null);
 
   if (!act) return null;
-  const scene = SCENES_BY_ID[act.sceneId];
-  if (!scene) return null;
+  /**
+   * The scene as the server redacted it, not the authored one.
+   *
+   * This file used to import SCENES_BY_ID, which put all thirty scenes, their
+   * prose and every hidden Reckless target number into the browser bundle while
+   * the UI politely pretended not to know them.
+   */
+  const scene = act.scene;
 
   const calling = me?.callingId ? CALLING_BY_ID.get(me.callingId) : undefined;
   const kit = (me?.kitIds ?? []).map((id) => KIT_BY_ID.get(id)).filter((k) => !!k);
@@ -182,7 +187,7 @@ export function Act({ view, post, busy }: PhaseProps) {
   const spending = chosen ? (locked ?? 0) : spend;
 
   /** Everything you bring to a roll before the die and before tokens. */
-  function bonusFor(approach: ApproachDef): number {
+  function bonusFor(approach: ApproachView): number {
     let total = me?.scores ? abilityMod(me.scores[approach.ability]) : 0;
     if (calling?.affinities.includes(approach.ability)) total += AFFINITY_BONUS;
     for (const item of kit) {
@@ -191,7 +196,7 @@ export function Act({ view, post, busy }: PhaseProps) {
     return total;
   }
 
-  function reachOn(approach: ApproachDef): Modifier[] {
+  function reachOn(approach: ApproachView): Modifier[] {
     return reachParts({
       bonus: bonusFor(approach),
       spending,
@@ -208,7 +213,7 @@ export function Act({ view, post, busy }: PhaseProps) {
     marked,
   });
 
-  function costWords(approach: ApproachDef): string {
+  function costWords(approach: ApproachView): string {
     const mult = costMultiplier({
       calling,
       scene,

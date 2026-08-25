@@ -393,6 +393,55 @@ export type DraftView = {
   granted: Record<string, string>;
 };
 
+/**
+ * ONE APPROACH, AS A PLAYER IS ALLOWED TO SEE IT.
+ *
+ * The reason this type exists is a leak. `Act.tsx` and `Result.tsx` are client
+ * components and they imported `SCENES_BY_ID`, so every scene in the game shipped
+ * in the JavaScript bundle: all thirty of them, their win and lose prose, and
+ * every hidden Reckless target number. The server redacted `recklessTn`
+ * scrupulously and the UI honoured it, and the number was sitting in devtools the
+ * whole time.
+ *
+ * That is not a cosmetic leak. Three things in this game SELL that number: the
+ * Torch, Longshank's `seeOneReckless` and the Reckoner's Signature. A player who
+ * opens the bundle gets all three for nothing, and CLAUDE.md's rule is "no answer
+ * in a payload".
+ *
+ * So the scene comes down redacted, and the client has no content import to fall
+ * back on. `tn` is null on the Reckless line until you have paid to see it, and
+ * the win and lose prose does not come down at all: the outcome carries the line
+ * that actually happened.
+ */
+export type ApproachView = {
+  id: string;
+  label: string;
+  ability: Ability;
+  /** Null on the Reckless line until this player has bought the number. */
+  tn: number | null;
+  deed: number;
+  cost: { renown: number; dread: number };
+  reckless: boolean;
+  /**
+   * What happened, sent only once the Act has resolved.
+   *
+   * Gated for the same reason the Deep Run gates a room's prose: it is the
+   * outcome, and the outcome arrives when it happens. Before then the player has
+   * the label and the promise, which is what they are choosing between.
+   */
+  win?: string;
+  lose?: string;
+};
+
+/** The scene, with the answers taken out. */
+export type SceneView = {
+  id: string;
+  title: string;
+  setup: string;
+  tags: string[];
+  approaches: ApproachView[];
+};
+
 export type ActView = Omit<ActState, "choices"> & {
   /** Only your own choice, until the Act resolves. */
   myChoice: string | null;
@@ -400,6 +449,11 @@ export type ActView = Omit<ActState, "choices"> & {
   committed: string[];
   /** The reckless target number, only if you paid to see it. */
   recklessTn: number | null;
+  /**
+   * The scene itself, redacted. Sent so that no client component has to import
+   * `lib/content/scenes`, which is what put every hidden number in the bundle.
+   */
+  scene: SceneView;
 };
 
 export type RoomView = Omit<

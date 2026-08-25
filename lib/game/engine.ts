@@ -1737,6 +1737,32 @@ export function viewFor(room: Room, playerId: string | null): RoomView {
           myChoice: playerId ? (act.choices[playerId] ?? null) : null,
           committed: Object.keys(act.choices),
           recklessTn: canSeeReckless ? (reckless?.tn ?? null) : null,
+          /**
+           * The scene, with the answers taken out, so that no client component
+           * needs `lib/content/scenes`. Two of them used to import it, which put
+           * all thirty scenes and every hidden Reckless number in the bundle.
+           *
+           * Built here rather than in a helper because the redaction rule is one
+           * line and it belongs next to the flag that decides it: a Reckless
+           * target is null until this player has bought it or the Act is over.
+           */
+          scene: {
+            id: scene?.id ?? act.sceneId,
+            title: scene?.title ?? "",
+            setup: scene?.setup ?? "",
+            tags: scene?.tags ? [...scene.tags] : [],
+            approaches: (scene?.approaches ?? []).map((a) => ({
+              id: a.id,
+              label: a.label,
+              ability: a.ability,
+              tn: a.reckless && !canSeeReckless ? null : a.tn,
+              deed: a.deed,
+              cost: { ...a.cost },
+              reckless: a.reckless,
+              // The outcome prose arrives with the outcome, not before it.
+              ...(act.outcomes ? { win: a.win, lose: a.lose } : {}),
+            })),
+          },
         }
       : null,
     // Never the whole deck: only what has been faced.
