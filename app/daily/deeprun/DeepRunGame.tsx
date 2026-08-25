@@ -31,6 +31,8 @@ import { postJson } from "@/components/client";
 import { Adventurer, Behind, type Sheet as CharacterSheet } from "@/components/daily/Adventurer";
 import { Reveal } from "@/components/daily/Reveal";
 import { playOut, setSoundOn, soundOn } from "@/components/daily/sfx";
+import { Runner } from "@/components/daily/Runner";
+import { oneLine, readHero, recordNight, type Hero } from "@/lib/daily/hero";
 import { ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
 import { FAILED_CHECK_EXTRA } from "@/lib/daily/core";
 import type { Ability } from "@/lib/game/types";
@@ -68,6 +70,15 @@ type Room = { id: string; index: number; title: string; setup: string; boss: boo
 
 type Payload = {
   date: string;
+  /**
+   * What it is called: the date for the daily, the author's title for a dungeon.
+   *
+   * Already in the payload since dungeons became a thing; the client type simply
+   * never declared it, so nothing could read it. The runner's ledger needs it, or
+   * every line of a life reads "2026-08-25" including the nights somebody spent
+   * in a dungeon with a name.
+   */
+  label: string;
   archive: boolean;
   array: number[];
   abilities: Ability[];
@@ -268,6 +279,15 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    */
   const [seen, setSeen] = useState<number>(saved?.reply?.lines.length ?? 0);
   const [sound, setSound] = useState(true);
+  /**
+   * The runner: one character, kept between nights.
+   *
+   * Read after mount, never during render, because localStorage does not exist on
+   * the server and a first client render that disagrees with the server's makes
+   * React throw the whole tree away.
+   */
+  const [hero, setHero] = useState<Hero | null>(null);
+  useEffect(() => setHero(readHero()), []);
   // Read after mount: localStorage does not exist while this renders on the
   // server, and disagreeing with the server's HTML throws the tree away.
   useEffect(() => setSound(soundOn()), []);
@@ -304,11 +324,48 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
     recorded.current = true;
     // A dungeon is not one of tonight's four, so it touches no streak and writes
     // no daily result. It is somebody's link, and the score belongs to them.
+    /**
+     * The runner's ledger, and it counts somebody else's dungeon too.
+     *
+     * A dungeon touches no streak and writes no daily result, because the score
+     * belongs to whoever wrote it. But it IS a night your character went down, and
+     * a ledger that only counted the house's four would be a worse record of a
+     * life than the one the player actually led.
+     *
+     * ARCHIVE RUNS ARE NOT NIGHTS. `lib/daily/local` already keeps archive play
+     * separate on purpose: you have seen those dice. A ledger counting them would
+     * let "eleven nights down" be built on the one path the codebase has already
+     * conceded does not count.
+     */
+    if (!reply.archive && readHero()) {
+      const scars = reply.lines
+        .filter((line) => !line.cleared && line.text)
+        // The authored `lose` sentence, verbatim. Never a generated label: every
+        // door in the game already has one written as a wound, and the gate
+        // refuses to publish an authored door without one.
+        .map((line) => ({ where: line.title, line: line.text, on: dungeon ?? data.date }));
+      setHero(
+        recordNight(
+          {
+            on: dungeon ?? data.date,
+            label: dungeon ? data.label : data.date,
+            callingId: callingId ?? "",
+            score: reply.score,
+            par: reply.par ?? null,
+            out: reply.out,
+            floors: data.rooms.length,
+            reached: reply.depth,
+          },
+          scars
+        )
+      );
+    }
+
     if (dungeon) return;
     void finishDaily(GAME, data.date, reply.score, reply.par ?? null, reply.archive).then(
       setStreak
     );
-  }, [finished, data.date, reply, dungeon]);
+  }, [finished, data.date, data.label, data.rooms.length, reply, dungeon, callingId]);
 
   const calling = data.callings.find((c) => c.id === callingId);
   const placed = slots.filter((s) => s !== null).length;
@@ -458,6 +515,17 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
       {/* ---------------------------------------------------------- the build */}
       {!down && (
         <div className="mt-6 space-y-4">
+          {/*
+            WHO IS GOING DOWN, AND HOW LONG THEY HAVE BEEN DOING THIS.
+
+            The complaint this answers: "I am making a few choices from a very
+            limited selection, then throwing the character away within minutes."
+            The choices are the same, because a shared par depends on them being
+            the same. What changes is that the character is no longer thrown away:
+            it has a name, an ancestry, a past, and a list of everything that has
+            happened to it.
+          */}
+          <Runner hero={hero} onChange={setHero} />
           <Card>
             <p className="label-caps">One. Who is going down</p>
             <ul className="mt-3 space-y-2">

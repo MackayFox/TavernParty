@@ -258,6 +258,8 @@ describe("a deep run survives a reload", () => {
 
   const payload = (): Payload => ({
     date: DAY,
+    // The daily's label IS its date. A dungeon's is the author's title.
+    label: DAY,
     archive: false,
     array: [14, 13, 12, 11, 10, 9],
     abilities: ["brawn", "deft", "grit", "wits", "nerve", "charm"],
