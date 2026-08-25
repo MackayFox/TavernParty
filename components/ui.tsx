@@ -68,7 +68,15 @@ export function Field({
   );
 }
 
-export function Card({ className = "", ...props }: React.HTMLAttributes<HTMLDivElement>) {
+/**
+ * Takes a ref, like `Input` already did.
+ *
+ * Needed because the dailies now move focus to the thing that just resolved, and
+ * the thing that just resolved is a Card. React 19 passes `ref` as an ordinary
+ * prop to a function component, so this is a type change rather than a
+ * forwardRef wrapper.
+ */
+export function Card({ className = "", ...props }: React.ComponentPropsWithRef<"div">) {
   return (
     <div
       className={`rounded-lg border border-border-dim bg-bg-1 p-4 ${className}`}

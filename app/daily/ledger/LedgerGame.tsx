@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Announcer, Button, Card, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
 import { postJson } from "@/components/client";
+import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 
@@ -57,6 +58,14 @@ export function LedgerGame({ date }: { date?: string | null }) {
   const [checks, setChecks] = useState(0);
   const [checkNote, setCheckNote] = useState<string | null>(null);
   const [closed, setClosed] = useState<Closed | null>(null);
+  /**
+   * Take the player to the verdict.
+   *
+   * The Ledger closes once, so the key is simply whether it has. Before this the
+   * verdict appeared under a five by five grid and four clues and the page did not
+   * move, so on a phone you pressed Close and nothing visibly happened.
+   */
+  const landed = useLanded<HTMLDivElement>(closed ? "closed" : null);
   const [arming, setArming] = useState(false);
   const [restored, setRestored] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -314,7 +323,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
           ) : null}
 
           {closed ? (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4" ref={landed}>
               <Card>
                 <p className="label-caps">{closed.solved ? "It balances" : "It does not balance"}</p>
                 <p className="num mt-1 text-4xl text-text-hi">

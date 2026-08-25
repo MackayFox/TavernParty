@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Announcer, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
 import { postJson } from "@/components/client";
+import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { reachNote } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
@@ -212,6 +213,15 @@ export function LongwayGame({ date }: { date?: string | null }) {
 
   const latest = reply?.ledgers[reply.ledgers.length - 1] ?? null;
   const showLatest = latest !== null && latest.index === acted && !done;
+  /**
+   * Take the player to the Act that just resolved.
+   *
+   * Keyed on the Act's index, so it fires once per resolution and never on a
+   * re-render that changed nothing. Before this the line appeared and the page
+   * did not move, which on a phone meant the answer to what you just did was off
+   * the top of the screen.
+   */
+  const landed = useLanded<HTMLDivElement>(showLatest && latest ? latest.index : null);
 
   /**
    * What a door would come to, before committing to it.
@@ -343,7 +353,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
           </Card>
 
           {showLatest && latest ? (
-            <Card className="tp-anim-reveal mt-4">
+            <Card className="tp-anim-reveal mt-4" ref={landed}>
               <p className="label-caps">Act {latest.index}</p>
               <p className="prose-read mt-1 text-text-hi">{latest.line}</p>
               <p className="num mt-3 text-sm text-text-mid">

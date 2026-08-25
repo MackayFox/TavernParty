@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Announcer, Button, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
 import { postJson } from "@/components/client";
+import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { clears, reachNote } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
@@ -129,6 +130,14 @@ export function MusterGame({ date }: { date?: string | null }) {
   }, [restored, data, placement, callingId, kitId, result]);
 
   const locked = result !== null;
+  /**
+   * Take the player to the result.
+   *
+   * Muster resolves once, so the key is simply whether there is a result. Before
+   * this the whole outcome appeared below a long build form and the page stayed
+   * exactly where the button had been.
+   */
+  const landed = useLanded<HTMLDivElement>(result ? "result" : null);
   const duplicates = new Set(placement).size !== placement.length;
   const calling = data?.callings.find((c) => c.id === callingId);
   const kit = data?.kit.find((k) => k.id === kitId);
@@ -385,7 +394,7 @@ export function MusterGame({ date }: { date?: string | null }) {
           </Button>
 
           {result ? (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4" ref={landed}>
               <Card>
                 <p className="label-caps">{data.encounter}</p>
                 <p className="num mt-1 text-4xl text-text-hi">
