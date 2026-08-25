@@ -27,6 +27,7 @@ import { Announcer, Button, Card, ErrorNote, Pill, Sheet, Spinner } from "@/comp
 import { getJson, postJson } from "@/components/client";
 import { ABILITY_LABEL } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
+import { readingOf, targetsFor, wordForTarget } from "@/lib/daily/targets";
 
 type Option = {
   id: string;
@@ -95,15 +96,19 @@ const KIT = [
 ] as const;
 
 /** The difficulty word fills the number in. Behind a disclosure, it nudges. */
-const TN_TABLE: Record<1 | 2 | 3, Record<string, number>> = {
-  1: { easy: 11, fair: 12, hard: 13 },
-  2: { easy: 14, fair: 15, hard: 16 },
-  3: { easy: 16, fair: 17, hard: 18 },
-};
+/**
+ * COST follows the band, and the TARGET follows the die.
+ *
+ * The band is how deep the floor is, which is a thing the author decides, so it
+ * sets the price. The target is how hard a check is, which is not a thing the
+ * author can decide on their own: the die was thrown from the dungeon's code
+ * before anybody chose a door, so "hard" only means anything relative to it. See
+ * lib/daily/targets.ts for what a fixed band table did to the house's own demo.
+ */
 const COST: Record<1 | 2 | 3, number> = { 1: 2, 2: 3, 3: 4 };
 const BAND_WORD: Record<1 | 2 | 3, string> = { 1: "Shallow", 2: "Middling", 3: "Deep" };
 
-/** Which word a target number currently sits on, so the select shows the truth. */
+
 /**
  * MARKS, on one door.
  *
@@ -175,11 +180,13 @@ function Marks({
   );
 }
 
-function wordFor(band: 1 | 2 | 3, tn: number): string {
-  const table = TN_TABLE[band];
-  const hit = Object.entries(table).find(([, v]) => v === tn);
-  return hit ? hit[0] : "fair";
+/** Which word a target sits on for THIS floor's die, so the select tells the truth. */
+function wordFor(die: number, tn: number): string {
+  return wordForTarget(die, tn);
 }
+
+/** A floor with no die yet (a fresh slot) gets a middling one to work against. */
+const DIE_UNKNOWN = 10;
 
 let nextId = 0;
 const freshId = (p: string) => `${p}-${Date.now().toString(36)}-${nextId++}`;
@@ -200,6 +207,14 @@ function blankRoom(): Room {
 
 export function Desk({ code }: { code: string }) {
   const [draft, setDraft] = useState<Draft | null>(null);
+  /**
+   * The dice this dungeon has already thrown, one per possible floor.
+   *
+   * Sent with the draft rather than worked out here: `dieFor` lives in the module
+   * that holds every room's win and lose prose, and a client component must never
+   * import it. They never change, because they come from the code.
+   */
+  const [dice, setDice] = useState<number[]>([]);
   const [pool, setPool] = useState<PoolEntry[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,13 +223,14 @@ export function Desk({ code }: { code: string }) {
   const [link, setLink] = useState<string | null>(null);
 
   useEffect(() => {
-    void getJson<{ mine: boolean; draft?: Draft }>(`/api/dungeons/${code}`)
+    void getJson<{ mine: boolean; draft?: Draft; dice?: number[] }>(`/api/dungeons/${code}`)
       .then((d) => {
         if (!d.mine || !d.draft) {
           setError("That one is not yours to write.");
           return;
         }
         setDraft(d.draft);
+        setDice(d.dice ?? []);
       })
       .catch(() => setError("Could not find that draft."));
     void getJson<{ pool: PoolEntry[] }>("/api/dungeons")
@@ -438,6 +454,7 @@ export function Desk({ code }: { code: string }) {
                 key={room.id}
                 room={room}
                 index={i}
+                die={dice[i] ?? DIE_UNKNOWN}
                 last={i === draft.rooms.length - 1}
                 flagged={report?.notes.filter((n) => n.floor === i + 1) ?? []}
                 onEdit={(patch) => editRoom(i, patch)}
@@ -639,6 +656,7 @@ function Toggles({
 function Floor({
   room,
   index,
+  die,
   last,
   flagged,
   onEdit,
@@ -648,6 +666,15 @@ function Floor({
 }: {
   room: Room;
   index: number;
+  /**
+   * The die this floor has ALREADY thrown, from the dungeon's code.
+   *
+   * The most useful fact on the desk and the one an author cannot get by reading
+   * their own writing. It is what makes the three difficulty words mean anything:
+   * see lib/daily/targets.ts for what a fixed band table did to the house's own
+   * demo dungeon.
+   */
+  die: number;
   last: boolean;
   flagged: Note[];
   onEdit: (patch: Partial<Room>) => void;
@@ -727,6 +754,11 @@ function Floor({
           />
         </label>
 
+        <p className="mt-3 rounded border border-paper-rule bg-white/30 p-2 text-sm text-paper-ink">
+          <span aria-hidden className="mr-1 font-mono">&#9860;</span>
+          {readingOf(die)}
+        </p>
+
         <label className="mt-3 block">
           <span className="sheet-label">How deep this one is</span>
           <select
@@ -735,13 +767,12 @@ function Floor({
               const band = Number(e.target.value) as 1 | 2 | 3;
               // The word fills the number in, so changing the depth re-fills every
               // door on the floor rather than leaving stale targets behind.
+              // Depth sets the PRICE. It no longer touches the targets, because a
+              // target only means anything against this floor's die and the die
+              // does not change when the author decides the floor is deeper.
               onEdit({
                 band,
-                options: room.options.map((o) =>
-                  o.kind === "check"
-                    ? { ...o, tn: TN_TABLE[band][wordFor(room.band, o.tn ?? 15)], vigour: COST[band] }
-                    : { ...o, vigour: COST[band] }
-                ),
+                options: room.options.map((o) => ({ ...o, vigour: COST[band] })),
               });
             }}
             className="min-h-11 rounded border border-paper-rule bg-white/40 px-3 text-paper-ink"
@@ -774,15 +805,21 @@ function Floor({
                   </select>
                   <select
                     aria-label={`How hard door ${j + 1} is`}
-                    value={wordFor(room.band, o.tn ?? 15)}
-                    onChange={(e) => onOption(j, { tn: TN_TABLE[room.band][e.target.value] })}
+                    value={wordFor(die, o.tn ?? targetsFor(die).fair)}
+                    onChange={(e) =>
+                      onOption(j, {
+                        tn: targetsFor(die)[e.target.value as "easy" | "fair" | "hard"],
+                      })
+                    }
                     className="min-h-11 rounded border border-paper-rule bg-white/40 px-2 text-paper-ink"
                   >
-                    <option value="easy">easy</option>
-                    <option value="fair">fair</option>
-                    <option value="hard">hard</option>
+                    <option value="easy">most get through</option>
+                    <option value="fair">about half</option>
+                    <option value="hard">few do</option>
                   </select>
-                  <span className="num text-xs text-paper-ink-mid">needs {o.tn}</span>
+                  <span className="num text-xs text-paper-ink-mid">
+                    needs {o.tn}, and this floor throws {die}
+                  </span>
                 </>
               ) : (
                 <span className="num text-xs text-paper-ink-mid">

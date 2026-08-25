@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
 import { doorFor } from "@/lib/campaign/puzzle";
 import { getDungeon, ownedBy, saveDungeon } from "@/lib/campaign/store";
+import { dieFor } from "@/lib/daily/deeprun";
 import { MAX_FLOORS } from "@/lib/campaign/gate";
 import { getIdentity } from "@/lib/identity";
 import { rateLimit } from "@/lib/ratelimit";
@@ -69,9 +70,29 @@ export async function GET(_req: Request, ctx: { params: Promise<{ code: string }
 
     const identity = await getIdentity();
     const mine = ownedBy(row, identity?.id);
-    // The author gets the whole draft back so the desk can load it. Everybody
-    // else gets the door, which carries no `win`, no `lose` and no dice.
-    return NextResponse.json(mine ? { mine: true, draft: row } : { mine: false, door: doorFor(row) });
+    /**
+     * The author gets the whole draft back so the desk can load it, AND the dice.
+     * Everybody else gets the door, which carries no `win`, no `lose` and no dice.
+     *
+     * The dice are the author's most useful fact and the one thing they cannot
+     * work out by reading their own writing. Every room's die is thrown from the
+     * dungeon's code before anybody chooses, so a floor that threw a 2 cannot be
+     * cleared on a target of 11 by any character the game can build: without this,
+     * an author sets three targets, watches the solver call the floor a single
+     * choice wearing a hat, and has no way to see why.
+     *
+     * As many dice as the draft could ever have floors, so adding a floor does not
+     * need another request.
+     */
+    return NextResponse.json(
+      mine
+        ? {
+            mine: true,
+            draft: row,
+            dice: Array.from({ length: MAX_FLOORS }, (_, i) => dieFor(row.code, i)),
+          }
+        : { mine: false, door: doorFor(row) }
+    );
   } catch (err) {
     return handleError(err);
   }

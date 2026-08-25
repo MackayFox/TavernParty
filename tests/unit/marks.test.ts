@@ -251,7 +251,7 @@ describe("the solver", () => {
       ...design(rooms),
       seed: "HEAVY",
       callingIds: ["warden", "knife", "hedgewitch", "oathbound"],
-      kitIds: ["tarred-rope", "whetstone", "pitch-torches", "cracked-mirror", "salt-pouch", "iron-nail"],
+      kitIds: ["tarred-rope", "whetstone", "pitch-torches", "cracked-mirror", "brass-tinderbox", "sounding-line"],
     };
     const started = Date.now();
     const { par } = parFor(puzzleFrom(heavy));

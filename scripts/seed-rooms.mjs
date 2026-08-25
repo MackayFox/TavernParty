@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Put the house's own rooms on the shelf.
+ * Put the house's own rooms on the shelf, and the house's own dungeon in the Hall.
  *
  *   npm run dev            # in one terminal
  *   node scripts/seed-rooms.mjs
@@ -32,3 +32,27 @@ if (!res.ok) {
 }
 const body = await res.json();
 console.log(`Shelf now holds ${body.total} rooms (${body.added} added).`);
+
+const d = body.demo;
+if (!d) {
+  console.log("No demo dungeon in the response.");
+} else if (d.already && d.stale) {
+  console.log(`
+THE STONE WALK (${d.code}) is out of date and has been played ${d.plays} times.`);
+  console.log(d.note);
+  process.exitCode = 1;
+} else if (d.already) {
+  console.log(`
+THE STONE WALK (${d.code}) is already up. ${d.difficulty}, par ${d.par}.`);
+} else if (!d.published) {
+  console.log(`
+THE STONE WALK did NOT publish. The gate said:`);
+  for (const n of d.report?.notes ?? []) console.log(`  [${n.severity}] ${n.text}`);
+  process.exitCode = 1;
+} else {
+  console.log(`
+THE STONE WALK (${d.code}) published. ${d.difficulty}, par ${d.par}.`);
+  console.log(`  ${d.out} of the ${d.builds} characters it allows get out alive.`);
+  for (const n of d.notes ?? []) console.log(`  [${n.severity}] ${n.text}`);
+  console.log(`  ${BASE}/d/${d.code}`);
+}
