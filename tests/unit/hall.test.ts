@@ -88,6 +88,7 @@ let hallRoute: typeof import("@/app/api/dungeons/hall/route");
 let queueRoute: typeof import("@/app/api/admin/dungeons/route");
 let actRoute: typeof import("@/app/api/admin/dungeons/[code]/route");
 let hall: typeof import("@/lib/campaign/hall");
+let play: typeof import("@/app/api/daily/deeprun/route");
 
 beforeEach(async () => {
   who = { id: "guest_author", kind: "guest", displayName: "ALEX" };
@@ -101,6 +102,7 @@ beforeEach(async () => {
   queueRoute = await import("@/app/api/admin/dungeons/route");
   actRoute = await import("@/app/api/admin/dungeons/[code]/route");
   hall = await import("@/lib/campaign/hall");
+  play = await import("@/app/api/daily/deeprun/route");
 });
 
 /** A published dungeon, owned by whoever `who` currently is. */
@@ -405,5 +407,59 @@ describe("chosen for the week", () => {
       params: Promise.resolve({ code }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("the house dungeon is content, not data", () => {
+  /**
+   * A link to The Stone Walk went on the front page and in the header, and both
+   * answered 404 on a deployment whose database was not reachable. It ships in the
+   * bundle; it had no business needing a row.
+   *
+   * These run with Supabase mocked as unconfigured and the memstore empty, which
+   * is the same shape as "the database is there and cannot answer".
+   */
+  it("is playable with nothing in the store at all", async () => {
+    const { getDungeon } = await import("@/lib/campaign/store");
+    const { DEMO_CODE, DEMO_TITLE } = await import("@/lib/content/demo-dungeon");
+    const row = await getDungeon(DEMO_CODE);
+    expect(row).toBeTruthy();
+    expect(row!.title).toBe(DEMO_TITLE);
+    expect(row!.publishedAt).toBeTruthy();
+    // With a par, because a card with no par is not a card.
+    expect(row!.par).toBeGreaterThan(0);
+    expect(row!.difficulty).toBeTruthy();
+  });
+
+  it("serves the door and plays, with no row anywhere", async () => {
+    const { DEMO_CODE } = await import("@/lib/content/demo-dungeon");
+    const puzzle = await json(
+      await play.GET(req(`/api/daily/deeprun?c=${DEMO_CODE}`))
+    );
+    const rooms = puzzle.rooms as { options: { id: string; kind: string }[] }[];
+    expect(rooms.length).toBe(6);
+    const callings = puzzle.callings as { id: string }[];
+    const kit = puzzle.kit as { id: string }[];
+    const res = await json(
+      await play.POST(
+        req(`/api/daily/deeprun?c=${DEMO_CODE}`, {
+          callingId: callings[0].id,
+          placement: [0, 1, 2, 3, 4, 5],
+          kitIds: [kit[0].id, kit[1].id],
+          steps: rooms.map((r) => ({
+            optionId: r.options.find((o) => o.kind === "brace")!.id,
+          })),
+        })
+      )
+    );
+    expect(res.finished).toBe(true);
+    expect(typeof res.par).toBe("number");
+  });
+
+  it("does NOT invent somebody else's dungeon", async () => {
+    // The fallback is for content that ships here and nothing else. If a stranger's
+    // dungeon cannot be read, it is genuinely unavailable and saying so is right.
+    const { getDungeon } = await import("@/lib/campaign/store");
+    expect(await getDungeon("ZZZZZZ")).toBeNull();
   });
 });

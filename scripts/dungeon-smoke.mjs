@@ -439,6 +439,42 @@ async function main() {
     `${withoutLamp.json?.lines?.length} floors, out ${withoutLamp.json?.out}`
   );
 
+  // ---- 7. the front door, as a first-timer meets it -----------------------
+  /**
+   * THE CHECK THAT WAS MISSING, and the reason a real bug shipped.
+   *
+   * Every call above sends a name of its own, so the create route was proved to
+   * work and the SCREEN was never exercised. On the real page "Start one" posted
+   * an empty body, the route correctly answered "put a name to it first", and the
+   * page offered nowhere to put one. A dead end on the front door of the feature,
+   * behind a suite of passing tests.
+   *
+   * So: the request the page actually makes when somebody has not been here
+   * before, and the page itself carrying somewhere to type.
+   */
+  const nameless = await jar().call("POST", "/api/dungeons", {});
+  check(
+    "a draft with no name is refused, and says so",
+    nameless.status === 400 && /name/i.test(String(nameless.json?.error ?? "")),
+    `status ${nameless.status} ${String(nameless.json?.error ?? "").slice(0, 60)}`
+  );
+  const deskHtml = await (await fetch(`${BASE}/write`)).text();
+  check(
+    "and the desk has a box to put one in",
+    /Your name, for the byline/.test(deskHtml),
+    "no name field on /write"
+  );
+
+  // ---- 8. the house dungeon needs no database ----------------------------
+  const house = await bev.call("GET", "/api/daily/deeprun?c=LNGWLK");
+  check(
+    "The Stone Walk is playable whatever the database is doing",
+    house.json?.rooms?.length === 6,
+    `status ${house.status}`
+  );
+  const housePage = await fetch(`${BASE}/d/LNGWLK`);
+  check("and its page is not a 404", housePage.status === 200, `status ${housePage.status}`);
+
   // ---- the pages ---------------------------------------------------------
   for (const path of ["/write", "/dungeons", `/d/${code}`]) {
     const res = await fetch(`${BASE}${path}`);

@@ -20,6 +20,17 @@ import {
   type PoolRoom,
   type Visibility,
 } from "./types";
+import { reportFor } from "./gate";
+import { designOf } from "./puzzle";
+import {
+  DEMO_BASE_VIGOUR,
+  DEMO_CALLINGS,
+  DEMO_CODE,
+  DEMO_INTRO,
+  DEMO_KIT,
+  DEMO_ROOMS,
+  DEMO_TITLE,
+} from "@/lib/content/demo-dungeon";
 
 const g = globalThis as unknown as {
   __tpDungeons?: Map<string, DungeonRow>;
@@ -133,7 +144,7 @@ export async function createDungeon(
 
 export async function getDungeon(code: string): Promise<DungeonRow | null> {
   const key = code.toUpperCase();
-  if (!supabaseConfigured()) return memDungeons.get(key) ?? null;
+  if (!supabaseConfigured()) return memDungeons.get(key) ?? houseDungeon(key);
   const { data, error } = await adminClient()
     .from("dungeons")
     .select("*")
@@ -141,9 +152,64 @@ export async function getDungeon(code: string): Promise<DungeonRow | null> {
     .maybeSingle();
   if (error) {
     console.error("[campaign] getDungeon failed", error);
-    return null;
+    return houseDungeon(key);
   }
-  return data ? fromDb(data) : null;
+  return data ? fromDb(data) : houseDungeon(key);
+}
+
+/**
+ * THE HOUSE'S OWN DUNGEON IS CONTENT, NOT DATA.
+ *
+ * The Stone Walk ships in the bundle. It had no business needing a database row
+ * to be playable, and the day it did, a link to it went on the front page and the
+ * header of a deployment whose database was not reachable yet, and both of them
+ * answered 404. That is the bug this closes, and closing it here rather than at
+ * each of the three routes that read a dungeon means none of them can forget.
+ *
+ * It is NOT a general fallback and must not become one. Somebody else's dungeon
+ * is data: if the database is down, their dungeon is genuinely unavailable and
+ * saying so is correct. Only the code that ships in this bundle is served from
+ * this bundle.
+ *
+ * The par is computed once per process and kept, because the dice are pinned to
+ * the code so the answer cannot change, and because a cold instance should not
+ * pay a solve to show somebody a card.
+ */
+let houseCache: DungeonRow | null = null;
+
+function houseDungeon(code: string): DungeonRow | null {
+  if (code !== DEMO_CODE) return null;
+  if (houseCache) return houseCache;
+  const now = new Date().toISOString();
+  const row: DungeonRow = {
+    code: DEMO_CODE,
+    ownerKey: "house",
+    authorId: null,
+    authorName: "The house",
+    title: DEMO_TITLE,
+    intro: DEMO_INTRO,
+    rooms: DEMO_ROOMS,
+    callingIds: DEMO_CALLINGS,
+    kitIds: DEMO_KIT,
+    baseVigour: DEMO_BASE_VIGOUR,
+    visibility: "listed",
+    chosenAt: now,
+    par: null,
+    difficulty: null,
+    report: null,
+    publishedAt: now,
+    // Counters belong to the database. Served from the bundle they read zero,
+    // which is honest: this copy has no idea how many people have played it.
+    plays: 0,
+    finishes: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const report = reportFor(designOf(row));
+  houseCache = report.ok
+    ? { ...row, par: report.par, difficulty: report.difficulty, report }
+    : row;
+  return houseCache;
 }
 
 export async function saveDungeon(row: DungeonRow): Promise<void> {

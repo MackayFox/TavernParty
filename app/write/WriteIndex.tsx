@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card, ErrorNote, Spinner } from "@/components/ui";
 import { getJson, postJson } from "@/components/client";
+import { readName, writeName } from "@/lib/daily/local";
 
 type Row = {
   code: string;
@@ -29,18 +30,41 @@ export function WriteIndex() {
   const [mine, setMine] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * A NAME TO PUT ON IT, which this page did not ask for.
+   *
+   * "Start one" posted an empty body. The route takes the name from a signed-in
+   * profile or from the body, and a first-time guest has neither, so it answered
+   * "Put a name to it first." and the page offered nowhere to put one. A dead end
+   * on the front door of the feature.
+   *
+   * The smoke test never caught it because the script sends a name of its own,
+   * which is the shape of test that proves the server works and the screen does
+   * not. Remembered the same way the hero's name box remembers, so somebody who
+   * has already played is not asked twice.
+   */
+  const [name, setName] = useState("");
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    setName(readName());
+    setLoaded(true);
     void getJson<{ mine: Row[] }>("/api/dungeons")
       .then((d) => setMine(d.mine ?? []))
       .catch(() => setMine([]));
   }, []);
 
   async function open() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Put a name to it first, so people know whose dungeon it is.");
+      return;
+    }
+    writeName(trimmed);
     setBusy(true);
     setError(null);
     try {
-      const res = await postJson<{ code: string }>("/api/dungeons", {});
+      const res = await postJson<{ code: string }>("/api/dungeons", { name: trimmed });
       router.push(`/write/${res.code}`);
     } catch (err) {
       setError((err as Error).message);
@@ -86,7 +110,28 @@ export function WriteIndex() {
         <p className="mt-3 text-sm text-text-low">
           The difficulty word is worked out, never chosen, so nobody can call a walkover brutal.
         </p>
-        <Button size="lg" className="mt-4" disabled={busy} onClick={() => void open()}>
+        <label className="mt-4 block">
+          <span className="label-caps mb-1 block">Your name, for the byline</span>
+          <input
+            type="text"
+            value={name}
+            maxLength={20}
+            placeholder="ADAM"
+            onChange={(e) => setName(e.target.value)}
+            aria-describedby="byline-help"
+            className="min-h-11 w-full max-w-xs rounded-md border border-border-input bg-bg-0 px-3 text-text-hi"
+          />
+          <span id="byline-help" className="mt-1 block text-xs text-text-low">
+            No account needed. It goes on the dungeon as &ldquo;by you&rdquo;, and it is the
+            same name the rest of the site already knows you by.
+          </span>
+        </label>
+        <Button
+          size="lg"
+          className="mt-3"
+          disabled={busy || !loaded || name.trim().length === 0}
+          onClick={() => void open()}
+        >
           {busy ? "Opening a desk" : "Start one"}
         </Button>
         <ErrorNote message={error} />
