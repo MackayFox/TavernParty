@@ -244,14 +244,25 @@ export function reportFor(design: Design): Report {
   const finished = runs.filter((r) => r.result.out);
   const share = chars.length > 0 ? finished.length / chars.length : 0;
 
-  // Where the unfinished runs stop. The author's single most useful sentence.
+  /**
+   * Where the unfinished runs stop. The author's single most useful sentence, and
+   * it used to name the wrong floor.
+   *
+   * `Result.depth` is ALREADY 1-based: the runner sets `depth = room.index + 1`
+   * after resolving a room and before checking whether the Vigour ran out, so it
+   * is the floor they were standing in when it did. Adding one to it named the
+   * floor after the one that killed them, which is the floor an author would then
+   * go and fix. On a run that died at the bottom it named a floor that does not
+   * exist: "runs out of Vigour on floor 7" of a six-floor dungeon, which is how
+   * this was spotted.
+   */
   const stops = new Map<number, number>();
   for (const r of runs) {
     if (r.result.out) continue;
     stops.set(r.result.depth, (stops.get(r.result.depth) ?? 0) + 1);
   }
   const worst = [...stops.entries()].sort((a, b) => b[1] - a[1])[0];
-  const wallFloor = worst ? worst[0] + 1 : null;
+  const wallFloor = worst ? worst[0] : null;
 
   if (chars.length === 0) {
     notes.push({

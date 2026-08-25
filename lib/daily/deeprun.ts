@@ -228,12 +228,150 @@ function roomsFor(date: string): RoomDef[] {
  * Keeping it on the same path as an authored one is what stops the two drifting,
  * and there is a test asserting they produce byte-identical results.
  */
+/**
+ * CAN ANYBODY GET OUT OF THIS AT ALL?
+ *
+ * Exact, and it needs no search, which is the only reason it can sit in the path
+ * of every request for tonight's puzzle.
+ *
+ * The trick is that the cheapest possible price of a floor is knowable without
+ * looking at any other floor: every room's die is thrown before anybody chooses,
+ * so for a FIXED character each door either clears or does not, and clearing
+ * costs nothing. So the least a character can spend on a floor is zero if any
+ * door clears for them, and otherwise the cheapest thing on it that always works.
+ * Add those up and compare against what they start with. Knacks are ignored, and
+ * ignoring them is safe in the direction that matters: they only ever help, so a
+ * character this says can get out really can.
+ */
+function cheapestSpend(puzzle: Puzzle, build: Build): number {
+  const who = characterFor(puzzle, build);
+  let spend = 0;
+  /**
+   * The biggest toll they pay, which their knack effectively waives.
+   *
+   * Every Calling's knack is worth about one floor: the Warden and the Knife get
+   * past one for nothing, the Hedge-witch gets three Vigour back, and the others
+   * turn one roll around. Ignoring knacks entirely made this so pessimistic that
+   * it rejected most days as unwinnable and kept re-drawing until the dice were
+   * generous, which took the share of characters who get out from 84% to 96%: a
+   * guarantee bought by deleting the game. Waiving one toll is the honest model.
+   */
+  let worstToll = 0;
+  for (const room of puzzle.rooms) {
+    let free = false;
+    let toll = Infinity;
+    for (const option of room.options) {
+      if (option.kind === "brace") {
+        toll = Math.min(toll, option.vigour);
+        continue;
+      }
+      const ability = option.ability ?? "grit";
+      const die = dieFor(puzzle.seed, room.index);
+      let total = die + abilityMod(who.scores[ability]);
+      if (who.affinities.includes(ability)) total += 2;
+      for (const b of who.bonuses) if (b.ability === ability) total += b.value;
+      if (clears(die, total, option.tn ?? 99)) {
+        free = true;
+        break;
+      }
+      toll = Math.min(toll, option.vigour);
+    }
+    if (free) continue;
+    // Nothing opens, so they pay. A floor with no way through at all ends the run.
+    if (!Number.isFinite(toll)) return Infinity;
+    spend += toll;
+    worstToll = Math.max(worstToll, toll);
+  }
+  return Math.max(0, spend - worstToll);
+}
+
+/**
+ * Does at least one sensible character walk out of this dungeon?
+ *
+ * A handful of builds rather than all of them: one per Calling, with the array's
+ * best numbers on the abilities this dungeon actually asks about, which is what a
+ * person does. If none of those get out, nobody is going to.
+ */
+export function anybodyGetsOut(puzzle: Puzzle): boolean {
+  const asked = new Set<Ability>();
+  for (const room of puzzle.rooms)
+    for (const o of room.options) if (o.ability) asked.add(o.ability);
+
+  // Indices into the array, best number first.
+  const byValue = [...puzzle.array.keys()].sort((a, b) => puzzle.array[b] - puzzle.array[a]);
+  const placement = ABILITIES.map(() => 0);
+  let next = 0;
+  for (const ability of ABILITIES)
+    if (asked.has(ability)) placement[ABILITIES.indexOf(ability)] = byValue[next++] ?? 0;
+  for (const ability of ABILITIES)
+    if (!asked.has(ability)) placement[ABILITIES.indexOf(ability)] = byValue[next++] ?? 0;
+
+  for (const calling of puzzle.callings) {
+    for (const kitIds of [
+      [puzzle.kit[0]?.id, puzzle.kit[1]?.id].filter(Boolean) as string[],
+      [puzzle.kit[puzzle.kit.length - 1]?.id, puzzle.kit[0]?.id].filter(Boolean) as string[],
+    ]) {
+      const build: Build = { callingId: calling.id, placement, kitIds };
+      const who = characterFor(puzzle, build);
+      if (cheapestSpend(puzzle, build) < startingVigour(who, puzzle.baseVigour)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * WHICH DICE TONIGHT USES, and why this exists at all.
+ *
+ * Every room carries fixed targets: 11 to 13 on a shallow floor, 16 to 18 at the
+ * bottom. Every floor throws a die pinned to the date. A character brings about
+ * +4 to an ability they are built for, so a target of 17 against a die of 3 is not
+ * hard, it is shut. Nothing said the six dice had to include any good ones, so
+ * about one day a month dealt six poor ones, every door in the dungeon was shut,
+ * everybody paid the brace on all six floors, and nineteen Vigour of tolls against
+ * a starting nine meant NOBODY COULD FINISH THE DAILY. Nine days in two hundred
+ * and forty. Found by playing it, not by reading it.
+ *
+ * Three fixes were tried and thrown away. Matching rooms to dice does nothing,
+ * because every room in a band carries almost the same targets. Cutting the tolls
+ * far enough to be survivable on their own turns the game into "brace everything
+ * and you always live". And deriving the targets from the die, which is exactly
+ * right at the desk, is a LEAK here: the target is printed before you choose, so a
+ * target that came from the die would tell you the die, and not knowing what the
+ * room rolled is the whole of the Deep Run.
+ *
+ * A rule of thumb on the dice was tried too, and it is instructive that it failed:
+ * "at least one floor of twelve or better" had no dead days across a hundred and
+ * twenty and four across a year. So the check is the property itself rather than a
+ * proxy for it: re-draw until somebody can actually get out. Costs one cheap pass
+ * per candidate, no search, and on almost every day the first draw passes.
+ *
+ * The player learns nothing from any of this: they still never see a die before
+ * they open the room, and everybody in the world still gets the same six numbers
+ * in the same order.
+ */
+function dieSeedFor(date: string, rooms: RoomDef[]): string {
+  for (let salt = 0; salt < 32; salt++) {
+    const seed = salt === 0 ? date : `${date}#${salt}`;
+    const candidate = puzzleFrom(
+      { seed, label: date, rooms, callingIds: null, kitIds: null, baseVigour: BASE_VIGOUR },
+      date
+    );
+    if (anybodyGetsOut(candidate)) return seed;
+  }
+  // Thirty-two hopeless draws in a row is not a thing to throw over. Serve the
+  // day's own dice and let the scores say what kind of night it was.
+  return date;
+}
+
 export function puzzleFor(date: string): Puzzle {
+  const rooms = roomsFor(date);
   return puzzleFrom(
     {
-      seed: date,
+      // The dice come from this, and the rooms and the array come from the date.
+      // Usually the same string; on a badly dealt day, the date plus a counter.
+      seed: dieSeedFor(date, rooms),
       label: date,
-      rooms: roomsFor(date),
+      rooms,
       callingIds: null,
       kitIds: null,
       baseVigour: BASE_VIGOUR,
@@ -560,13 +698,26 @@ function resolveOption(
     tn: option.tn,
     cleared,
     vigourSpent: 0,
-    vigourAfter: ctx.vigour,
     text: cleared ? def.win : def.lose,
+
     // Filled in by `run`, which is the only thing that knows what is being
     // carried. `resolveOption` resolves one door and has no memory.
     gained: [],
     marks: [],
     ...over,
+    /**
+     * Nobody has minus three Vigour.
+     *
+     * A floor whose price is more than you have left ends the run, and the run
+     * ending is what the number means, so it reads zero. It used to arrive
+     * negative and print "5 Vigour, -3 left" on the last line of a bad night.
+     * Floored here rather than in the screen because the share text, the play log
+     * and the screen all read this field and all three were wrong.
+     *
+     * `vigourSpent` is left alone: what the floor cost you is true whether or not
+     * you could afford it.
+     */
+    vigourAfter: Math.max(0, over?.vigourAfter ?? ctx.vigour),
   });
 
   // ---- a knack that does not need a roll ---------------------------------

@@ -370,6 +370,29 @@ it went.
    - **At least one option per floor that always works must be ungated.** A gated
      brace is a wall, and the whole engine exists so that a floor is a price.
 
+   **Every day can be finished, and that is checked rather than hoped for.**
+   Every room carries fixed targets and every floor throws a die pinned to the
+   date, and for a while nothing connected the two: about one day a month dealt
+   six poor dice, every door in the dungeon was shut, and nineteen Vigour of
+   tolls against a starting nine meant nobody on earth could finish that day.
+   Nine days in two hundred and forty, found by playing it rather than reading
+   it. The assembly now re-draws the dice until at least one sensible character
+   can get out, which costs one cheap pass per candidate and no search at all:
+   because the die is fixed before you choose, the least a character can spend on
+   a floor is zero if any door clears for them and the cheapest brace otherwise,
+   so "can anybody get out" is a sum rather than a search. Three other fixes were
+   tried and thrown away, and one of them is instructive: deriving the targets
+   from the die is exactly right at the desk and a **leak** here, because the
+   target is printed before you choose, so a target that came from the die would
+   tell you the die.
+
+   The cost of that guarantee is measured: the share of characters who get out
+   under perfect play goes from 84% to 87%, and no day is impossible. What that
+   means for a **human**, who does not play perfectly, is still unknown, and the
+   play log is what will answer it. A first pass with a probe that reads the
+   numbers off the screen scored 32 against a par of 51 and did not come back,
+   where a probe that ignored them scored 8, which is at least the right shape.
+
    The house daily deliberately uses **none of this**, and the reason is
    mechanical rather than aesthetic: its rooms are shuffled per band from a pool,
    so a room whose door wants the lamp would land in dungeons where nothing hands

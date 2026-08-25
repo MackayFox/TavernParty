@@ -372,3 +372,33 @@ describe("par is cached on the dungeon, not on its name", () => {
     expect(parFor(puzzleFrom(design)).par).toBe(parFor(puzzleFrom(design)).par);
   });
 });
+
+describe("what a line reports", () => {
+  it("never says you have minus Vigour", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    // Three floors that each cost four, against a starting five: the last one
+    // costs more than is left.
+    const rooms = DEEP_ROOMS.filter((r) => r.band === 3).slice(0, 3);
+    const p = puzzleFrom({
+      seed: "MINUS",
+      label: "m",
+      rooms,
+      callingIds: null,
+      kitIds: null,
+      baseVigour: 5,
+    });
+    const b: Build = {
+      callingId: p.callings[0].id,
+      placement: p.array.map((_, i) => i),
+      kitIds: [p.kit[0].id, p.kit[1].id],
+    };
+    const result = run(p, b, braceEverything(p), rooms);
+    for (const line of result.lines) {
+      expect(line.vigourAfter).toBeGreaterThanOrEqual(0);
+      // And what the floor cost is still the truth, affordable or not.
+      expect(line.vigourSpent).toBeGreaterThanOrEqual(0);
+    }
+    expect(result.vigour).toBe(0);
+    expect(result.out).toBe(false);
+  });
+});
