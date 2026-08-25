@@ -459,6 +459,24 @@ Marked `ponytail:` in the code, with the upgrade path named.
   cannot adjudicate free text, so we do not pretend to: every choice is a real
   option with a real number, and the Reckless line's hidden target number is
   where the unknown lives instead.
+- **The Deep Run repeats a room across a pass boundary.** Rooms are dealt rather
+  than drawn: slot `n` of an endless deal is card `n % N` of pass
+  `floor(n / N)`, each pass its own shuffle, so inside a pass a repeat is
+  impossible. Two passes meeting are two independent shuffles, so the same card
+  can land either side of the join. Measured: drawing fresh each day repeated a
+  room from the previous day on ninety per cent of days, dealing took that to
+  forty-two, and doubling bands one and two took it to fourteen. Closing the
+  join exactly would need every pass to know every pass before it, which a
+  function addressed by a date cannot do without keeping state. The upgrade path
+  is more rooms, not more cleverness: band one is dealt two a night, so a pool of
+  twelve empties in six days and a pool of twenty in ten.
+- **No daily room uses a mark.** `sets` / `needs` / `forbids` is the mechanic
+  that makes six rooms a descent rather than a list, and only authored dungeons
+  use it. The daily cannot yet, because rooms are dealt per band independently:
+  a floor that `needs` the lamp could be dealt with no floor above it that hands
+  one out, which is the dead end the brace rule exists to prevent. The upgrade is
+  a deal that guarantees a setter above every reader, which is a design change
+  rather than a fix, so it wants a plan before code.
 
 ---
 

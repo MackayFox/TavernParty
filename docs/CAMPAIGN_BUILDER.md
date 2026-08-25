@@ -29,10 +29,14 @@ Verified against the repo on 24 August 2026. Every line number, count and timing
 > days on top, and it must not reshape Phase 1.
 >
 > Verified against the repo rather than assumed, including a correction to this
-> project's own file header: the Deep Run pool is FIFTEEN rooms across three bands
-> plus five bosses, twenty in total. The comment in `lib/daily/deeprun-data.ts`
-> says twenty-five and is wrong. Every cold-start estimate that quoted it was a
-> quarter optimistic.
+> project's own file header. At the time of writing the Deep Run pool was FIFTEEN
+> rooms across three bands plus five bosses, twenty in total, against a header
+> comment claiming twenty-five: every cold-start estimate that quoted the comment
+> was a quarter optimistic.
+>
+> It is TWENTY-EIGHT plus five bosses now. Bands one and two doubled when the deal
+> was measured, because the daily takes two cards a night from each of them and
+> they were emptying every three days. Count the arrays.
 
 
 ---
@@ -66,7 +70,9 @@ This is the decision that makes the difference between a week and a month, and i
 
 So: the pool holds rooms. A dungeon is an ordered list of room ids plus settings. Every floor slot is either **picked from the pool** or **written inline**. The minimum viable publish is title, intro, tick some Callings, tick some Kit, pick a starting Vigour, pick six rooms from the pool. Two minutes, and it is a real dungeon with a real par and a real link.
 
-The pool ships with **twenty house rooms**: fifteen non-boss (five per band) plus five bosses. Every design in the pile said twenty-five, because the header comment at `deeprun-data.ts:4` says "twenty rooms in three bands plus five things at the bottom" and the comment is wrong. `BAND_1`, `BAND_2` and `BAND_3` hold five each. Fix the comment while you are in there.
+The pool ships with **thirty-three house rooms**: twenty-eight non-boss (twelve in band one, eleven in band two, five in band three) plus five bosses.
+
+Read that number out of `BAND_1`, `BAND_2`, `BAND_3` and `BOSSES` and never out of a comment. The header at `deeprun-data.ts` has now been wrong twice: it said twenty-five when there were twenty, and it said twenty when bands one and two doubled. Four separate design passes quoted the first wrong number back as fact.
 
 ### The author does not have to type a number, but may
 
@@ -539,7 +545,7 @@ The shipped module comment already concedes that after a run you know all seven 
 | Forced commons | Player judge said handing an author's room to a stranger with no opt-out will annoy exactly the population being courted. | **A checkbox, defaulted on, stated at the top of the form.** One boolean. |
 | Auto-rotating the daily from user content | One design wanted it as the creator carrot. Buildability showed it puts a DB read in the purest module in the product. | **Chosen for the week is a curated link and a permanent stamp.** `lib/daily/` stays pure. |
 | A reports table with auto-delist | Two designs wanted it, one said reuse `/api/contact`. | **Reuse contact.** Auto-hide is a griefing button and dead machinery at zero users. |
-| Twenty-five house rooms | All four designs said twenty-five, quoting the file's own header comment. | **Twenty**: five per band plus five bosses. The comment is wrong and gets fixed. Every cold-start plan in the pile was a quarter optimistic. |
+| Twenty-five house rooms | All four designs said twenty-five, quoting the file's own header comment. | **Twenty** at the time: five per band plus five bosses. The comment was wrong and got fixed. Every cold-start plan in the pile was a quarter optimistic. Now **thirty-three**, after bands one and two doubled to cut the repeat rate. Count the arrays. |
 
 ---
 
