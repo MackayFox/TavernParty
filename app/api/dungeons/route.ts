@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
-import { createDungeon, listByAuthor, listPool } from "@/lib/campaign/store";
+import { createDungeon, listByOwner, listPool } from "@/lib/campaign/store";
 import { getIdentity } from "@/lib/identity";
 import { rateLimit } from "@/lib/ratelimit";
 
@@ -20,7 +20,11 @@ export async function POST(req: Request) {
     if (!name)
       return NextResponse.json({ error: "Put a name to it first." }, { status: 400 });
 
-    const row = await createDungeon(name, identity.kind === "user" ? identity.id : null);
+    const row = await createDungeon(
+      name,
+      identity.kind === "user" ? identity.id : null,
+      identity.id
+    );
     return NextResponse.json({ code: row.code });
   } catch (err) {
     return handleError(err);
@@ -32,11 +36,7 @@ export async function GET() {
   try {
     const identity = await getIdentity();
     if (!identity) return NextResponse.json({ mine: [], pool: await listPool() });
-    const mine = await listByAuthor(
-      identity.kind === "user" ? identity.id : null,
-      identity.displayName ?? ""
-    );
-    return NextResponse.json({ mine, pool: await listPool() });
+    return NextResponse.json({ mine: await listByOwner(identity.id), pool: await listPool() });
   } catch (err) {
     return handleError(err);
   }

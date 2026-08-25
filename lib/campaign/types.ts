@@ -29,6 +29,17 @@ export type Visibility =
 
 export type DungeonRow = {
   code: string;
+  /**
+   * Who owns this, whoever they are: an account uuid or a signed guest id.
+   *
+   * Separate from `authorId` because that one is a foreign key into auth.users
+   * and a guest has no row there, and separate from `authorName` because a name
+   * is a label rather than an identity. Comparing ownership against the display
+   * name meant a guest, who has no display name, could open a draft and then
+   * never edit it: every save came back "that one is not yours". Found by
+   * driving the loop against a live server rather than by reading it.
+   */
+  ownerKey: string;
   authorId: string | null;
   authorName: string;
   title: string;
@@ -74,9 +85,14 @@ export function generateDungeonCode(rand: () => number = Math.random): string {
 }
 
 /** The shape a draft starts in: enough to be legal is NOT the same as enough to publish. */
-export function emptyDraft(code: string, authorName: string): Omit<DungeonRow, "createdAt" | "updatedAt"> {
+export function emptyDraft(
+  code: string,
+  authorName: string,
+  ownerKey: string
+): Omit<DungeonRow, "createdAt" | "updatedAt"> {
   return {
     code,
+    ownerKey,
     authorId: null,
     authorName,
     title: "",

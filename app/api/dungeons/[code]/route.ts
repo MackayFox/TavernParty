@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
 import { doorFor } from "@/lib/campaign/puzzle";
-import { getDungeon, saveDungeon } from "@/lib/campaign/store";
+import { getDungeon, ownedBy, saveDungeon } from "@/lib/campaign/store";
 import { MAX_FLOORS } from "@/lib/campaign/gate";
 import { getIdentity } from "@/lib/identity";
 import { rateLimit } from "@/lib/ratelimit";
@@ -56,9 +56,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ code: string }
       return NextResponse.json({ error: "That one has been taken down." }, { status: 404 });
 
     const identity = await getIdentity();
-    const mine =
-      !!identity &&
-      (row.authorId ? row.authorId === identity.id : row.authorName === identity.displayName);
+    const mine = ownedBy(row, identity?.id);
     // The author gets the whole draft back so the desk can load it. Everybody
     // else gets the door, which carries no `win`, no `lose` and no dice.
     return NextResponse.json(mine ? { mine: true, draft: row } : { mine: false, door: doorFor(row) });
@@ -78,9 +76,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ code: string }>
     const row = await getDungeon(code);
     if (!row) return NextResponse.json({ error: "No dungeon by that name." }, { status: 404 });
 
-    const mine =
-      !!identity &&
-      (row.authorId ? row.authorId === identity.id : row.authorName === identity.displayName);
+    const mine = ownedBy(row, identity?.id);
     if (!mine) return NextResponse.json({ error: "That one is not yours." }, { status: 403 });
 
     /**

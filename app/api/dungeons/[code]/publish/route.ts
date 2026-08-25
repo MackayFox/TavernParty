@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { handleError } from "@/lib/api";
 import { reportFor } from "@/lib/campaign/gate";
 import { designOf } from "@/lib/campaign/puzzle";
-import { countPickups, getDungeon, saveDungeon } from "@/lib/campaign/store";
+import { countPickups, getDungeon, ownedBy, saveDungeon } from "@/lib/campaign/store";
 import { getIdentity } from "@/lib/identity";
 import { rateLimit } from "@/lib/ratelimit";
 
@@ -28,9 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ code: string }
     if (!row) return NextResponse.json({ error: "No dungeon by that name." }, { status: 404 });
 
     const identity = await getIdentity();
-    const mine =
-      !!identity &&
-      (row.authorId ? row.authorId === identity.id : row.authorName === identity.displayName);
+    const mine = ownedBy(row, identity?.id);
     if (!mine) return NextResponse.json({ error: "That one is not yours." }, { status: 403 });
     if (row.publishedAt)
       return NextResponse.json({ ok: true, code: row.code, already: true });

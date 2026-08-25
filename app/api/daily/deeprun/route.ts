@@ -118,7 +118,12 @@ export async function POST(req: Request) {
       par,
       /** The best run there was tonight. With the score, and never before it. */
       bestRun: best,
-      share: shareText(source.kind === "dungeon" ? puzzle.label : date, result, par),
+      share: shareText(
+        source.kind === "dungeon" ? puzzle.label : date,
+        result,
+        par,
+        source.row ? { code: source.row.code, author: source.row.authorName } : null
+      ),
     });
   } catch (err) {
     return handleError(err);

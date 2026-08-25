@@ -580,7 +580,21 @@ function defFor(
 // Sharing
 // ---------------------------------------------------------------------------
 
-export function shareText(date: string, result: Result, par: number): string {
+/**
+ * What somebody pastes into a group chat.
+ *
+ * For a DUNGEON this is the entire distribution mechanism of the campaign
+ * builder, so the link has to point at that dungeon and the heading has to name
+ * it and its author. The first version read "THE DEEP RUN The Weeping Stair" and
+ * linked to the daily, which is a share that sends everybody who clicks it to a
+ * different game than the one being talked about.
+ */
+export function shareText(
+  label: string,
+  result: Result,
+  par: number,
+  dungeon?: { code: string; author: string } | null
+): string {
   const glyphs = result.lines
     .map((l) => (l.cleared ? "▰" : l.vigourSpent > 0 ? "▱" : "▪"))
     .join("");
@@ -590,10 +604,12 @@ export function shareText(date: string, result: Result, par: number): string {
       : "out, and it is still down there"
     : `stopped on floor ${result.depth}`;
   return [
-    `THE DEEP RUN ${date}`,
+    dungeon ? `${label.toUpperCase()}, by ${dungeon.author}` : `THE DEEP RUN ${label}`,
     ending,
     glyphs,
     `${result.score} of a possible ${par}`,
-    "https://tavernparty.co.uk/daily/deeprun",
+    dungeon
+      ? `https://tavernparty.co.uk/d/${dungeon.code}`
+      : "https://tavernparty.co.uk/daily/deeprun",
   ].join("\n");
 }

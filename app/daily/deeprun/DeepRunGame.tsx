@@ -164,16 +164,36 @@ export function restore(data: Payload): Saved | null {
   };
 }
 
-export function DeepRunGame({ date }: { date: string | null }) {
+/**
+ * `dungeon` points the same runner at somebody's authored dungeon instead of
+ * tonight's. One prop rather than a second component, because everything that
+ * matters here (the blind die, the reply carrying only committed floors, the
+ * ledger) is identical and a copy would be a copy that drifts.
+ *
+ * The daily furniture is suppressed for a dungeon: it has no streak, it is not
+ * part of anybody's four, and offering "the other three" under somebody's own
+ * dungeon would be pointing away from the thing the link was sent for.
+ */
+export function DeepRunGame({
+  date,
+  dungeon = null,
+}: {
+  date: string | null;
+  dungeon?: string | null;
+}) {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const url = date ? `/api/daily/deeprun?date=${encodeURIComponent(date)}` : "/api/daily/deeprun";
+    const url = dungeon
+      ? `/api/daily/deeprun?c=${encodeURIComponent(dungeon)}`
+      : date
+        ? `/api/daily/deeprun?date=${encodeURIComponent(date)}`
+        : "/api/daily/deeprun";
     getPuzzle<Payload>(url)
       .then(setData)
       .catch(() => setError("Could not find the way in. Try again."));
-  }, [date]);
+  }, [date, dungeon]);
 
   if (error && !data) return <ErrorNote message={error} />;
   if (!data) {
@@ -185,10 +205,10 @@ export function DeepRunGame({ date }: { date: string | null }) {
   }
   // Keyed on the date so a move to the archive starts a clean run rather than
   // carrying a half-finished one into a different dungeon.
-  return <Run key={data.date} data={data} />;
+  return <Run key={dungeon ?? data.date} data={data} dungeon={dungeon} />;
 }
 
-function Run({ data }: { data: Payload }) {
+function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [announce, setAnnounce] = useState("");
@@ -230,10 +250,13 @@ function Run({ data }: { data: Payload }) {
   useEffect(() => {
     if (!finished || !reply || recorded.current) return;
     recorded.current = true;
+    // A dungeon is not one of tonight's four, so it touches no streak and writes
+    // no daily result. It is somebody's link, and the score belongs to them.
+    if (dungeon) return;
     void finishDaily(GAME, data.date, reply.score, reply.par ?? null, reply.archive).then(
       setStreak
     );
-  }, [finished, data.date, reply]);
+  }, [finished, data.date, reply, dungeon]);
 
   const calling = data.callings.find((c) => c.id === callingId);
   const placed = slots.filter((s) => s !== null).length;
@@ -292,7 +315,9 @@ function Run({ data }: { data: Payload }) {
     setError(null);
     const next: Step[] = [...steps, knack ? { optionId: option.id, knack: true } : { optionId: option.id }];
     try {
-      const result = await postJson<RunReply>("/api/daily/deeprun", {
+      const result = await postJson<RunReply>(
+        dungeon ? `/api/daily/deeprun?c=${encodeURIComponent(dungeon)}` : "/api/daily/deeprun",
+        {
         date: data.date,
         callingId,
         placement: slots.map((s) => s ?? 0),
@@ -316,7 +341,7 @@ function Run({ data }: { data: Payload }) {
 
   return (
     <section className="mx-auto w-full max-w-2xl py-8">
-      <DailyHeader game={GAME} date={data.date} archive={data.archive} />
+      {!dungeon && <DailyHeader game={GAME} date={data.date} archive={data.archive} />}
       <RuleLine game={GAME} />
 
       {/* ---------------------------------------------------------- the build */}
@@ -671,7 +696,7 @@ function Run({ data }: { data: Payload }) {
               )}
 
               {reply.share && <ShareCard text={reply.share} />}
-              <NextUp game={GAME} archive={reply.archive} streak={streak} />
+              {!dungeon && <NextUp game={GAME} archive={reply.archive} streak={streak} />}
             </>
           )}
         </div>

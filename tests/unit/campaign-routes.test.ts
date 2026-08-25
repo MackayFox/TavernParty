@@ -191,6 +191,59 @@ describe("playing somebody else's", () => {
     expect(JSON.stringify(result.lines)).toMatch(/It gives\.|It does not\./);
   });
 
+  it("shares a link to the dungeon, not to the daily", async () => {
+    // This is the entire distribution mechanism of the feature. The first
+    // version read "THE DEEP RUN The Weeping Stair" and linked to /daily/deeprun,
+    // which sends everybody who clicks it to a different game than the one being
+    // talked about.
+    const code = await draft();
+    await publish.POST(req(`/api/dungeons/${code}/publish`, {}), {
+      params: Promise.resolve({ code }),
+    });
+    const puzzle = await json(await play.GET(req(`/api/daily/deeprun?c=${code}`)));
+    const rooms = puzzle.rooms as { options: { id: string }[] }[];
+    const callings = puzzle.callings as { id: string }[];
+    const kit = puzzle.kit as { id: string }[];
+    const result = await json(
+      await play.POST(
+        req(`/api/daily/deeprun?c=${code}`, {
+          callingId: callings[0].id,
+          placement: [0, 1, 2, 3, 4, 5],
+          kitIds: [kit[0].id, kit[1].id],
+          steps: rooms.map((r) => ({ optionId: r.options[0].id })),
+        })
+      )
+    );
+    const share = result.share as string;
+    expect(share).toContain(`/d/${code}`);
+    expect(share).not.toContain("/daily/deeprun");
+    expect(share).toContain("THE WEEPING STAIR");
+    expect(share).toContain("by ALEX");
+    // And every URL in it carries a scheme, or nothing unfurls it.
+    for (const m of share.match(/tavernparty\.co\.uk\S*/g) ?? []) {
+      expect(share).toContain(`https://${m}`);
+    }
+  });
+
+  it("still shares the daily as the daily", async () => {
+    const puzzle = await json(await play.GET(req("/api/daily/deeprun")));
+    const rooms = puzzle.rooms as { options: { id: string }[] }[];
+    const callings = puzzle.callings as { id: string }[];
+    const kit = puzzle.kit as { id: string }[];
+    const result = await json(
+      await play.POST(
+        req("/api/daily/deeprun", {
+          callingId: callings[0].id,
+          placement: [0, 1, 2, 3, 4, 5],
+          kitIds: [kit[0].id, kit[1].id],
+          steps: rooms.map((r) => ({ optionId: r.options[0].id })),
+        })
+      )
+    );
+    expect(result.share as string).toContain("THE DEEP RUN");
+    expect(result.share as string).toContain("/daily/deeprun");
+  });
+
   it("refuses a dungeon that was never published", async () => {
     const code = await draft();
     const res = await play.GET(req(`/api/daily/deeprun?c=${code}`));

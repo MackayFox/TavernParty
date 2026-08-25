@@ -33,6 +33,7 @@ type DbRow = Record<string, unknown>;
 function fromDb(r: DbRow): DungeonRow {
   return {
     code: r.code as string,
+    ownerKey: r.owner_key as string,
     authorId: (r.author_id as string | null) ?? null,
     authorName: r.author_name as string,
     title: r.title as string,
@@ -56,6 +57,7 @@ function fromDb(r: DbRow): DungeonRow {
 function toDb(d: DungeonRow): DbRow {
   return {
     code: d.code,
+    owner_key: d.ownerKey,
     author_id: d.authorId,
     author_name: d.authorName,
     title: d.title,
@@ -73,12 +75,16 @@ function toDb(d: DungeonRow): DbRow {
   };
 }
 
-export async function createDungeon(authorName: string, authorId: string | null): Promise<DungeonRow> {
+export async function createDungeon(
+  authorName: string,
+  authorId: string | null,
+  ownerKey: string
+): Promise<DungeonRow> {
   const now = new Date().toISOString();
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateDungeonCode();
     const row: DungeonRow = {
-      ...emptyDraft(code, authorName),
+      ...emptyDraft(code, authorName, ownerKey),
       authorId,
       createdAt: now,
       updatedAt: now,
@@ -128,17 +134,24 @@ export async function saveDungeon(row: DungeonRow): Promise<void> {
 }
 
 /** An author's own desk, newest first. */
-export async function listByAuthor(authorId: string | null, authorName: string): Promise<DungeonRow[]> {
+export async function listByOwner(ownerKey: string): Promise<DungeonRow[]> {
   if (!supabaseConfigured()) {
     return [...memDungeons.values()]
-      .filter((d) => (authorId ? d.authorId === authorId : d.authorName === authorName))
+      .filter((d) => d.ownerKey === ownerKey)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
-  const q = adminClient().from("dungeons").select("*").order("updated_at", { ascending: false }).limit(50);
-  const { data } = authorId
-    ? await q.eq("author_id", authorId)
-    : await q.eq("author_name", authorName).is("author_id", null);
+  const { data } = await adminClient()
+    .from("dungeons")
+    .select("*")
+    .eq("owner_key", ownerKey)
+    .order("updated_at", { ascending: false })
+    .limit(50);
   return (data ?? []).map(fromDb);
+}
+
+/** One question, one place: is this person allowed to change this dungeon? */
+export function ownedBy(row: DungeonRow, identityId: string | null | undefined): boolean {
+  return !!identityId && row.ownerKey === identityId;
 }
 
 /** The Hall. Only ever listed rows, and only ever ones a person put there. */

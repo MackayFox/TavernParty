@@ -14,6 +14,11 @@
 
 create table if not exists dungeons (
   code           text primary key,
+  -- Who owns it: an account uuid, or a signed guest cookie id. NOT the display
+  -- name, and not author_id, because author_id is a foreign key into auth.users
+  -- and a guest has no row there. Ownership compared against a display name meant
+  -- a guest could open a draft and never edit it.
+  owner_key      text not null,
   -- Null for a guest. A guest may write and share; only an account may list.
   author_id      uuid references auth.users (id) on delete set null,
   author_name    text not null,
@@ -45,7 +50,7 @@ create index if not exists dungeons_listed_idx
   where visibility = 'listed';
 
 -- An author's own desk.
-create index if not exists dungeons_author_idx on dungeons (author_id, updated_at desc);
+create index if not exists dungeons_owner_idx on dungeons (owner_key, updated_at desc);
 
 alter table dungeons enable row level security;
 
