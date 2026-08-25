@@ -112,13 +112,24 @@ function room(id, band, a1, tn1, a2, tn2, costOverride) {
   };
 }
 
+/**
+ * The happy-path dungeon, and every floor costs TWO on purpose.
+ *
+ * Six Vigour of tolls against a starting nine, so a player who braces all three
+ * floors still walks out whatever the dice did. That is not cosmetic: the checks
+ * further down need somebody who FINISHED, a dungeon's dice come from its code,
+ * and the server picks the code. With band-priced tolls (three, three, four) the
+ * same run got out on some codes and died on others, so three Hall checks failed
+ * about one run in four and read exactly like a bug in the mark endpoint. It was
+ * a bug in the fixture: the run had genuinely not got to the bottom.
+ */
 const GOOD = {
   title: "The Weeping Stair",
   intro: "Wet from the first floor to the last, and do not count on a rope.",
   rooms: [
-    room("first", 2, "brawn", 14, "wits", 15),
-    room("second", 2, "wits", 14, "grit", 15),
-    room("third", 3, "brawn", 17, "charm", 16),
+    room("first", 2, "brawn", 14, "wits", 15, 2),
+    room("second", 2, "wits", 14, "grit", 15, 2),
+    room("third", 3, "brawn", 17, "charm", 16, 2),
   ],
   callingIds: ["warden", "knife", "hedgewitch"],
   kitIds: ["tarred-rope", "whetstone", "pitch-torches", "cracked-mirror"],
@@ -235,6 +246,13 @@ async function main() {
     steps: p.rooms.map((r) => ({ optionId: r.options[0].id })),
   });
   check("it plays to the bottom", played.json?.finished === true, `status ${played.status}`);
+  // `finished` only means the submission covered every floor. Getting OUT is the
+  // separate property, and it is the one the Hall checks below depend on.
+  check(
+    "and comes back out alive, whatever the dice did",
+    played.json?.out === true,
+    `out ${played.json?.out} vigour ${played.json?.vigour}`
+  );
   check(
     "and scores against the par it published",
     typeof played.json?.score === "number" && played.json.par === report.json.par,

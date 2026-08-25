@@ -161,6 +161,16 @@ either.** Same class of problem, quieter symptom: a save triggers a hot reload,
 the reload lands mid-Act, and the next poll comes back 404 as though the table
 had vanished. The game is fine. It cost a wrong diagnosis here already.
 
+**A production build with no `GUEST_COOKIE_SECRET` refuses to start.** It did
+not always: it used to come up, serve the front page and all four dailies, and
+then throw a generic 500 the first time somebody sat at a table, because the
+secret is only read when an identity is minted. `instrumentation.ts` now checks it
+at boot, with the fix in the message. The same file warns, without failing, when
+there is no Supabase: the in-memory store is a legitimate way to run this, but on
+a serverless host it is per instance, so two players can land on two machines and
+see two different tables. That is the one thing to check by hand after the first
+deploy.
+
 **The engine needs no database.** `lib/game/engine.ts` is pure, all randomness is
 injected, and the whole test suite runs without Supabase configured. That is why
 this repo could be built and tested in full before the plan was bought, and it is

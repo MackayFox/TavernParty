@@ -13,8 +13,14 @@ const COOKIE = "tp_guest";
 
 /**
  * The dev fallback secret is public (it is in the repo), so production refuses
- * to serve on it — otherwise anyone could forge a guest identity. Checked
- * lazily so `next build` (which sets NODE_ENV=production) can still import.
+ * to serve on it: otherwise anyone could forge a guest identity. Checked lazily
+ * so `next build`, which sets NODE_ENV=production, can still import this module.
+ *
+ * Lazy is right here and it is not the whole story. A lazy check means a
+ * production server with no secret starts, serves every page that does not mint
+ * an identity, and then throws on the first person who sits at a table. So
+ * `instrumentation.ts` checks the same variable at boot and refuses to start,
+ * which is where a missing environment variable belongs.
  */
 function getSecret(): string {
   const secret = process.env.GUEST_COOKIE_SECRET;
