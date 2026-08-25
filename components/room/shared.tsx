@@ -65,16 +65,28 @@ export const PHASE_LABEL: Record<Phase, string> = {
   FINAL: "Last orders",
 };
 
-/** What the phase is asking of you, read out to a screen reader on change. */
+/**
+ * What the phase is asking of you, in one line.
+ *
+ * Shown in the header strip AND read out on change, which is the right way round:
+ * it used to be announced to screen readers only, so the people who could see the
+ * screen were the ones told least about it.
+ */
 export function phaseSentence(view: RoomView): string {
   const act = view.act ? `Act ${view.act.index} of ${view.settings.acts}. ` : "";
   switch (view.phase) {
     case "WAITING":
-      return `Waiting at the table. ${view.players.length} here.`;
+      // Now that this is on the screen it can do a job: the commonest confusion
+      // at a table is four people waiting for a fifth who was never coming.
+      return view.players.find((p) => p.id === view.me.id)?.isHost
+        ? `${view.players.length} at the table. Start it when you are ready, and empty seats fill with strangers.`
+        : `${view.players.length} at the table. The host starts it.`;
     case "MUSTER":
       return "The house rolls the array. Nothing to press. The first draft opens on its own.";
     case "DRAFT_CALLING":
-      return "Rank up to three Callings.";
+      // The trade is the whole point of the draft and it is invisible until the
+      // next phase, by which time it is too late to have understood it.
+      return "Rank up to three Callings. First pick here means last pick of the kit.";
     case "DRAFT_KIT":
       return "Rank up to three pieces of kit. This draft runs in reverse.";
     case "ASSIGN":
@@ -285,11 +297,26 @@ export function PartyRail({ view }: { view: RoomView }) {
   );
 }
 
-/** The header strip: what is happening, which Act, and how long is left. */
+/**
+ * The header strip: what is happening, which Act, what it wants of you, and how
+ * long is left.
+ *
+ * THE SENTENCE USED TO BE READ ONLY TO SCREEN READERS. `phaseSentence` is the one
+ * line that says what to do, it was written for exactly that job, and it was
+ * piped into an aria-live region and shown to nobody. So a sighted player got a
+ * two-word label and a clock: "The muster", ticking down, with nothing to press
+ * and no way to know that was intended. The same phase told a screen reader
+ * "nothing to press, the first draft opens on its own".
+ *
+ * It matters most where the label is least self-explanatory. Choosing your kit
+ * does not tell you the draft runs in REVERSE, which is the whole trade the
+ * Calling draft set up, and a player who misses it thinks the game shuffled them
+ * for no reason.
+ */
 export function PhaseBar({ view }: { view: RoomView }) {
   const total = PHASE_MS[view.phase];
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border-dim pb-3">
+    <div className="flex items-start justify-between gap-3 border-b border-border-dim pb-3">
       <div className="min-w-0">
         <p className="label-caps">
           {view.act ? `Act ${view.act.index} of ${view.settings.acts}` : view.code}
@@ -297,6 +324,7 @@ export function PhaseBar({ view }: { view: RoomView }) {
         <h1 className="font-display truncate text-xl text-text-hi sm:text-2xl">
           {PHASE_LABEL[view.phase]}
         </h1>
+        <p className="mt-0.5 text-sm text-text-mid">{phaseSentence(view)}</p>
       </div>
       {view.phaseEndsAt !== null && total ? (
         <Timer endsAt={view.phaseEndsAt} totalMs={total} />

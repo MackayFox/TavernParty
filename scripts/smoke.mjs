@@ -129,6 +129,11 @@ function session(label) {
   return { label, jar: new Map(), id: null, name: label };
 }
 
+/** One session's cookies, for the few checks that fetch a PAGE rather than JSON. */
+function cookieHeader(s) {
+  return [...s.jar].map(([k, v]) => `${k}=${v}`).join("; ");
+}
+
 async function call(s, method, urlPath, body) {
   const headers = { accept: "application/json" };
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -200,6 +205,23 @@ async function main() {
     return;
   }
   console.log(`      table ${code}`);
+
+  /**
+   * The room says what to do, in words, on the page.
+   *
+   * Checked against the server-rendered HTML because the failure it guards was
+   * invisible to every other test: the one line that says what a phase wants of
+   * you was written, was piped into an aria-live region, and was shown to nobody.
+   * A sighted player got a two-word label and a ticking clock.
+   */
+  const roomHtml = await (
+    await fetch(`${BASE}/room/${code}`, { headers: { cookie: cookieHeader(host) } })
+  ).text();
+  check(
+    "the room tells the host what to do, in words on the page",
+    /Start it when you are ready/.test(roomHtml),
+    roomHtml.length > 0 ? "no instruction line in the HTML" : "no HTML at all"
+  );
 
   const table = `/api/tables/${code}`;
   const viewAs = async (s) => (await get(s, table)).json;
