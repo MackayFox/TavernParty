@@ -36,7 +36,11 @@ import { KIT } from "@/lib/content/kit";
 // of four copies and the dungeon starts resolving a roll its own way.
 import { DIE_SIDES, abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
-import { clears, dateSeed, mulberry32, seededShuffle } from "./core";
+import { clears, dateSeed, failCost, mulberry32, seededShuffle } from "./core";
+
+// The failure gradient belongs to `core`, which is the one daily module a client
+// component may import, because the desk has to show an author what a door costs.
+export { FAILED_CHECK_EXTRA, failCost } from "./core";
 import {
   DEEP_BOSSES,
   DEEP_ROOMS,
@@ -274,7 +278,7 @@ function cheapestSpend(puzzle: Puzzle, build: Build): number {
         free = true;
         break;
       }
-      toll = Math.min(toll, option.vigour);
+      toll = Math.min(toll, failCost(option));
     }
     if (free) continue;
     // Nothing opens, so they pay. A floor with no way through at all ends the run.
@@ -778,7 +782,7 @@ function resolveOption(
   // Shared with the par search and with the "so a 12 or better" line the page
   // prints before you choose. One predicate, three readers.
   const cleared = clears(die, total, tn);
-  const spent = cleared ? 0 : option.vigour;
+  const spent = cleared ? 0 : failCost(option);
 
   return base(cleared, {
     roll: die,

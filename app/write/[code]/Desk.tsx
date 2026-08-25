@@ -28,6 +28,7 @@ import { getJson, postJson } from "@/components/client";
 import { ABILITY_LABEL } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
 import { readingOf, targetsFor, wordForTarget } from "@/lib/daily/targets";
+import { FAILED_CHECK_EXTRA } from "@/lib/daily/core";
 
 type Option = {
   id: string;
@@ -818,12 +819,13 @@ function Floor({
                     <option value="hard">few do</option>
                   </select>
                   <span className="num text-xs text-paper-ink-mid">
-                    needs {o.tn}, and this floor throws {die}
+                    needs {o.tn}, this floor throws {die}, costs{" "}
+                    {(o.vigour ?? 0) + FAILED_CHECK_EXTRA} if it goes wrong
                   </span>
                 </>
               ) : (
                 <span className="num text-xs text-paper-ink-mid">
-                  always works, costs {o.vigour}
+                  always works and clears the floor, costs {o.vigour} every time
                 </span>
               )}
             </div>

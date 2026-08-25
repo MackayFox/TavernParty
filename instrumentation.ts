@@ -45,7 +45,20 @@ export async function register() {
    * can land on two different machines and see two different tables. It is worth
    * one line in the log rather than a silent difference in behaviour.
    */
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  /**
+   * Ask the same question the store asks, not a similar one.
+   *
+   * This used to read NEXT_PUBLIC_SUPABASE_URL directly, which is wrong twice
+   * over: Next inlines NEXT_PUBLIC_* at BUILD time, so the value here is whatever
+   * was set when the bundle was made rather than what the server is running with,
+   * and the store's own decision also depends on the secret key. The two could
+   * therefore disagree, and did: a build carrying a URL but running without a key
+   * took the "database is configured" branch and then failed to reach it, so the
+   * in-memory store was used without being seeded and without the warning that
+   * explains it.
+   */
+  const { supabaseConfigured } = await import("@/lib/supabase/admin");
+  if (!supabaseConfigured()) {
     console.warn(
       "[boot] No Supabase configured. Multiplayer and the boards are using the " +
         "in-memory store. On a single server that works; on a serverless host each " +

@@ -29,8 +29,8 @@ import {
 } from "@/components/ui";
 import { postJson } from "@/components/client";
 import { ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
+import { FAILED_CHECK_EXTRA } from "@/lib/daily/core";
 import type { Ability } from "@/lib/game/types";
-import { faceNeeded } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 
@@ -110,6 +110,12 @@ type RunReply = {
 };
 
 type Step = { optionId: string; knack?: boolean };
+
+/** "an 8", "an 11", "a 12". Printed in a sentence, so it has to read like one. */
+function article(n: number | null): string {
+  if (n === null) return "a";
+  return n === 8 || n === 11 || n === 18 ? "an" : "a";
+}
 
 /** "wet", "wet and seen", "wet, seen and lit". Printed, so it has to read. */
 function list(words: readonly string[]): string {
@@ -280,17 +286,13 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   const tray = data.array.map((_, i) => i).filter((i) => !slots.includes(i));
   const buildReady = !!calling && placed === data.abilities.length && kitIds.length === 2;
 
-  /** What a score of this ability comes to, once the build is on it. */
-  function bonusFor(ability: Ability): number {
-    const slot = slots[data.abilities.indexOf(ability)];
-    let total = slot === null ? 0 : abilityMod(data.array[slot]);
-    if (calling?.affinities.includes(ability)) total += 2;
-    for (const id of kitIds) {
-      const item = data.kit.find((k) => k.id === id);
-      if (item?.ability === ability) total += item.value;
-    }
-    return total;
-  }
+  /*
+   * `bonusFor` used to live here: a client-side copy of the server's reach
+   * arithmetic, existing only to print "you bring +3" on every door. The doors
+   * lead with the fiction now, and the server itemises the whole sum in the
+   * ledger once a floor resolves, so the duplicate is gone. One implementation of
+   * "what do I bring to this", on the side of the wire that decides it.
+   */
 
   function place(index: number) {
     if (held === null) return;
@@ -621,23 +623,20 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                 </p>
               )}
               <p className="mt-3 text-sm text-text-low">
-                You do not know what this room rolled. Nobody does until somebody opens it.
+                You do not know what this room rolled, and nobody does until somebody opens it.
+                Nor which of your abilities a door leans on: that is in the writing, and it is
+                the whole of the game. The sums arrive with the outcome.
               </p>
               <DieRule />
 
               <ul className="mt-3 space-y-3">
                 {room.options.map((option) => {
-                  const bonus = option.ability ? bonusFor(option.ability) : 0;
                   // Which of this door's demands are not met. Named rather than
                   // implied: a door that is simply greyed out is a bug as far as
                   // the player is concerned.
                   const wants = (option.needs ?? []).filter((m) => !holding.has(m));
                   const refuses = (option.forbids ?? []).filter((m) => holding.has(m));
                   const shut = wants.length > 0 || refuses.length > 0;
-                  // Floored at 2 and capped at 20 by `faceNeeded`, not at 1 and 20:
-                  // this line used to promise a door on "a 1 or better" when a 1
-                  // is the one face that never opens anything.
-                  const need = option.tn !== null ? faceNeeded(option.tn, bonus) : null;
                   const canKnack =
                     !knackSpent &&
                     !!calling &&
@@ -663,10 +662,40 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                           Works, and you come away {list(option.sets ?? [])}.
                         </p>
                       )}
+{/*
+                        WHAT A DOOR TELLS YOU BEFORE YOU TAKE IT, and what it does
+                        not.
+
+                        It used to print the ability, your modifier and the face
+                        you needed on every door, which meant the fastest way to
+                        play well was to ignore every word of the writing and take
+                        the biggest number. In a game about a dungeon that is the
+                        wrong incentive: at a table you say what you are going to
+                        do and the person running it tells you what to roll, so
+                        the fiction comes first and the stat is a consequence of
+                        it.
+
+                        The cut is YOUR MODIFIER, not the room's number. What the
+                        room wants is a fact about the room and stays public, the
+                        way it always has been: this is a bet, not a riddle. What
+                        goes is which ability it leans on and what you happen to
+                        bring to it, because that pair is what let you rank three
+                        doors without reading a word.
+
+                        A first attempt printed a difficulty word instead of the
+                        target. It was worse: on a floor whose doors want 11, 12
+                        and 13 it said "Looks fair" three times, which is noise
+                        dressed as signal. The number discriminates and still
+                        tells you nothing about whether the door is yours.
+
+                        The whole sum arrives in the ledger the moment the floor
+                        resolves, which is where it teaches you what you should
+                        have read.
+                      */}
                       <p className="num mt-1 text-sm text-text-low">
                         {option.kind === "brace"
-                          ? `Always works. Costs ${option.vigour} Vigour, every time.`
-                          : `${ABILITY_LABEL[option.ability!]} · you bring ${bonus >= 0 ? "+" : ""}${bonus} · needs ${option.tn}, so a ${need} or better · costs ${option.vigour} if it goes wrong`}
+                          ? `Always works, and clears the floor. Costs ${option.vigour} Vigour, every time.`
+                          : `The room wants ${article(option.tn)} ${option.tn} · costs ${option.vigour + FAILED_CHECK_EXTRA} if it goes wrong, and you do not clear the floor`}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button disabled={busy || shut} onClick={() => void choose(option, false)}>

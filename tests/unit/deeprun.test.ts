@@ -402,3 +402,65 @@ describe("what a line reports", () => {
     expect(result.out).toBe(false);
   });
 });
+
+/**
+ * WHAT FAILING COSTS, IN THE THREE PLACES THAT HAVE TO AGREE.
+ *
+ * A brace costs its price and always works; a failed check costs the price plus
+ * FAILED_CHECK_EXTRA. That gradient exists because the screen used to read "costs
+ * 2 every time" against "costs 2 if it goes wrong" and invited the obvious
+ * conclusion that the safe door was pointless.
+ *
+ * The reason this is tested rather than trusted: the number is read by the runner,
+ * by the par search and by the winnability check, and if any one of them disagrees
+ * then par describes a different game to the one being played, silently, in a
+ * direction nobody would notice until a score looked impossible.
+ */
+describe("failing costs more than certainty", () => {
+  it("charges the extra on a failed check and not on a brace", async () => {
+    const { puzzleFrom, FAILED_CHECK_EXTRA, failCost } = await import("@/lib/daily/deeprun");
+    const rooms = DEEP_ROOMS.filter((r) => r.band === 2).slice(0, 3);
+    const p = puzzleFrom({ seed: "FAILCOST", label: "f", rooms, callingIds: null, kitIds: null, baseVigour: 9 });
+    const b: Build = {
+      callingId: p.callings[0].id,
+      placement: p.array.map((_, i) => i),
+      kitIds: [p.kit[0].id, p.kit[1].id],
+    };
+
+    // Brace every floor: the price is the price, with nothing added.
+    const braced = run(p, b, braceEverything(p), rooms);
+    for (const line of braced.lines) {
+      const option = p.rooms[line.roomIndex].options.find((o) => o.id === line.optionId)!;
+      expect(line.vigourSpent).toBe(option.vigour);
+      expect(failCost(option)).toBe(option.vigour);
+    }
+
+    // And a failed check costs one more than its own price.
+    const checks = p.rooms.map((r) => ({ optionId: r.options.find((o) => o.kind === "check")!.id }));
+    const tried = run(p, b, checks, rooms);
+    for (const line of tried.lines) {
+      const option = p.rooms[line.roomIndex].options.find((o) => o.id === line.optionId)!;
+      if (line.cleared) {
+        expect(line.vigourSpent).toBe(0);
+      } else {
+        expect(line.vigourSpent).toBe(option.vigour + FAILED_CHECK_EXTRA);
+      }
+    }
+  });
+
+  it("prices it the same way in the par search, or par is a different game", async () => {
+    const { puzzleFrom } = await import("@/lib/daily/deeprun");
+    // The proof that the two agree: play the line the solver says is best and see
+    // the score it promised. A par search charging a different failure cost would
+    // pick a line whose real score is lower than the number it published.
+    for (const band of [1, 2, 3] as const) {
+      const rooms = DEEP_ROOMS.filter((r) => r.band === band).slice(0, 3);
+      for (const seed of ["FC1", "FC2", "FC3", "FC4"]) {
+        const p = puzzleFrom({ seed, label: seed, rooms, callingIds: null, kitIds: null, baseVigour: 9 });
+        const { par, best } = parFor(p);
+        expect(best, `${seed} band ${band}`).toBeTruthy();
+        expect(run(p, best!.build, best!.steps, rooms).score, `${seed} band ${band}`).toBe(par);
+      }
+    }
+  });
+});

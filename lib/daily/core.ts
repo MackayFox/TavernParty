@@ -10,6 +10,37 @@
 
 import { CRIT, FUMBLE } from "@/lib/game/rules";
 
+/**
+ * WHAT A FAILED CHECK COSTS OVER AND ABOVE THE DOOR'S PRICE.
+ *
+ * In the Deep Run a brace costs its price and always works; a check costs nothing
+ * if it works and the door's price if it does not. That read on the screen as
+ * "same cost, free upside", which made the safe door look pointless.
+ *
+ * It never was pointless: a brace CLEARS the floor and a failed check does not, so
+ * failing already forfeited four points on top of the Vigour. Valuing leftover
+ * Vigour at the point each is worth at the end, the break-even was "gamble only if
+ * you are better than two thirds likely to clear". A real decision, and nothing on
+ * the screen said so.
+ *
+ * This makes the gradient true in Vigour as well as in points, so nobody has to do
+ * algebra to see that caution is the cheaper thing. One point, moving the
+ * break-even on a shallow floor from 67% to 71%, and it costs nothing anywhere
+ * else: a perfect player knows the die and never fails a check, so par and the
+ * winnability guarantee do not move. It is a tax on guessing wrong.
+ *
+ * Lives here because four things read it and one of them is a client component:
+ * the runner, the par search, the winnability check, and the desk, which has to
+ * tell an author what their door will really cost. `deeprun.ts` re-exports it, and
+ * a client component must never import that.
+ */
+export const FAILED_CHECK_EXTRA = 1;
+
+/** What this door takes off you if you try it and it does not work. */
+export function failCost(option: { kind: string; vigour: number }): number {
+  return option.kind === "brace" ? option.vigour : option.vigour + FAILED_CHECK_EXTRA;
+}
+
 export const DAILY_GAMES = ["longway", "deeprun", "ledger", "muster"] as const;
 export type DailyGame = (typeof DAILY_GAMES)[number];
 

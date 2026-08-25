@@ -356,6 +356,38 @@ it went.
    before you choose, there is no probability in the problem at all, so the whole
    search collapses to a table over (floor, Vigour, knack still in hand, marks).
 
+   **You are told what the room wants, not what you bring.** A door names its
+   target and its price; it does not name the ability it leans on, and it does not
+   print your modifier for it. That last pair was the whole problem: with "Deft,
+   you bring +4, needs 11" on every door, the fastest way to play well was to
+   ignore every word of the writing and take the biggest number, which is the
+   wrong incentive for a game about a dungeon. At a table you say what you are
+   going to do and the person running it tells you what to roll, so the fiction
+   comes first and the stat is a consequence. Working out that "set your feet and
+   meet it" is Brawn and "wait, then step out of the line" is Deft *is* the game.
+   The full itemised sum arrives in the ledger the moment the floor resolves,
+   which is where it teaches you what you should have read.
+
+   The target itself stays public, because this is a bet and not a riddle, and
+   because it discriminates: an attempt at a difficulty word instead read "Looks
+   fair" on all three doors of a floor wanting 11, 12 and 13, which is noise
+   dressed as signal.
+
+   **Failing costs one more Vigour than bracing**, and that gradient is
+   deliberate. A brace costs its price and clears the floor; a failed check costs
+   the price plus one and clears nothing, so it forfeits four points as well.
+   Before the extra point the two Vigour figures were equal and the screen read
+   "same cost, free upside", which is a fair reading of what it said and a wrong
+   reading of the game: valuing leftover Vigour at the point each is worth, the
+   break-even was already "gamble only if you are better than two thirds likely to
+   clear". The extra point moves that to about 71% on a shallow floor and, more
+   importantly, makes the gradient visible without algebra. It costs nothing
+   anywhere else: a perfect player knows the die and never fails a check, so par
+   and the winnability guarantee do not move. Measured: the daily's clear rate
+   under perfect play is unchanged, and The Stone Walk keeps par 50 while the
+   share of characters who get out falls from 142 of 240 to 130. It is a tax on
+   guessing wrong, which is the only thing it should be.
+
    **Marks** are the fourth term and the only mechanic where one floor changes a
    later one. A door may leave a word on you ("wet", "carrying the lamp"), and
    another door further down may want it or refuse it. Three rules hold the whole

@@ -40,6 +40,7 @@ import {
   characterFor,
   dieFor,
   secondDie,
+  failCost,
   marksRead,
   openTo,
   startingVigour,
@@ -91,7 +92,10 @@ function movesFor(
     return {
       step: { optionId: option.id },
       cleared,
-      vigour: cleared ? 0 : -option.vigour,
+      // Failing costs more than bracing on purpose. See FAILED_CHECK_EXTRA: if
+      // this line and the runner ever disagree, par describes a different game to
+      // the one being played.
+      vigour: cleared ? 0 : -failCost(option),
       sets: option.sets,
     };
   };
@@ -133,7 +137,7 @@ function knackMove(
       const ability = option.ability ?? "grit";
       const total = die + bonusFor(ability) + BOOST;
       const cleared = clears(die, total, option.tn ?? 99);
-      return { step, cleared, vigour: cleared ? 0 : -option.vigour, sets };
+      return { step, cleared, vigour: cleared ? 0 : -failCost(option), sets };
     }
     case "rethrow": {
       if (option.kind !== "check") return null;
@@ -141,7 +145,7 @@ function knackMove(
       const ability = option.ability ?? "grit";
       const total = again + bonusFor(ability);
       const cleared = clears(again, total, option.tn ?? 99);
-      return { step, cleared, vigour: cleared ? 0 : -option.vigour, sets };
+      return { step, cleared, vigour: cleared ? 0 : -failCost(option), sets };
     }
   }
 }
