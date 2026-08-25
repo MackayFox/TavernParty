@@ -324,7 +324,9 @@ alter table profiles add column if not exists banned boolean not null default fa
 
 **No reports table.** The report link posts to `/api/contact` with the code in the subject, into an inbox that already exists and is already read. Three reports auto-delisting is a griefing button and dead machinery at zero users. Build the table the first week a report arrives that cannot be handled by hand.
 
-The migration also **seeds the twenty house rooms** with `author_id = null`, generated from `DEEP_ROOMS` and `DEEP_BOSSES` by `scripts/seed-rooms.mjs` so the SQL and the TypeScript cannot drift.
+The migration also **seeds the house rooms** with `author_id = null`, generated from `DEEP_ROOMS` and `DEEP_BOSSES` by `scripts/seed-rooms.mjs` so the SQL and the TypeScript cannot drift.
+
+`seedHouseContent` skips a room it already has (`if (have.has(id)) continue`) rather than skipping the whole job, so **re-run `node scripts/seed-rooms.mjs` after adding rooms to the pool** and it adds exactly the new ones. Adding rooms and not re-seeding leaves them in the daily and absent from the shelf, which is invisible until an author wonders why the pool is smaller than the release notes said.
 
 `lib/campaign/` is new and server-only: `types.ts` (pure), `store.ts` (the tables), `gate.ts` (validation), `puzzle.ts` (row to `Puzzle` plus the prose map). The pure engine keeps knowing nothing about any of it.
 
@@ -513,7 +515,7 @@ Room pickup counts and credits (0.5).
 
 ## 9. The three biggest risks
 
-**1. Nobody writes anything, and the pool stays twenty house rooms forever.**
+**1. Nobody writes anything, and the pool stays the house rooms forever.**
 
 Then this is a playlist builder, the creator market never opens, and the honest response is to delete it rather than keep adding to it.
 
