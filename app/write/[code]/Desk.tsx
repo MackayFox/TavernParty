@@ -23,7 +23,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Announcer, Button, Card, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
+import { useRouter } from "next/navigation";
+import { Announcer, Button, Card, ErrorNote, Pill, Spinner } from "@/components/ui";
 import { getJson, postJson } from "@/components/client";
 import { ABILITY_LABEL } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
@@ -55,12 +56,23 @@ type Room = {
 type Draft = {
   code: string;
   title: string;
+  /** The byline. Carried so "take a copy" can open the new draft under the same name. */
+  authorName: string;
   intro: string;
   rooms: Room[];
   callingIds: string[];
   kitIds: string[];
   baseVigour: number;
   publishedAt: string | null;
+  /**
+   * The verdict frozen at publish, when there is one.
+   *
+   * A published desk never solves again, so this is where its par comes from: the
+   * numbers on the row are the numbers everybody with the link is playing
+   * against, and re-running the gate to print them would be asking a question
+   * whose answer is already in the payload.
+   */
+  report?: Report | null;
 };
 type Note = { severity: "block" | "warn" | "good"; text: string; floor?: number };
 type Report = {
@@ -154,7 +166,7 @@ function Marks({
         placeholder={hint}
         aria-label={`Door ${door + 1}: ${label}`}
         onChange={(e) => onChange({ [key]: parse(e.target.value) } as Partial<Option>)}
-        className="mt-1 min-h-11 w-full rounded border border-paper-rule bg-white/40 px-3 text-sm text-paper-ink"
+        className="mt-1 min-h-11 w-full rounded border border-paper-rule bg-paper-field px-3 text-sm text-paper-ink"
       />
     </label>
   );
@@ -192,6 +204,41 @@ const DIE_UNKNOWN = 10;
 let nextId = 0;
 const freshId = (p: string) => `${p}-${Date.now().toString(36)}-${nextId++}`;
 
+/** A button that is really a link. Used by every "here is a way on" on this screen. */
+const WAY_ON =
+  "inline-flex min-h-11 items-center justify-center rounded-md border border-border-strong px-4 text-sm text-text-mid hover:border-accent/50";
+
+/**
+ * Save a draft, and throw if the server did not take it.
+ *
+ * The `res.ok` check is the whole point. The autosave used to fire and forget,
+ * so the PUT's 409 on a published dungeon went nowhere: the desk stayed
+ * editable, every keystroke was thrown away by the server, and the author was
+ * told nothing until they reloaded and found their afternoon gone. Any refusal
+ * the route can give (409 frozen, 403 not yours, 429 rate limited) now reaches
+ * the screen in the route's own words.
+ */
+async function saveDraft(code: string, d: Draft): Promise<void> {
+  const res = await fetch(`/api/dungeons/${code}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      title: d.title,
+      intro: d.intro,
+      rooms: d.rooms,
+      callingIds: d.callingIds,
+      kitIds: d.kitIds,
+      baseVigour: d.baseVigour,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(
+      data?.error ?? "Could not save that, so nothing you have typed since is on the server."
+    );
+  }
+}
+
 function blankRoom(): Room {
   return {
     id: freshId("r"),
@@ -207,6 +254,7 @@ function blankRoom(): Room {
 }
 
 export function Desk({ code }: { code: string }) {
+  const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
   /**
    * The dice this dungeon has already thrown, one per possible floor.
@@ -222,18 +270,35 @@ export function Desk({ code }: { code: string }) {
   const [busy, setBusy] = useState(false);
   const [announce, setAnnounce] = useState("");
   const [link, setLink] = useState<string | null>(null);
+  /**
+   * Why the desk did not open, when it did not.
+   *
+   * Kept apart from `error`, which is for a save or a publish that failed while
+   * you were working and leaves the desk standing. These two END the screen, so
+   * they owe you a sentence and somewhere to go: one red strip on an otherwise
+   * blank page reads as a broken site rather than as somebody else's dungeon.
+   */
+  const [shut, setShut] = useState<"not-yours" | "missing" | null>(null);
 
   useEffect(() => {
     void getJson<{ mine: boolean; draft?: Draft; dice?: number[] }>(`/api/dungeons/${code}`)
       .then((d) => {
         if (!d.mine || !d.draft) {
-          setError("That one is not yours to write.");
+          setShut("not-yours");
           return;
         }
         setDraft(d.draft);
         setDice(d.dice ?? []);
+        // A published one is frozen and will never solve again, so its stored
+        // verdict is the reckoning. Without this the desk sat on "Working it out"
+        // for a dungeon whose par has been decided since the day it went out.
+        if (d.draft.report) setReport(d.draft.report);
+        // "Take a copy" navigates while still busy, so the desk it lands on is
+        // what ends that. Otherwise a reused component instance would arrive with
+        // every button disabled.
+        setBusy(false);
       })
-      .catch(() => setError("Could not find that draft."));
+      .catch(() => setShut("missing"));
     void getJson<{ pool: PoolEntry[] }>("/api/dungeons")
       .then((d) => setPool(d.pool ?? []))
       .catch(() => setPool([]));
@@ -275,18 +340,10 @@ export function Desk({ code }: { code: string }) {
   const persist = useCallback(
     async (next: Draft, solve: boolean) => {
       try {
-        await fetch(`/api/dungeons/${code}`, {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            title: next.title,
-            intro: next.intro,
-            rooms: next.rooms,
-            callingIds: next.callingIds,
-            kitIds: next.kitIds,
-            baseVigour: next.baseVigour,
-          }),
-        });
+        await saveDraft(code, next);
+        // A save that worked clears whatever the last one said, so a warning
+        // about words that were not kept cannot outlive the words being kept.
+        setError(null);
         if (!solve) return;
         const r = await postJson<Report>(`/api/dungeons/${code}/report`, {});
         setReport(r);
@@ -301,6 +358,15 @@ export function Desk({ code }: { code: string }) {
   // Save always, solve only when the mechanics moved.
   useEffect(() => {
     if (!draft) return;
+    /**
+     * A published dungeon never autosaves.
+     *
+     * The route refuses one with a 409 by design, so this timer was firing a
+     * request per keystroke that the server threw away. The desk is read-only in
+     * that state now, but the guard belongs here as well: this is the effect that
+     * would otherwise go on quietly pretending the work was being kept.
+     */
+    if (draft.publishedAt) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const solve = mechanical !== lastSolved.current;
     saveTimer.current = setTimeout(() => {
@@ -312,7 +378,7 @@ export function Desk({ code }: { code: string }) {
     };
   }, [draft, mechanical, persist]);
 
-  if (error && !draft) return <ErrorNote message={error} />;
+  if (shut) return <Shut kind={shut} code={code} />;
   if (!draft) {
     return (
       <div className="flex justify-center py-16">
@@ -348,7 +414,18 @@ export function Desk({ code }: { code: string }) {
     setError(null);
     try {
       const res = await postJson<{ ok: boolean; code: string }>(`/api/dungeons/${code}/publish`, {});
-      if (res.ok) setLink(`${window.location.origin}/d/${res.code}`);
+      if (res.ok) {
+        setLink(`${window.location.origin}/d/${res.code}`);
+        /**
+         * The desk freezes the moment it publishes.
+         *
+         * The row on the server now has a publishedAt and refuses every save, and
+         * the local copy did not know: the author carried on typing into a form
+         * whose every keystroke was being turned away.
+         */
+        setDraft((d) => (d ? { ...d, publishedAt: new Date().toISOString() } : d));
+        setAnnounce("Published. The desk is read only now, and there is a link to the door.");
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -356,13 +433,43 @@ export function Desk({ code }: { code: string }) {
     }
   }
 
-  const canPublish = !!report?.ok && draft.title.trim().length > 0 && !draft.publishedAt;
+  /**
+   * TAKE A COPY: the only way to change something already out there.
+   *
+   * No copy endpoint, and it does not need one. Opening a draft and saving these
+   * rooms into it is the same two requests the desk already makes every few
+   * seconds, where a server-side clone would be a third code path to keep in step
+   * with the save schema. The copy gets its own code, so it throws its own dice
+   * and the published one's par is left exactly where the leaderboard left it,
+   * which is the entire reason the original is frozen.
+   */
+  async function takeCopy(from: Draft) {
+    setBusy(true);
+    setError(null);
+    try {
+      // Sliced to the byline's own limit: a signed-in profile name can be longer
+      // than the create route accepts, and the route prefers the profile anyway,
+      // so this only ever feeds the guest path.
+      const made = await postJson<{ code: string }>("/api/dungeons", {
+        name: from.authorName.slice(0, 20),
+      });
+      await saveDraft(made.code, { ...from, title: `${from.title} again`.slice(0, 80) });
+      router.push(`/write/${made.code}`);
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  /** Out in the world, therefore frozen: read the desk, do not write on it. */
+  const frozen = !!draft.publishedAt;
+  const canPublish = !!report?.ok && draft.title.trim().length > 0 && !frozen;
 
   return (
     <div className="mx-auto w-full max-w-6xl py-6">
       <header className="mb-5 flex flex-wrap items-baseline justify-between gap-3 border-b border-border-dim pb-4">
         <div>
-          <p className="label-caps">The desk · a draft</p>
+          <p className="label-caps">The desk · {frozen ? "published, and read only" : "a draft"}</p>
           <h1 className="font-display mt-1 text-3xl font-bold uppercase text-text-hi">
             {draft.title || "Something new"}
           </h1>
@@ -372,8 +479,51 @@ export function Desk({ code }: { code: string }) {
         </span>
       </header>
 
+      {/*
+       * PUBLISHED, SO THE DESK IS SHUT.
+       *
+       * This said nothing at all: the form opened as normal, every autosave was
+       * turned away by the route with a 409, and an author could write a floor and
+       * lose it. The reason is worth the paragraph, because being told "no" without
+       * being told why is what makes somebody try it again in another browser.
+       */}
+      {frozen && (
+        <Card className="mb-5 border-accent/60 bg-accent-dim">
+          <p className="label-caps">Out in the world</p>
+          <p className="prose-read mt-1 text-text-hi">
+            You can read this one but not change it. Its dice are pinned and its par is the number
+            everybody who has the link is playing against, so an edit now would move the target
+            under somebody who is halfway down. A copy has its own code and throws its own dice,
+            and you can do what you like to it.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button disabled={busy} onClick={() => void takeCopy(draft)}>
+              {busy ? "Taking a copy" : "Take a copy and write on that"}
+            </Button>
+            <Link href={`/d/${draft.code}`} className={WAY_ON}>
+              Go and look at the door
+            </Link>
+          </div>
+          {/* Beside the button that failed. The reckoning shows nothing while
+              frozen, so this is the only place a copy going wrong can land. */}
+          {error && (
+            <div className="mt-3">
+              <ErrorNote message={error} />
+            </div>
+          )}
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div>
+        {/*
+         * One disabled fieldset is the whole read-only mode.
+         *
+         * Native: every input, select, textarea and button inside it stops taking
+         * input and announces itself as disabled, which a hand-rolled `readOnly`
+         * pass over forty fields would only approximate. The floors still open, so
+         * a published dungeon is still there to read.
+         */}
+        <fieldset disabled={frozen} className="min-w-0">
           {/* ------------------------------------------------ the settings */}
           <section className="mb-7">
             <h2 className="label-caps mb-2">One. The rules of this one</h2>
@@ -465,7 +615,9 @@ export function Desk({ code }: { code: string }) {
               />
             ))}
 
-            {draft.rooms.length < 8 && (
+            {/* Not offered at all on a published one: a disabled pair of buttons
+                that can never come back is furniture. */}
+            {draft.rooms.length < 8 && !frozen && (
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
@@ -492,7 +644,7 @@ export function Desk({ code }: { code: string }) {
               plenty of people abandon a blank card.
             </p>
           </section>
-        </div>
+        </fieldset>
 
         {/* ------------------------------------------------ the reckoning */}
         <aside className="lg:sticky lg:top-4 lg:self-start">
@@ -513,10 +665,10 @@ export function Desk({ code }: { code: string }) {
             )}
 
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <Figure label="Par" value={report?.ok ? String(report.par) : "—"} />
+              <Figure label="Par" value={report?.ok ? String(report.par) : PENDING} />
               <Figure
                 label="Get out"
-                value={report && report.builds > 0 ? `${report.out}/${report.builds}` : "—"}
+                value={report && report.builds > 0 ? `${report.out}/${report.builds}` : PENDING}
               />
             </div>
 
@@ -544,49 +696,64 @@ export function Desk({ code }: { code: string }) {
             </ul>
 
             {report?.ok && <p className="mt-3 text-sm text-text-mid">{report.summary}</p>}
-            <ErrorNote message={error} />
+            {/* While frozen the only thing that can fail is the copy, and the copy
+                button is at the top of the screen with an ErrorNote of its own.
+                Two role="alert" strips for one failure announce it twice. */}
+            {!frozen && <ErrorNote message={error} />}
 
-            {link ? (
+            {link || frozen ? (
               <div className="mt-4 rounded-md border border-accent/60 bg-accent-dim p-3">
                 <p className="label-caps">It is out there</p>
-                <p className="mt-1 break-all text-sm text-text-hi">{link}</p>
+                {link && <p className="mt-1 break-all text-sm text-text-hi">{link}</p>}
                 <Link href={`/d/${draft.code}`} className="mt-2 inline-block text-sm text-accent underline">
                   Go and look at the door
                 </Link>
               </div>
             ) : (
               <div className="mt-4 grid gap-2">
-                <p className="mb-2 text-xs text-paper-ink-mid">
+                {/*
+                 * The licence, and the one paragraph on the desk with legal weight.
+                 * It was set in paper ink on a dark card, which measures about
+                 * 2.1:1, so the terms nobody could read were the terms they were
+                 * agreeing to. Dark-surface ink, and the link takes the accent so
+                 * it reads as something you can press.
+                 */}
+                <p className="mb-2 text-xs text-text-mid">
                   Publishing keeps this yours and gives me permission to host it and show it, for
                   as long as it is up. Your own writing only, and nothing you would not want a
                   stranger to open. The{" "}
-                  <a href="/terms" className="underline">
+                  <a href="/terms" className="text-accent underline">
                     terms
                   </a>{" "}
                   say it in five sentences.
                 </p>
                 <Button size="lg" disabled={!canPublish || busy} onClick={() => void publish()}>
-                  {draft.publishedAt
-                    ? "Already out there"
-                    : canPublish
-                      ? "Keep it and take the link"
-                      : report && !report.ok
+                  {/* It has to say what it does. "Keep it and take the link" was the
+                      only control on the screen that publishes, and the paragraph
+                      above it talks about publishing, so the two did not meet. */}
+                  {canPublish
+                    ? "Publish it and take the link"
+                    : !report
+                      ? "Still working it out"
+                      : !report.ok
                         ? "Fix the blocks first"
                         : "Give it a name first"}
                 </Button>
                 <Link
                   href={`/d/${draft.code}?preview=1`}
-                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-border-strong text-sm text-text-mid"
+                  className={WAY_ON}
                 >
                   Play it yourself first
                 </Link>
               </div>
             )}
 
-            <p className="mt-3 text-xs text-text-low">
-              Prose never moves par, so typing never re-runs this. Changing a difficulty word
-              does.
-            </p>
+            {!frozen && (
+              <p className="mt-3 text-xs text-text-low">
+                Prose never moves par, so typing never re-runs this. Changing a door, a depth or a
+                mark does.
+              </p>
+            )}
           </Card>
         </aside>
       </div>
@@ -596,12 +763,63 @@ export function Desk({ code }: { code: string }) {
   );
 }
 
+/**
+ * What both headline figures said before the first solve landed: an em-dash.
+ *
+ * Which is not a character this product's copy uses, and told a first-time author
+ * nothing at all about whether the number was zero, broken or on its way.
+ */
+const PENDING = "Not worked out yet";
+
 function Figure({ label, value }: { label: string; value: string }) {
+  // A word standing where a number goes does not get the number's size: PENDING
+  // at 28px in tabular mono would break the two-column grid on a phone, and it is
+  // running text rather than a figure anyway.
+  const digits = /^[\d/]+$/.test(value);
   return (
     <div className="rounded-md border border-border-dim bg-bg-2 px-3 py-2">
       <div className="label-caps">{label}</div>
-      <div className="num text-2xl text-text-hi">{value}</div>
+      <div className={digits ? "num text-2xl text-text-hi" : "text-sm text-text-mid"}>{value}</div>
     </div>
+  );
+}
+
+/**
+ * The desk did not open. Two reasons, both of which end the screen.
+ *
+ * This was one red ErrorNote on an otherwise empty page, which is the shape of a
+ * site that has fallen over rather than of a code that belongs to somebody else.
+ * Say which of the two it is, and give the three places worth going next.
+ */
+function Shut({ kind, code }: { kind: "not-yours" | "missing"; code: string }) {
+  const someoneElses = kind === "not-yours";
+  return (
+    <section className="mx-auto w-full max-w-xl py-16">
+      <Card className="border-border-strong">
+        <p className="label-caps">The desk stayed shut</p>
+        <h1 className="font-display mt-1 text-2xl font-bold uppercase text-text-hi">
+          {someoneElses ? "Somebody else wrote that one" : "No dungeon by that name"}
+        </h1>
+        <p className="prose-read mt-3 text-text-mid">
+          {someoneElses
+            ? `${code} exists, and only the person who wrote it can change it. You can still go down it.`
+            : `Nothing answers to ${code}. Either the code has a letter wrong in it, or that one has been taken down.`}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {someoneElses && (
+            <Link href={`/d/${code}`} className={WAY_ON}>
+              Go and look at the door
+            </Link>
+          )}
+          <Link href="/write" className={WAY_ON}>
+            Write one of your own
+          </Link>
+          <Link href="/dungeons" className={WAY_ON}>
+            See what else is down there
+          </Link>
+        </div>
+      </Card>
+    </section>
   );
 }
 
@@ -683,205 +901,234 @@ function Floor({
   onMove: (by: number) => void;
   onRemove: () => void;
 }) {
-  const doors = room.options.map((o) => (o.ability ? ABILITY_LABEL[o.ability] : "brace")).join(" · ");
+  /**
+   * The door list on a collapsed floor, in the words the play screen uses.
+   *
+   * It printed "brace", which is the word the schema uses for a door that always
+   * works and appears nowhere a player can see. Read off `kind` rather than off a
+   * missing ability, so an option carrying a stale ability cannot mislabel itself.
+   */
+  const doors = room.options
+    .map((o) => (o.kind === "brace" || !o.ability ? "always works" : ABILITY_LABEL[o.ability]))
+    .join(" · ");
   return (
-    <details className="sheet mb-3 max-w-none p-0">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 p-3">
-        <span className="num rounded border border-paper-rule px-2 py-0.5 text-xs text-paper-ink-mid">
-          {index + 1}
-        </span>
-        <span className="font-display min-w-0 flex-1 truncate text-paper-ink">
-          {room.title || "Empty slot"}
-        </span>
-        {flagged.length > 0 && <Pill tone="warning">{flagged.length} to look at</Pill>}
-        <span className="num hidden text-xs text-paper-ink-mid sm:inline">{doors}</span>
-        <span className="flex shrink-0 gap-1">
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); onMove(-1); }}
-            disabled={index === 0}
-            aria-label={`Move floor ${index + 1} up`}
-            className="min-h-11 min-w-11 rounded border border-paper-rule text-paper-ink disabled:opacity-40"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); onMove(1); }}
-            disabled={last}
-            aria-label={`Move floor ${index + 1} down`}
-            className="min-h-11 min-w-11 rounded border border-paper-rule text-paper-ink disabled:opacity-40"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); onRemove(); }}
-            aria-label={`Remove floor ${index + 1}`}
-            className="min-h-11 min-w-11 rounded border border-paper-rule text-paper-ink"
-          >
-            ✕
-          </button>
-        </span>
-      </summary>
+    <div className="sheet mb-3">
+      <details>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 p-3">
+          <span className="num rounded border border-paper-rule px-2 py-0.5 text-xs text-paper-ink-mid">
+            {index + 1}
+          </span>
+          <span className="font-display min-w-0 flex-1 truncate text-paper-ink">
+            {room.title || "Empty slot"}
+          </span>
+          {flagged.length > 0 && <Pill tone="warning">{flagged.length} to look at</Pill>}
+          <span className="num hidden text-xs text-paper-ink-mid sm:inline">{doors}</span>
+        </summary>
 
-      <div className="border-t border-paper-rule p-4">
-        {flagged.map((n, i) => (
-          <p key={i} className="mb-2 text-sm text-paper-ink">
-            <span aria-hidden className="mr-1 font-mono">▲</span>
-            {n.text}
-          </p>
-        ))}
+        <div className="border-t border-paper-rule p-4">
+          {flagged.map((n, i) => (
+            <p key={i} className="mb-2 text-sm text-paper-ink">
+              <span aria-hidden className="mr-1 font-mono">▲</span>
+              {n.text}
+            </p>
+          ))}
 
-        <label className="block">
-          <span className="sheet-label">What it is called</span>
-          <input
-            type="text"
-            value={room.title}
-            maxLength={80}
-            onChange={(e) => onEdit({ title: e.target.value })}
-            className="min-h-11 w-full rounded border border-paper-rule bg-white/40 px-3 text-paper-ink"
-          />
-        </label>
-
-        <label className="mt-3 block">
-          <span className="sheet-label">What they walk into</span>
-          <textarea
-            value={room.setup}
-            rows={2}
-            maxLength={600}
-            onChange={(e) => onEdit({ setup: e.target.value })}
-            className="w-full rounded border border-paper-rule bg-white/40 px-3 py-2 text-paper-ink"
-          />
-        </label>
-
-        <p className="mt-3 rounded border border-paper-rule bg-white/30 p-2 text-sm text-paper-ink">
-          <span aria-hidden className="mr-1 font-mono">&#9860;</span>
-          {readingOf(die)}
-        </p>
-
-        <label className="mt-3 block">
-          <span className="sheet-label">How deep this one is</span>
-          <select
-            value={room.band}
-            onChange={(e) => {
-              const band = Number(e.target.value) as 1 | 2 | 3;
-              // The word fills the number in, so changing the depth re-fills every
-              // door on the floor rather than leaving stale targets behind.
-              // Depth sets the PRICE. It no longer touches the targets, because a
-              // target only means anything against this floor's die and the die
-              // does not change when the author decides the floor is deeper.
-              onEdit({
-                band,
-                options: room.options.map((o) => ({ ...o, vigour: COST[band] })),
-              });
-            }}
-            className="min-h-11 rounded border border-paper-rule bg-white/40 px-3 text-paper-ink"
-          >
-            {([1, 2, 3] as const).map((b) => (
-              <option key={b} value={b}>
-                {BAND_WORD[b]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {room.options.map((o, j) => (
-          <div key={o.id} className="mt-4 border-t border-paper-rule pt-3">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="sheet-label">Door {j + 1}</span>
-              {o.kind === "check" ? (
-                <>
-                  <select
-                    aria-label={`Which ability door ${j + 1} asks for`}
-                    value={o.ability}
-                    onChange={(e) => onOption(j, { ability: e.target.value as Ability })}
-                    className="min-h-11 rounded border border-paper-rule bg-white/40 px-2 text-paper-ink"
-                  >
-                    {ABILITIES.map((a) => (
-                      <option key={a} value={a}>
-                        {ABILITY_LABEL[a]}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label={`How hard door ${j + 1} is`}
-                    value={wordFor(die, o.tn ?? targetsFor(die).fair)}
-                    onChange={(e) =>
-                      onOption(j, {
-                        tn: targetsFor(die)[e.target.value as "easy" | "fair" | "hard"],
-                      })
-                    }
-                    className="min-h-11 rounded border border-paper-rule bg-white/40 px-2 text-paper-ink"
-                  >
-                    <option value="easy">most get through</option>
-                    <option value="fair">about half</option>
-                    <option value="hard">few do</option>
-                  </select>
-                  <span className="num text-xs text-paper-ink-mid">
-                    needs {o.tn}, this floor throws {die}, costs{" "}
-                    {(o.vigour ?? 0) + FAILED_CHECK_EXTRA} if it goes wrong
-                  </span>
-                </>
-              ) : (
-                <span className="num text-xs text-paper-ink-mid">
-                  always works and clears the floor, costs {o.vigour} every time
-                </span>
-              )}
-            </div>
-
+          <label className="block">
+            <span className="sheet-label">What it is called</span>
             <input
               type="text"
-              placeholder="What they try"
-              aria-label={`What door ${j + 1} is called`}
-              value={o.label}
+              value={room.title}
               maxLength={80}
-              onChange={(e) => onOption(j, { label: e.target.value })}
-              className="min-h-11 w-full rounded border border-paper-rule bg-white/40 px-3 text-paper-ink"
+              onChange={(e) => onEdit({ title: e.target.value })}
+              className="min-h-11 w-full rounded border border-paper-rule bg-paper-field px-3 text-paper-ink"
             />
-            <input
-              type="text"
-              placeholder="In their own words, before they know if it works"
-              aria-label={`What door ${j + 1} promises`}
-              value={o.promise}
-              maxLength={200}
-              onChange={(e) => onOption(j, { promise: e.target.value })}
-              className="mt-2 min-h-11 w-full rounded border border-paper-rule bg-white/40 px-3 text-sm text-paper-ink"
+          </label>
+
+          <label className="mt-3 block">
+            <span className="sheet-label">What they walk into</span>
+            <textarea
+              value={room.setup}
+              rows={2}
+              maxLength={600}
+              onChange={(e) => onEdit({ setup: e.target.value })}
+              className="w-full rounded border border-paper-rule bg-paper-field px-3 py-2 text-paper-ink"
             />
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <textarea
-                placeholder="It works"
-                aria-label={`What happens when door ${j + 1} works`}
-                value={o.win}
-                rows={2}
-                maxLength={400}
-                onChange={(e) =>
-                  onOption(j, o.kind === "brace" ? { win: e.target.value, lose: e.target.value } : { win: e.target.value })
-                }
-                className="w-full rounded border border-paper-rule bg-white/40 px-3 py-2 text-sm text-paper-ink"
+          </label>
+
+          {/* A ruled box you read, not a well you write in, so it takes the
+              sheet's own read-box class rather than the field tint. */}
+          <p className="sheet-box mt-3 p-2 text-sm text-paper-ink">
+            <span aria-hidden className="mr-1 font-mono">&#9860;</span>
+            {readingOf(die)}
+          </p>
+
+          <label className="mt-3 block">
+            <span className="sheet-label">How deep this one is</span>
+            <select
+              value={room.band}
+              onChange={(e) => {
+                const band = Number(e.target.value) as 1 | 2 | 3;
+                // The word fills the number in, so changing the depth re-fills every
+                // door on the floor rather than leaving stale targets behind.
+                // Depth sets the PRICE. It no longer touches the targets, because a
+                // target only means anything against this floor's die and the die
+                // does not change when the author decides the floor is deeper.
+                onEdit({
+                  band,
+                  options: room.options.map((o) => ({ ...o, vigour: COST[band] })),
+                });
+              }}
+              className="min-h-11 rounded border border-paper-rule bg-paper-field px-3 text-paper-ink"
+            >
+              {([1, 2, 3] as const).map((b) => (
+                <option key={b} value={b}>
+                  {BAND_WORD[b]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {room.options.map((o, j) => (
+            <div key={o.id} className="mt-4 border-t border-paper-rule pt-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="sheet-label">Door {j + 1}</span>
+                {o.kind === "check" ? (
+                  <>
+                    <select
+                      aria-label={`Which ability door ${j + 1} asks for`}
+                      value={o.ability}
+                      onChange={(e) => onOption(j, { ability: e.target.value as Ability })}
+                      className="min-h-11 rounded border border-paper-rule bg-paper-field px-2 text-paper-ink"
+                    >
+                      {ABILITIES.map((a) => (
+                        <option key={a} value={a}>
+                          {ABILITY_LABEL[a]}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label={`How hard door ${j + 1} is`}
+                      value={wordFor(die, o.tn ?? targetsFor(die).fair)}
+                      onChange={(e) =>
+                        onOption(j, {
+                          tn: targetsFor(die)[e.target.value as "easy" | "fair" | "hard"],
+                        })
+                      }
+                      className="min-h-11 rounded border border-paper-rule bg-paper-field px-2 text-paper-ink"
+                    >
+                      <option value="easy">most get through</option>
+                      <option value="fair">about half</option>
+                      <option value="hard">few do</option>
+                    </select>
+                    <span className="num text-xs text-paper-ink-mid">
+                      needs {o.tn}, this floor throws {die}, costs{" "}
+                      {(o.vigour ?? 0) + FAILED_CHECK_EXTRA} if it goes wrong
+                    </span>
+                  </>
+                ) : (
+                  <span className="num text-xs text-paper-ink-mid">
+                    always works and clears the floor, costs {o.vigour} every time
+                  </span>
+                )}
+              </div>
+
+              <input
+                type="text"
+                placeholder="What they try"
+                aria-label={`What door ${j + 1} is called`}
+                value={o.label}
+                maxLength={80}
+                onChange={(e) => onOption(j, { label: e.target.value })}
+                className="min-h-11 w-full rounded border border-paper-rule bg-paper-field px-3 text-paper-ink"
               />
-              {o.kind === "check" ? (
+              <input
+                type="text"
+                placeholder="In their own words, before they know if it works"
+                aria-label={`What door ${j + 1} promises`}
+                value={o.promise}
+                maxLength={200}
+                onChange={(e) => onOption(j, { promise: e.target.value })}
+                className="mt-2 min-h-11 w-full rounded border border-paper-rule bg-paper-field px-3 text-sm text-paper-ink"
+              />
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <textarea
-                  placeholder="It does not"
-                  aria-label={`What happens when door ${j + 1} does not work`}
-                  value={o.lose}
+                  placeholder="It works"
+                  aria-label={`What happens when door ${j + 1} works`}
+                  value={o.win}
                   rows={2}
                   maxLength={400}
-                  onChange={(e) => onOption(j, { lose: e.target.value })}
-                  className="w-full rounded border border-paper-rule bg-white/40 px-3 py-2 text-sm text-paper-ink"
+                  onChange={(e) =>
+                    onOption(j, o.kind === "brace" ? { win: e.target.value, lose: e.target.value } : { win: e.target.value })
+                  }
+                  className="w-full rounded border border-paper-rule bg-paper-field px-3 py-2 text-sm text-paper-ink"
                 />
-              ) : (
-                // A brace always works, so it has one ending and writing a second
-                // would be writing something nobody can ever reach.
-                <p className="self-center text-xs text-paper-ink-mid">
-                  This one always works, so it only has the one ending.
-                </p>
-              )}
+                {o.kind === "check" ? (
+                  <textarea
+                    placeholder="It does not"
+                    aria-label={`What happens when door ${j + 1} does not work`}
+                    value={o.lose}
+                    rows={2}
+                    maxLength={400}
+                    onChange={(e) => onOption(j, { lose: e.target.value })}
+                    className="w-full rounded border border-paper-rule bg-paper-field px-3 py-2 text-sm text-paper-ink"
+                  />
+                ) : (
+                  // A brace always works, so it has one ending and writing a second
+                  // would be writing something nobody can ever reach.
+                  <p className="self-center text-xs text-paper-ink-mid">
+                    This one always works, so it only has the one ending.
+                  </p>
+                )}
+              </div>
+              <Marks door={j} option={o} onChange={(patch) => onOption(j, patch)} />
             </div>
-            <Marks door={j} option={o} onChange={(patch) => onOption(j, patch)} />
-          </div>
-        ))}
+          ))}
+        </div>
+      </details>
+
+      {/*
+       * THE FLOOR'S OWN CONTROLS, OUTSIDE THE SUMMARY.
+       *
+       * They used to sit inside it, so a screen reader read the disclosure's name
+       * as "Floor 3, empty slot, move floor 3 up, move floor 3 down, remove floor
+       * 3", and Enter on the summary meant either open the floor or fire whichever
+       * button had focus. Out here they are three plain buttons, and the click no
+       * longer has to preventDefault its way out of toggling the disclosure.
+       *
+       * A strip on the sheet rather than absolutely positioned over the title row:
+       * three 44px targets floating over a truncating title, a warning pill and the
+       * door list is the layout that breaks at 360px and nobody notices. Costs a
+       * second row per floor, which the reorder job is worth.
+       */}
+      <div className="flex items-center gap-1 border-t border-paper-rule px-3 py-2">
+        <span className="sheet-label mr-auto">Floor {index + 1}</span>
+        <button
+          type="button"
+          onClick={() => onMove(-1)}
+          disabled={index === 0}
+          aria-label={`Move floor ${index + 1} up`}
+          className="min-h-11 min-w-11 rounded border border-paper-rule text-paper-ink disabled:opacity-40"
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          onClick={() => onMove(1)}
+          disabled={last}
+          aria-label={`Move floor ${index + 1} down`}
+          className="min-h-11 min-w-11 rounded border border-paper-rule text-paper-ink disabled:opacity-40"
+        >
+          ↓
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemove()}
+          aria-label={`Remove floor ${index + 1}`}
+          className="min-h-11 min-w-11 rounded border border-paper-rule text-paper-ink"
+        >
+          ✕
+        </button>
       </div>
-    </details>
+    </div>
   );
 }

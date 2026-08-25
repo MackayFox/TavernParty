@@ -46,7 +46,13 @@ export async function POST(req: Request) {
   }
 }
 
-/** The lobby browser. */
+/**
+ * The lobby browser.
+ *
+ * Tables somebody is actually sitting at, and `players` is chairs occupied rather
+ * than seats ever taken, so a table whose players all closed their tabs is not on
+ * this list at all. See `engine.occupiedSeats`.
+ */
 export async function GET() {
   try {
     return NextResponse.json({ tables: await store.listPublicRooms() });

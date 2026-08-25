@@ -235,17 +235,18 @@ export function Act({ view, post, busy }: PhaseProps) {
           Not a slug soup. TAG_MEANING exists for all twenty tags and was being
           used on the front page and the rules page but nowhere in the game, so
           the encounter was headed "CLERGY · DARK · OATH" with no gloss anywhere.
+          Each meaning now sits beside its own tag: joined into one line under all
+          three they read as a single run-on sentence about nothing, and the
+          player still could not tell which half belonged to which word.
         */}
-        <ul className="mt-2 flex flex-wrap gap-2">
+        <ul className="mt-2 space-y-1">
           {scene.tags.map((tag) => (
-            <li key={tag}>
+            <li key={tag} className="flex flex-wrap items-baseline gap-2">
               <Pill>{tag}</Pill>
+              {isTag(tag) && <span className="text-xs text-text-low">{TAG_MEANING[tag]}</span>}
             </li>
           ))}
         </ul>
-        <p className="mt-1 text-xs text-text-low">
-          {scene.tags.filter(isTag).map((tag) => TAG_MEANING[tag]).join(" · ")}
-        </p>
         <p className="prose-read mt-3">{scene.setup}</p>
       </section>
 
@@ -432,6 +433,18 @@ export function Act({ view, post, busy }: PhaseProps) {
                   else who reached for it is moved to the door they are best at and the
                   party takes a point of Dread for the scramble.
                   {hidden ? " The number is behind glass until somebody pays to see it." : ""}
+                  {/*
+                    First contact with the word Torch used to be a dead button
+                    reading "No torch left to burn", which tells somebody who has
+                    never had one that they have run out of a thing they did not
+                    know existed. Torches are only ever handed out by the Kit
+                    draft, so a player carrying none cannot get one tonight and a
+                    control is the wrong shape for that. The button is gone in
+                    that case and this says where they come from instead.
+                  */}
+                  {hidden && torches < REVEAL_COST_TORCHES
+                    ? " A torch buys a look at it, and the Kit draft is the only place torches come from. You are carrying none, so unless somebody else burns one this line is a bet in the dark."
+                    : ""}
                 </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -456,15 +469,13 @@ export function Act({ view, post, busy }: PhaseProps) {
                       words still lead, so speech input keeps working. */}
                   <span className="sr-only">: {approach.label}</span>
                 </Button>
-                {approach.reckless && hidden && (
+                {approach.reckless && hidden && torches >= REVEAL_COST_TORCHES && (
                   <Button
                     variant="secondary"
-                    disabled={busy || torches < REVEAL_COST_TORCHES}
+                    disabled={busy}
                     onClick={() => void post("/reveal")}
                   >
-                    {torches < REVEAL_COST_TORCHES
-                      ? "No torch left to burn"
-                      : `Burn a torch to see it (${torches} left)`}
+                    Burn a torch to see it ({torches} left)
                   </Button>
                 )}
               </div>

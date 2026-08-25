@@ -148,20 +148,29 @@ export function ActResult({ view, post, busy }: PhaseProps) {
               className={i > 0 ? "mt-5 border-t border-paper-rule pt-4" : "mt-2"}
             >
               <p className="text-sm text-paper-ink">{scar.label}</p>
+              {/*
+                Two words for two options, and the button says the same word as
+                the box it is in. This used to head the boxes "Keep it" and "Hide
+                it" and then label the buttons "Wear it" and "Say nothing", which
+                is four verbs for one decision taken against a countdown, and
+                nothing on the screen said that wearing and keeping were the same
+                thing. Keep and hide are the words the rest of the game uses for
+                it: kept Scars, hidden Scars.
+              */}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="sheet-box p-3">
                   <p className="sheet-label">Keep it</p>
                   <p className="mt-1 text-sm text-paper-ink">
-                    Public, and everybody can see it. Worth {KEPT_SCAR_VALUE} at the Ballad,
-                    but only if your Renown ends at or above the middle of the table. It puts{" "}
-                    {KEEP_SCAR_DREAD} Dread on the whole party.
+                    Public, and everybody can see it. Worth {KEPT_SCAR_VALUE} Renown at the
+                    Ballad, but only if your Renown ends at or above the middle of the table.
+                    It puts {KEEP_SCAR_DREAD} Dread on the whole party.
                   </p>
                   <Button
                     className="mt-2 w-full"
                     disabled={busy}
                     onClick={() => void post("/scar", { scarId: scar.id, keep: true })}
                   >
-                    Wear it
+                    Keep it
                     {/* One pair of these per wound, so the pair has to say which. */}
                     <span className="sr-only">: {scar.label}</span>
                   </Button>
@@ -178,7 +187,7 @@ export function ActResult({ view, post, busy }: PhaseProps) {
                     disabled={busy}
                     onClick={() => void post("/scar", { scarId: scar.id, keep: false })}
                   >
-                    Say nothing
+                    Hide it
                     <span className="sr-only">: {scar.label}</span>
                   </Button>
                 </div>
@@ -197,10 +206,13 @@ export function ActResult({ view, post, busy }: PhaseProps) {
       {mine && <BloodCall view={view} post={post} busy={busy} outcome={mine} />}
 
       {openScars.length === 0 && decided.length > 0 && (
+        // Kept and hidden, the same two words the buttons above use. It read
+        // "worn ... said nothing about", which is a third and fourth name for
+        // the decision the player has just taken.
         <p className="text-sm text-text-mid">
           {decided.filter((s) => s.kept).length} Scar
-          {decided.filter((s) => s.kept).length === 1 ? "" : "s"} worn where the table can see
-          them, {decided.filter((s) => !s.kept).length} said nothing about.
+          {decided.filter((s) => s.kept).length === 1 ? "" : "s"} kept where the table can see
+          them, {decided.filter((s) => !s.kept).length} hidden.
         </p>
       )}
 
@@ -357,8 +369,11 @@ function SignatureCall({
       ready = wounded.length > 0;
       break;
     case "secondApproach":
+      // "The Deed" was capitalised like a defined term and defined nowhere on
+      // any screen. Renown is the thing a door actually pays, and it is named
+      // under all three doors on the Act screen, so say that instead.
       detail =
-        "One way in shut in your face, so try another. A second roll is a second chance at the Deed and a second chance at the wound.";
+        "One way in shut in your face, so try another. A second roll is a second chance at the Renown and a second chance at the wound.";
       ready = !!outcome && !outcome.success && otherDoors.length > 0;
       break;
     default:

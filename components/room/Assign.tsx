@@ -24,11 +24,15 @@
 import { useMemo, useState } from "react";
 import { Button, ErrorNote, Pill, Sheet, hashOf } from "@/components/ui";
 import { HOOKS, HOOK_DETAIL } from "@/lib/content/hooks";
+import { TAG_MEANING, isTag } from "@/lib/content/tags";
 import { ABILITY_BLURB, ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability, type Calling, type Scores } from "@/lib/game/types";
 import { BLOOD_BY_ID, CALLING_BY_ID, KIT_BY_ID, meOf, signed, type PhaseProps } from "./shared";
 
 type Slots = Record<Ability, number | null>;
+
+/** `Hook.insertTag` and `callTag` are plain strings on the type. Say the word. */
+const tagMeaning = (tag: string) => (isTag(tag) ? TAG_MEANING[tag] : tag);
 
 const EMPTY: Slots = {
   brawn: null,
@@ -408,10 +412,23 @@ function HookBody({ hook }: { hook: (typeof HOOKS)[number] }) {
     <>
       <h3 className="font-display text-text-hi">{hook.name}</h3>
       <p className="mt-1 text-sm italic text-text-mid">{hook.blurb}</p>
-      <p className="mt-2 flex flex-wrap gap-2">
-        <Pill tone="danger">Puts {hook.insertTag} in the deck</Pill>
-        <Pill tone="success">Refills on {hook.callTag}</Pill>
-      </p>
+      {/*
+        The two facts a Hook is actually chosen on, and both of them were a bare
+        slug: "Puts CORPSE in the deck" is not something anybody can weigh in
+        seventy seconds. The slug stays, because it is the word the Act screen
+        prints on a scene and the two have to read as the same thing, and the
+        gloss sits beside its own tag rather than in one joined line under both.
+      */}
+      <ul className="mt-2 space-y-1">
+        <li className="flex flex-wrap items-baseline gap-2">
+          <Pill tone="danger">Puts {hook.insertTag} in the deck</Pill>
+          <span className="text-xs text-text-mid">{tagMeaning(hook.insertTag)}</span>
+        </li>
+        <li className="flex flex-wrap items-baseline gap-2">
+          <Pill tone="success">Refills on {hook.callTag}</Pill>
+          <span className="text-xs text-text-mid">{tagMeaning(hook.callTag)}</span>
+        </li>
+      </ul>
       <details className="mt-2">
         <summary className="label-caps flex min-h-11 items-center text-accent">
           The whole story

@@ -13,6 +13,7 @@ import * as engine from "./engine";
 import { persistRun } from "./persist";
 import {
   generateCode,
+  pickTable,
   summarise,
   type CreateRoomOpts,
   type GameStore,
@@ -27,6 +28,29 @@ import { GameError, type Room } from "./types";
  * version bump and a quiet phase does not bump it.
  */
 const ABANDONED_AFTER_MS = 30 * 60 * 1000;
+
+/**
+ * How recently a table must have been WRITTEN to be worth advertising.
+ *
+ * The lobby has to know whether anybody is at a table, and the only live figure in
+ * the row is `players`, which `save` refreshes. Deriving the count from `state`
+ * instead would mean pulling every player object of every listed table on an
+ * unauthenticated page, which is precisely the read this store exists to avoid, and
+ * a count computed in Postgres is a migration.
+ *
+ * So liveness comes from `updated_at`, which is already indexed for the browser and
+ * costs nothing to filter on: `heartbeat` bumps the version at least every
+ * PRESENCE_TIMEOUT_MS/3 per player, so a table somebody is looking at is written
+ * several times a minute, and one nobody is polling stops being written at all.
+ *
+ * The window is sized by the WORST honest poll rather than the best. A browser
+ * throttles a hidden tab's interval to about a minute, and the commonest thing a
+ * host does after opening a table is switch tabs to send somebody the code, so
+ * anything under a minute would delist the one table that most deserves listing.
+ * Ninety seconds clears that with room to spare, and the tables this is really for
+ * had been abandoned for hours.
+ */
+const LISTED_WITHIN_MS = 90_000;
 
 /**
  * Phase deadlines make every client poll at once, so optimistic-concurrency
@@ -136,7 +160,9 @@ async function save(room: Room, expectedVersion: number): Promise<boolean> {
       version: room.version,
       visibility: room.visibility,
       phase: room.phase,
-      players: room.players.length,
+      // Chairs somebody is in, not seats ever taken: this column is the only
+      // count the lobby and the matchmaker ever see. See engine.occupiedSeats.
+      players: engine.occupiedSeats(room),
       max_players: room.settings.maxPlayers,
       name: room.name,
       acts: room.settings.acts,
@@ -265,6 +291,13 @@ export const dbStore: GameStore = {
       .select("code, name, players, max_players, acts, phase")
       .eq("visibility", "public")
       .eq("phase", "WAITING")
+      // The two filters that make this list mean something: `players` is live
+      // occupants now, so none of them is a row rather than a table, and
+      // `updated_at` says somebody is still polling it. The date range walks the
+      // existing partial browser index, which is already ordered by it, and the
+      // count is checked on the handful of rows that survive.
+      .gt("players", 0)
+      .gte("updated_at", new Date(Date.now() - LISTED_WITHIN_MS).toISOString())
       .order("updated_at", { ascending: false })
       .limit(50);
     if (error) {
@@ -282,14 +315,7 @@ export const dbStore: GameStore = {
   },
 
   async quickMatch(): Promise<Room> {
-    const open = (await this.listPublicRooms())
-      .filter((r) => r.players < r.maxPlayers)
-      .sort((a, b) => b.players - a.players);
-    if (open[0]) {
-      const room = await load(open[0].code);
-      if (room && room.phase === "WAITING") return room;
-    }
-    return this.createRoom({ name: "The back room", visibility: "public" });
+    return pickTable(dbStore);
   },
 };
 

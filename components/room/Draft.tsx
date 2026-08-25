@@ -27,7 +27,10 @@ const RANK_WORD = ["1st choice", "2nd choice", "3rd choice"];
  * rule here worth encoding: the plural is content, the same as the singular is.
  * Same three pairs of words the published gear list uses.
  */
-const CHARGE_NOUN: Record<"reroll" | "reveal" | "torch", readonly [string, string]> = {
+const CHARGE_NOUN: Record<
+  "reroll" | "reveal" | "torch",
+  readonly [one: string, many: string]
+> = {
   reroll: ["reroll", "rerolls"],
   reveal: ["look ahead", "looks ahead"],
   torch: ["torch", "torches"],

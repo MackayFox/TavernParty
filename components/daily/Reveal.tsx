@@ -198,7 +198,7 @@ export function Reveal({
     <dialog
       ref={ref}
       aria-labelledby="reveal-title"
-      className="tp-dialog w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-border-strong bg-bg-1 p-0 text-text-hi backdrop:bg-black/70"
+      className="tp-dialog w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-border-strong bg-bg-1 p-0 text-text-hi backdrop:bg-scrim"
     >
       <div className="flex flex-col gap-3 p-5">
         <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border-dim pb-3">

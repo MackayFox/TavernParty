@@ -89,9 +89,15 @@ export function WriteIndex() {
         <p className="prose-read mt-2 text-text-hi">
           Nothing you build goes out untested. The moment you save, the same solver that works out
           the daily&rsquo;s par runs your dungeon against every character you allow, and tells you
-          the truth about it:
+          the truth about it.
         </p>
-        <ul className="mt-3 space-y-2 text-sm text-text-mid">
+        {/* Said out loud, because three lines with real numbers in them read as a
+            report on a dungeon the reader has not written yet, and somebody
+            arriving here took them for their own results. */}
+        <p className="mt-3 text-sm text-text-low">
+          Three lines of a report, made up here as an example:
+        </p>
+        <ul className="mt-2 space-y-2 text-sm text-text-mid">
           <li>
             <span aria-hidden className="mr-2 font-mono text-danger">✕</span>
             Nobody gets out of this one. The best character you allow, playing perfectly, runs out
@@ -148,27 +154,47 @@ export function WriteIndex() {
         </p>
       ) : (
         <ul className="mt-2 space-y-2">
-          {mine.map((d) => (
-            <li key={d.code}>
-              <Link
-                href={d.publishedAt ? `/d/${d.code}` : `/write/${d.code}`}
-                className="flex min-h-14 items-center gap-3 rounded-md border border-border-dim bg-bg-1 px-3 py-2 hover:border-accent/50"
-              >
-                <span className="num text-xs text-accent">{d.code}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="font-display block truncate text-text-hi">
-                    {d.title || "Untitled"}
+          {mine.map((d) => {
+            /*
+             * Joined from a list rather than one template string: an unrated
+             * dungeon has no difficulty word and printed " ·  · " where it should
+             * have been, and par printed an em-dash, which this product does not
+             * put in front of a reader. "plays" became "runs" because that is
+             * what the counter counts, one per attempt sent in rather than one
+             * per person.
+             */
+            const meta = [
+              `${d.rooms.length} floors`,
+              ...(d.publishedAt
+                ? [
+                    "out there",
+                    d.difficulty,
+                    d.par != null ? `par ${d.par}` : "par not measured",
+                    d.plays > 0
+                      ? `${d.plays} ${d.plays === 1 ? "run" : "runs"}, ${d.finishes} got out`
+                      : "nobody has tried it yet",
+                  ]
+                : ["still a draft"]),
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li key={d.code}>
+                <Link
+                  href={d.publishedAt ? `/d/${d.code}` : `/write/${d.code}`}
+                  className="flex min-h-14 items-center gap-3 rounded-md border border-border-dim bg-bg-1 px-3 py-2 hover:border-accent/50"
+                >
+                  <span className="num text-xs text-accent">{d.code}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="font-display block truncate text-text-hi">
+                      {d.title || "Untitled"}
+                    </span>
+                    <span className="block text-xs text-text-mid">{meta}</span>
                   </span>
-                  <span className="block text-xs text-text-mid">
-                    {d.rooms.length} floors
-                    {d.publishedAt
-                      ? ` · out there · ${d.difficulty ?? ""} · par ${d.par ?? "—"} · ${d.plays} plays, ${d.finishes} got out`
-                      : " · still a draft"}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

@@ -108,7 +108,11 @@ export const DEMO_ROOMS: RoomDef[] = [
         vigour: 2,
         promise: "Four inches of wet stone and a wall to lean on. Dry, if it holds.",
         win: "Four inches is more than it sounds when the wall is good. You come off the end of it dry to the knee, which will matter later.",
-        lose: "The wall runs out before the ledge does, and you spend a bad while getting back to where you started before taking the long way through.",
+        // Careful with this one: a failed check leaves no mark, so whatever this
+        // says, the player comes off this floor DRY. An earlier draft ended
+        // "before taking the long way through", which put them in the water in
+        // the prose and out of it in the mechanics.
+        lose: "The wall runs out before the ledge does, and you spend a bad while working back along it and picking your way round the shallow end.",
       },
       {
         id: "sw-2-nerve",

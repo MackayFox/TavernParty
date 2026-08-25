@@ -12,3 +12,6 @@ SETUP.txt
 
 .vercel
 .env*
+
+# Supabase CLI scratch
+supabase/.temp/

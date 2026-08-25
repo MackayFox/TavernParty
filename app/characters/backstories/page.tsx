@@ -34,7 +34,9 @@ const meaning = (tag: string) => (isTag(tag) ? TAG_MEANING[tag] : tag);
 
 export default function HooksPage() {
   return (
-    <div className="flex flex-col gap-8 py-8 sm:py-12">
+    /* Centred, like its three sibling lists: the reading measure is 646px inside
+       a 1120px shell, and pinned left that is a third of the page left empty. */
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8 sm:py-12">
       <header className="flex flex-col gap-4">
         <Breadcrumb page={PAGE} />
         <p className="label-caps">The Hooks</p>
@@ -69,17 +71,47 @@ export default function HooksPage() {
         </p>
       </header>
 
+      {/* Twenty of these run to about fourteen hundred words, which as twenty
+          unbroken full-width rows is a page you can only read front to back.
+          Somebody arriving from a search for backstory ideas wants to see all
+          twenty names first and then pick one, so the names come first, numbered,
+          and each one lands on its own Hook further down. */}
+      <nav aria-label="All twenty Hooks" className="border-t border-border-dim pt-6">
+        <p className="label-caps mb-2">All twenty, in the order below</p>
+        <ol className="grid gap-x-6 sm:grid-cols-2">
+          {HOOKS.map((h, i) => (
+            <li key={h.id} className="flex items-baseline gap-3">
+              {/* The number is decoration for a screen reader: the list is an <ol>
+                  and already announces its own position and count. */}
+              <span aria-hidden className="num text-sm text-text-low">
+                {i + 1}
+              </span>
+              <a
+                href={`#${h.id}`}
+                className="inline-flex min-h-11 items-center text-text-mid underline hover:text-text-hi"
+              >
+                {h.name}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
       {HOOKS.map((h) => (
-        <Entry
-          key={h.id}
-          name={h.name}
-          blurb={h.blurb}
-          detail={HOOK_DETAIL[h.id]}
-          facts={[
-            ["It puts into the night", meaning(h.insertTag)],
-            ["It pays you when", meaning(h.callTag)],
-          ]}
-        />
+        // The id goes on a wrapper rather than on Entry, which takes no id: the
+        // index above has to land on the right Hook, and scroll-mt keeps the
+        // heading clear of the top edge when it does.
+        <div key={h.id} id={h.id} className="scroll-mt-8">
+          <Entry
+            name={h.name}
+            blurb={h.blurb}
+            detail={HOOK_DETAIL[h.id]}
+            facts={[
+              ["It puts into the night", meaning(h.insertTag)],
+              ["It pays you when", meaning(h.callTag)],
+            ]}
+          />
+        </div>
       ))}
 
       <section className="flex flex-col gap-4 border-t border-border-dim pt-8">

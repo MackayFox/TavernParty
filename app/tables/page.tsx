@@ -42,7 +42,24 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function TablesPage() {
-  const tables = await store.listPublicRooms();
+  /**
+   * UNAVAILABLE IS NOT THE SAME AS EMPTY, and this page has to be able to say so.
+   *
+   * `listPublicRooms` throws when the database refuses, nothing caught it, and this
+   * page is in the sitemap: one unexposed schema and both a player and a crawler
+   * got a 500 on the page whose whole job is getting somebody into a game.
+   *
+   * Falling back to the empty state would be worse than the 500, because "nobody
+   * has sat down yet" is a lie that invites you to press Quick Match, which needs
+   * the same database and would fail in turn. So the failure is caught, logged with
+   * its cause, and SHOWN.
+   */
+  let tables: store.RoomSummary[] | null = null;
+  try {
+    tables = await store.listPublicRooms();
+  } catch (err) {
+    console.error("[tables] the lobby list is unavailable", err);
+  }
 
   /**
    * Join the fullest waiting table, or open one.
@@ -78,24 +95,59 @@ export default async function TablesPage() {
         </p>
       </header>
 
-      <Card className="flex flex-col gap-4 sm:flex-row sm:items-end">
-        <form action={quickMatch} className="flex w-full flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="w-full sm:max-w-xs">
-            <Field label="What are you called" hint="Up to 20 characters. It goes on your sheet.">
-              <Input
-                name="displayName"
-                required
-                maxLength={20}
-                autoComplete="nickname"
-                placeholder="OLD MARGET"
-              />
-            </Field>
+      {tables === null ? (
+        /*
+          The one honest thing to show. Every route into a game from this page goes
+          through the same store, so offering the form would be offering a button
+          that cannot work, and the dailies genuinely are unaffected: they hold their
+          puzzles in the code and need no database at all.
+        */
+        <Card className="flex flex-col gap-3">
+          <h2 className="font-display text-lg font-bold text-text-hi">
+            The lobby is not answering
+          </h2>
+          <p className="text-text-mid">
+            We cannot reach the room list at the moment, so we cannot tell you who is sitting
+            down or open a table for you. It is our end, not yours. Try again in a minute.
+          </p>
+          <p className="text-text-mid">
+            The four daily puzzles do not need any of this and are working normally.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/daily"
+              className="font-display inline-flex min-h-11 items-center rounded-md bg-accent px-5 font-semibold text-ink hover:bg-accent-hover"
+            >
+              Play today's puzzles
+            </Link>
+            <Link
+              href="/how-it-works"
+              className="font-display inline-flex min-h-11 items-center rounded-md border border-border-strong bg-bg-2 px-5 font-medium text-text-hi hover:bg-bg-3"
+            >
+              How to play
+            </Link>
           </div>
-          <Button type="submit" size="lg" className="w-full sm:w-auto">
-            Quick Match
-          </Button>
-        </form>
-      </Card>
+        </Card>
+      ) : (
+        <Card className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <form action={quickMatch} className="flex w-full flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="w-full sm:max-w-xs">
+              <Field label="What are you called" hint="Up to 20 characters. It goes on your sheet.">
+                <Input
+                  name="displayName"
+                  required
+                  maxLength={20}
+                  autoComplete="nickname"
+                  placeholder="OLD MARGET"
+                />
+              </Field>
+            </div>
+            <Button type="submit" size="lg" className="w-full sm:w-auto">
+              Quick Match
+            </Button>
+          </form>
+        </Card>
+      )}
 
       <section className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between gap-3">
@@ -103,11 +155,19 @@ export default async function TablesPage() {
             Waiting for players
           </h2>
           <p className="label-caps" aria-live="polite">
-            {tables.length} {tables.length === 1 ? "table" : "tables"}
+            {tables === null
+              ? "Unavailable"
+              : `${tables.length} ${tables.length === 1 ? "table" : "tables"}`}
           </p>
         </div>
 
-        {tables.length === 0 ? (
+        {tables === null ? (
+          <Card>
+            <p className="text-text-mid">
+              The list will be back as soon as we can reach it again.
+            </p>
+          </Card>
+        ) : tables.length === 0 ? (
           <Card className="flex flex-col gap-3">
             <h3 className="font-display text-lg font-bold text-text-hi">
               Nobody has sat down yet

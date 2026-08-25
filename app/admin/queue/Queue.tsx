@@ -73,69 +73,90 @@ export function Queue() {
       <ErrorNote message={error} />
 
       <ul className="mt-5 space-y-4">
-        {queue.map((d) => (
-          <li key={d.code}>
-            <Card>
-              <div className="flex flex-wrap items-baseline gap-2">
-                <Link href={`/d/${d.code}`} className="font-display text-lg text-accent underline">
-                  {d.title || d.code}
-                </Link>
-                <span className="text-sm text-text-mid">by {d.author}</span>
-                {d.difficulty && <Pill tone="accent">{d.difficulty}</Pill>}
-              </div>
-              <p className="num mt-1 text-xs text-text-low">
-                {d.code} · {d.floors} floors · par {d.par ?? "—"} ·{" "}
-                {d.plays > 0
-                  ? `${Math.round((d.finishes / d.plays) * 100)}% of ${d.plays} got out`
-                  : "unplayed"}
-                {d.standing.finishers > 0 &&
-                  ` · ${d.standing.marks}/${d.standing.finishers} rated it`}
-              </p>
-              {d.intro && <p className="prose-read mt-2 text-text-mid">{d.intro}</p>}
-
-              <details className="mt-3">
-                <summary className="cursor-pointer text-sm text-accent">
-                  Every word of it ({d.prose.length} lines)
-                </summary>
-                <div className="mt-2 max-h-80 space-y-1 overflow-y-auto rounded border border-border-dim bg-bg-2 p-3 text-sm text-text-mid">
-                  {d.prose.filter(Boolean).map((line, i) => (
-                    <p key={i}>{line}</p>
-                  ))}
+        {queue.map((d) => {
+          /*
+           * The moderator's one line of numbers, joined from a list so a figure
+           * that is missing cannot leave a stranded separator, and named so the
+           * two counts cannot be read as one. plays and finishes are ATTEMPTS
+           * (store.countPlay runs on every run sent in); finishers and marks are
+           * PEOPLE (one row each, first run only). par printed an em-dash, which
+           * this product does not put in front of a reader, moderator or not.
+           */
+          const meta = [
+            d.code,
+            `${d.floors} floors`,
+            d.par != null ? `par ${d.par}` : "par not measured",
+            d.plays > 0
+              ? `${d.finishes} of ${d.plays} ${d.plays === 1 ? "run" : "runs"} got out`
+              : "unplayed",
+            d.standing.finishers > 0
+              ? `${d.standing.marks} of ${d.standing.finishers} ${
+                  d.standing.finishers === 1 ? "finisher" : "finishers"
+                } said it was worth their time`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <li key={d.code}>
+              <Card>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <Link
+                    href={`/d/${d.code}`}
+                    className="font-display text-lg text-accent underline"
+                  >
+                    {d.title || d.code}
+                  </Link>
+                  <span className="text-sm text-text-mid">by {d.author}</span>
+                  {d.difficulty && <Pill tone="accent">{d.difficulty}</Pill>}
                 </div>
-              </details>
+                <p className="num mt-1 text-xs text-text-low">{meta}</p>
+                {d.intro && <p className="prose-read mt-2 text-text-mid">{d.intro}</p>}
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button onClick={() => act(d.code, "list")} disabled={busy === d.code}>
-                  Put it on the shelf
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => act(d.code, "choose")}
-                  disabled={busy === d.code}
-                  // Shelves it and stamps it. The stamp never expires, so this is
-                  // the one button here worth hesitating over.
-                  title="On the shelf and in front of the whole site. The stamp is permanent."
-                >
-                  Choose it
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => act(d.code, "return")}
-                  disabled={busy === d.code}
-                >
-                  Hand it back
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => act(d.code, "ban")}
-                  disabled={busy === d.code}
-                >
-                  Take it down
-                </Button>
-              </div>
-            </Card>
-          </li>
-        ))}
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm text-accent">
+                    Every word of it ({d.prose.length} lines)
+                  </summary>
+                  <div className="mt-2 max-h-80 space-y-1 overflow-y-auto rounded border border-border-dim bg-bg-2 p-3 text-sm text-text-mid">
+                    {d.prose.filter(Boolean).map((line, i) => (
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                </details>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button onClick={() => act(d.code, "list")} disabled={busy === d.code}>
+                    Put it on the shelf
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => act(d.code, "choose")}
+                    disabled={busy === d.code}
+                    // Shelves it and stamps it. The stamp never expires, so this is
+                    // the one button here worth hesitating over.
+                    title="On the shelf and in front of the whole site. The stamp is permanent."
+                  >
+                    Choose it
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => act(d.code, "return")}
+                    disabled={busy === d.code}
+                  >
+                    Hand it back
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => act(d.code, "ban")}
+                    disabled={busy === d.code}
+                  >
+                    Take it down
+                  </Button>
+                </div>
+              </Card>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

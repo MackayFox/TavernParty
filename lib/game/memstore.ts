@@ -8,7 +8,14 @@
  * only reaches for it when Supabase is not configured at all.
  */
 import * as engine from "./engine";
-import { generateCode, summarise, type CreateRoomOpts, type GameStore, type RoomSummary } from "./store";
+import {
+  generateCode,
+  pickTable,
+  summarise,
+  type CreateRoomOpts,
+  type GameStore,
+  type RoomSummary,
+} from "./store";
 import { GameError, type Room } from "./types";
 
 const g = globalThis as unknown as { __tpMemRooms?: Map<string, Room> };
@@ -60,22 +67,22 @@ export const memStore: GameStore = {
     const now = Date.now();
     for (const [code, room] of rooms) {
       if (now - (lastTouched.get(code) ?? room.createdAt) > ABANDONED_AFTER_MS) rooms.delete(code);
+      // The lobby is the one reader of `connected` that gets here without a poll
+      // of its own, so it sweeps: unswept, a table whose last player closed their
+      // tab an hour ago still counts them as sitting at it. Free here, and exactly
+      // what `tick` would have done had anybody polled the room.
+      else engine.sweepPresence(room, now);
     }
     return [...rooms.values()]
       .filter((r) => r.visibility === "public" && r.phase === "WAITING")
       .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 50)
-      .map(summarise);
+      .map(summarise)
+      // Nobody at it means it is not a table, it is a row. Never advertise one.
+      .filter((s) => s.players > 0)
+      .slice(0, 50);
   },
 
   async quickMatch(): Promise<Room> {
-    const open = (await this.listPublicRooms())
-      .filter((r) => r.players < r.maxPlayers)
-      .sort((a, b) => b.players - a.players);
-    if (open[0]) {
-      const room = load(open[0].code);
-      if (room && room.phase === "WAITING") return room;
-    }
-    return this.createRoom({ name: "The back room", visibility: "public" });
+    return pickTable(memStore);
   },
 };

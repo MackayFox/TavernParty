@@ -26,7 +26,6 @@ export function Button({
 }) {
   // Takes a ref, like Card and Input. Needed because a screen that moves focus
   // deliberately has to be able to point at the button it is moving focus to.
-  //
   const tone = {
     primary:
       "bg-accent text-ink font-semibold hover:bg-accent-hover active:bg-accent-press",

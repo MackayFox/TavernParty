@@ -27,7 +27,9 @@ export const metadata: Metadata = {
 
 export default function BloodsPage() {
   return (
-    <div className="flex flex-col gap-8 py-8 sm:py-12">
+    /* Centred, like its three sibling lists: the reading measure is 646px inside
+       a 1120px shell, and pinned left that is a third of the page left empty. */
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8 sm:py-12">
       <header className="flex flex-col gap-4">
         <Breadcrumb page={PAGE} />
         <p className="label-caps">The Bloods</p>

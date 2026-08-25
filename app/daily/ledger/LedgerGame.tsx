@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Announcer, Button, Card, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
-import { postJson } from "@/components/client";
+import { RouteError, postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { readProgress, writeProgress } from "@/lib/daily/local";
@@ -30,7 +30,17 @@ type Payload = {
   maxScore: number;
 };
 
-type CheckReply = { mode: "check"; correctRows: number; rows: number };
+/**
+ * `spent` is the server's count, and it is the one that matters.
+ *
+ * The count lives in a signed cookie now (lib/daily/spent.ts), and the tally at
+ * the end is scored against it. This screen keeps its own copy in localStorage so
+ * the pill can render before any request, and the two DRIFT: the cookie lasts 36
+ * hours and localStorage lasts forever, so replaying an archive day the next week
+ * left the screen insisting on no checks left while the server was holding three.
+ * So the local number is a first guess, and every reply overwrites it.
+ */
+type CheckReply = { mode: "check"; correctRows: number; rows: number; spent: number };
 
 type Closed = {
   mode: "close";
@@ -158,7 +168,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
         mode: "check",
       });
       if (!alive.current) return;
-      setChecks((n) => n + 1);
+      setChecks(typeof res.spent === "number" ? res.spent : checks + 1);
       const line =
         res.correctRows === res.rows
           ? "Every line is right. Close it."
@@ -166,8 +176,13 @@ export function LedgerGame({ date }: { date?: string | null }) {
       setCheckNote(line);
       setAnnounce(line);
     } catch (err: unknown) {
-      if (alive.current)
+      if (alive.current) {
+        // A refusal for having spent them all carries the count it is holding.
+        // Take it, or the pill goes on offering a check that cannot be taken.
+        const held = err instanceof RouteError ? err.body?.spent : null;
+        if (typeof held === "number") setChecks(held);
         setError(err instanceof Error ? err.message : "That check would not run. Try again.");
+      }
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -182,10 +197,12 @@ export function LedgerGame({ date }: { date?: string | null }) {
         date: data.date,
         assignment,
         mode: "close",
-        checksUsed: checks,
+        // No `checksUsed` here. It used to be sent and trusted, which is the hole
+        // the signed cookie closed; the server tells US how many were spent.
       });
       if (alive.current) {
         setClosed(res);
+        if (typeof res.checksUsed === "number") setChecks(res.checksUsed);
         setAnnounce(
           res.solved
             ? `The ledger balances. ${res.score} of ${res.maxScore} on the tally.`
@@ -225,9 +242,13 @@ export function LedgerGame({ date }: { date?: string | null }) {
                 </li>
               ))}
             </ol>
+            {/* "12 shillings", not "12s". The abbreviation is only obvious if you
+                already read old money, and this is the line that tells a first
+                time player what the five figures in the grid even are. */}
             <p className="mt-3 text-sm text-text-low">
-              Five debts, one each: {data.amounts.map((a) => `${a}s`).join(", ")}. There is exactly
-              one arrangement that fits all four statements.
+              Five debts, one each: {data.amounts.slice(0, -1).join(", ")} and{" "}
+              {data.amounts[data.amounts.length - 1]} shillings. There is exactly one arrangement
+              that fits all four statements.
             </p>
           </Card>
 
@@ -263,7 +284,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
                           <span aria-hidden>{right ? "✓" : "✕"}</span>
                           <span className="sheet-label">{right ? "Correct" : "Wrong"}</span>
                           <span className="num">
-                            {name} owed {truth}s
+                            {name} owed {truth} shillings
                           </span>
                         </p>
                       ) : null}
@@ -283,11 +304,20 @@ export function LedgerGame({ date }: { date?: string | null }) {
 
           {!locked ? (
             <div className="mt-4 space-y-3">
+              {/*
+                The tally, not marks. A Mark is a scene naming a player, a mark is
+                a word a builder pins to a door, and a mark is what a dungeon
+                collects in the Hall, so the one number this game actually scores
+                was the fourth thing in the product called the same word. A tally
+                is what a landlord keeps, and nothing else here uses it.
+              */}
               <div className="flex flex-wrap items-center gap-2">
                 <Pill tone={checksLeft > 0 ? "accent" : "danger"}>
                   {checksLeft} of {data.maxChecks} checks left
                 </Pill>
-                <Pill tone="neutral">worth {data.maxScore - checks} marks</Pill>
+                <Pill tone="neutral">
+                  worth {data.maxScore - checks} of {data.maxScore} on the tally
+                </Pill>
               </div>
               {checkNote ? (
                 <p className="rounded-md border border-border-dim bg-bg-1 px-3 py-2 text-sm text-text-hi">
@@ -302,7 +332,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
                   aria-disabled={busy || duplicates || checksLeft <= 0}
                   aria-busy={busy}
                 >
-                  {checksLeft <= 0 ? "No checks left" : "Check it (costs a mark)"}
+                  {checksLeft <= 0 ? "No checks left" : "Check it (one off the tally)"}
                 </Button>
                 <Button
                   size="lg"
@@ -317,7 +347,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
               <p className="text-sm text-text-low">
                 {arming
                   ? "Press it again and that is your answer for today."
-                  : "Closing it is free and final, so it takes two presses. A check tells you how many lines are right and never which, and it costs you a mark whether the news is good or not."}
+                  : "Closing it is free and final, so it takes two presses. A check tells you how many lines are right and never which, and it takes one off the tally whether the news is good or not."}
               </p>
             </div>
           ) : null}

@@ -22,17 +22,56 @@ export default async function HistoryPage() {
   if (identity?.kind !== "user") {
     return (
       <div className="mx-auto w-full max-w-xl py-8">
-        <Sheet title="Nothing written down" subtitle="Your record">
+        {/*
+          This said "nothing is kept past the run itself", which was not true.
+          Two localStorage stores hold a guest's whole history: `lib/daily/local.ts`
+          keeps the days played, the scores and the streak, and `lib/daily/hero.ts`
+          keeps the runner, their nights and their scars. Telling somebody their
+          record is not kept, on the page whose job is their record, is how they
+          find out otherwise by losing it. So: what is kept, where it is, and what
+          takes it away.
+        */}
+        <Sheet title="Kept in this browser" subtitle="Your record">
           <p className="text-paper-ink">
-            You are playing as a guest, so nothing is kept past the run itself. That is by design and
-            it is not going to change: the whole site works without an account.
+            You are playing as a guest, so the ledger has nothing for you. A night at a
+            table is written down under the name you used and nothing else, so there is no
+            thread from it back to you. That is the trade for not needing an account, and it is
+            not going to change.
           </p>
           <p className="mt-3 text-paper-ink">
-            If you want a record that follows you between devices,{" "}
+            Two things are kept anyway, and both of them are in this browser rather than on the
+            server:
+          </p>
+          <ul className="mt-2 list-disc space-y-2 pl-5 text-paper-ink">
+            <li>
+              <strong>The dailies.</strong> Every day you have finished and the score it came
+              to, and the streak that follows from it, which only counts a puzzle played on its
+              own date. A half-finished puzzle is held as well, so a reload does not cost you
+              one.
+            </li>
+            <li>
+              <strong>Your runner.</strong> The name you gave them, the Blood they were dealt,
+              what they did before this, their last sixty nights and their last forty scars.
+              They are at the top of{" "}
+              <Link href="/daily/deeprun" className="underline">
+                the Deep Run
+              </Link>
+              .
+            </li>
+          </ul>
+          <p className="mt-4 border-t border-paper-rule pt-3 text-paper-ink">
+            Which is also all of what there is to lose. Clearing your site data takes it, so
+            does closing a private window, and none of it follows you to another phone or
+            another browser. Safari throws away what a site has stored once you have been away
+            for a week. The runner keeps its last sixty nights and forty scars, so the oldest
+            fall off the bottom as new ones arrive.
+          </p>
+          <p className="mt-3 text-paper-ink">
             <Link href="/signup" className="underline">
-              get a name in the book
-            </Link>
-            .
+              A name in the book
+            </Link>{" "}
+            keeps your runs and your streaks on the server from the night you take it. It does
+            not go back for any of the above.
           </p>
         </Sheet>
       </div>

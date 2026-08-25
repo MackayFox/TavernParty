@@ -10,6 +10,26 @@
 import { useEffect, useState } from "react";
 import { readName, writeName } from "@/lib/daily/local";
 
+/**
+ * An error a route refused with, carrying whatever else the route said.
+ *
+ * A refusal is often not just a sentence. The Ledger answers a fourth check with
+ * "that is all three checks" AND the count it is holding, because the client's
+ * own count has just been proved wrong and needs correcting. Throwing the
+ * message alone threw that away, so the screen apologised and went on showing
+ * the wrong number.
+ */
+export class RouteError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: Record<string, unknown> | null
+  ) {
+    super(message);
+    this.name = "RouteError";
+  }
+}
+
 /** POST JSON and surface the server's user-facing error message on failure. */
 export async function postJson<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -20,7 +40,8 @@ export async function postJson<T>(url: string, body?: unknown): Promise<T> {
   // Parse defensively: proxies and framework errors can return non-JSON, and
   // nobody should ever see a SyntaxError.
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error ?? "Something went wrong. Try again.");
+  if (!res.ok)
+    throw new RouteError(data?.error ?? "Something went wrong. Try again.", res.status, data);
   return data as T;
 }
 

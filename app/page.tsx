@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TavernHero } from "./TavernHero";
+import { CHARACTER_PAGES } from "./characters/shared";
 import { JsonLd } from "@/components/JsonLd";
 import { Network } from "@/components/Network";
 import { AdSlot, Card, Pill, Sheet, SheetBox } from "@/components/ui";
@@ -93,21 +94,33 @@ const STEPS: [string, string, string][] = [
   ],
   [
     "03",
-    "Take on five encounters",
+    `Take on ${DEFAULT_SETTINGS.acts} encounters`,
     `Three ways at every problem, from a pool of ${SCENES.length} scenes. One line pays most, keeps its target number hidden, and only one of you is allowed to take it. You may also put somebody else forward for the encounter, and it costs you if they do not come back.`,
   ],
   [
     "04",
     "Find out who gets paid",
-    `Renown, kept scars and one secret vote each worth ${LAUREL_VALUE}. The party got through the night together. One of you leaves with the Hoard, and the rest of you find out how quickly you were volunteered.`,
+    // "worth 8" said 8 of what. The unit is Renown and the vote is a Laurel, which
+    // is what the room, the rules page and the ending all call them.
+    `Renown, the scars you kept, and one secret vote each, a Laurel worth ${LAUREL_VALUE} Renown. The party got through the night together. One of you leaves with the Hoard, and the rest of you find out how quickly you were volunteered.`,
   ],
 ];
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col gap-16 pb-8 sm:gap-24">
+    /*
+     * Sections are separated by a rule and gap-8, the way every other page on the
+     * site already does it, rather than by 96px of nothing.
+     *
+     * Asked what the empty space was for, Adam guessed ad placeholders. Eight
+     * sections at gap-24 spent 768px on gaps and every reading column stopped at
+     * 34em inside a 1152px shell, so the page looked like a column of paragraphs
+     * with holes cut between them. The fix is in two halves: this rhythm, and
+     * laying the long sections out across the width they already had.
+     */
+    <div className="flex flex-col gap-8 pb-10 sm:pb-12">
       {/* ---------------------------------------------------------------- hero */}
-      <section className="grid items-center gap-8 pt-6 lg:grid-cols-[1.05fr_1fr] lg:pt-12">
+      <section className="grid items-center gap-8 pt-6 lg:grid-cols-[1.05fr_1fr] lg:pt-10">
         <div className="flex flex-col gap-5">
           <p className="label-caps">A fantasy roleplaying game in a browser tab</p>
           <h1
@@ -119,9 +132,9 @@ export default function HomePage() {
             <span className="text-accent">Survive the night.</span>
           </h1>
           <p className="prose-read">
-            Build somebody in two minutes, take on five encounters with your friends, and find out
-            which of you they were prepared to sacrifice. Exactly one of you walks out with the
-            loot.
+            Build somebody in two minutes, take on {DEFAULT_SETTINGS.acts} encounters with your
+            friends, and find out which of you they were prepared to sacrifice. Exactly one of you
+            walks out with the loot.
           </p>
           <p className="text-sm text-text-mid">
             {MIN_PLAYERS} to {MAX_PLAYERS} players, {RUN_LENGTH}. Free, in your browser, no
@@ -130,8 +143,20 @@ export default function HomePage() {
           <TavernHero />
         </div>
 
-        <div className="flex flex-col gap-3">
-          <Sheet title="RUE" subtitle={`${DEMO_CALLING.name} · ${DEMO_BLOOD.name}`}>
+        {/*
+          The sheet is the widest thing on the page while the hero is still one
+          column, and Sheet's own max-w-xl let it run to within a few pixels of
+          both edges on a tablet, next to prose that stops at 34em. Constrained
+          here rather than in the component: from lg it has a grid column of its
+          own and should fill it, and the caption underneath has to agree with
+          whatever the paper does.
+        */}
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 lg:max-w-none">
+          <Sheet
+            className="max-w-none"
+            title="RUE"
+            subtitle={`${DEMO_CALLING.name} · ${DEMO_BLOOD.name}`}
+          >
             <div className="grid grid-cols-3 gap-2">
               {ABILITIES.map((a) => {
                 const mod = abilityMod(DEMO_SCORES[a]);
@@ -170,7 +195,7 @@ export default function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------- dailies */}
-      <section>
+      <section className="border-t border-border-dim pt-8">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="label-caps">Every day at midnight, the same for everyone</p>
@@ -203,23 +228,17 @@ export default function HomePage() {
             );
           })}
         </ul>
+        {/*
+          "Two under" was golf. Par here is the ceiling somebody proved was
+          reachable, so being under it is a shortfall, and lib/daily/core.ts prints
+          "two short of par" for exactly that reason. The second paragraph, which
+          plugged the Desk, is gone: the section immediately below it is about the
+          Desk and says the same thing at length.
+        */}
         <p className="mt-4 text-sm text-text-mid">
           All four are pinned to the date, so everybody in the world gets the same puzzle, and
-          three of them publish a par worked out by brute force. Two under is a better thing to
-          post than a number out of sixty.
-        </p>
-        {/*
-          The single biggest missed sentence on the site, until now. The page bragged
-          about the brute-forced par and never mentioned that the same machine is
-          handed to anybody who wants to write a dungeon of their own.
-        */}
-        <p className="mt-2 text-sm text-text-mid">
-          That brute force is not kept for the dailies.{" "}
-          <Link href="/write" className="text-accent underline">
-            Write a dungeon of your own
-          </Link>{" "}
-          and it runs over yours the moment you save, and tells you what par is before anybody
-          else opens it.
+          three of them publish a par worked out by brute force. Par is the most the day can be
+          made to pay, so two short of it says more about a night than a number out of sixty.
         </p>
       </section>
 
@@ -231,34 +250,51 @@ export default function HomePage() {
         USPs and he is right, and they were reachable only from a footer row and the
         bottom of a dropdown labelled with a promise about something else.
       */}
-      <section>
+      <section className="border-t border-border-dim pt-8">
         <p className="label-caps">The third thing you can do here</p>
         <h2 className="mt-1 font-display text-2xl font-bold sm:text-3xl">
           Write a dungeon, and find out what you wrote
         </h2>
-        <div className="prose-read mt-3 flex flex-col gap-3 text-text-mid">
-          <p>
-            Three to eight floors, and something at the bottom of them. Every floor gets two
-            doors that ask for different abilities and one that always works and always costs,
-            so somebody who arrives with nothing is out of pocket rather than stuck. You decide
-            which Callings are allowed, what is on the shelf, and how much wind they start with.
-            Six rooms off the shared shelf is a real dungeon and takes about two minutes; writing
-            every floor yourself takes an evening.
-          </p>
-          <p>
-            Then the interesting part. A solver plays{" "}
-            <strong className="text-text-hi">every character your settings allow</strong>, all of
-            them perfectly, and tells you the truth: what par is, how many of them get out alive,
-            which floor stops the rest, and which door nobody would ever take. It refuses to
-            publish a dungeon nobody can finish. So the difficulty word on the card was measured
-            rather than claimed, and nobody can call a walkover brutal.
-          </p>
-          <p>
-            One rule makes a dungeon feel like a place rather than a list. A door can leave a word
-            on you, and a door further down can want it or refuse it: take the lantern on the
-            first floor and the crack on the third is a squeeze instead of a gamble, or wade the
-            water and the rope on the bridge will not have a wet man on it.
-          </p>
+        {/*
+          The same three paragraphs, laid across the width instead of down it.
+          Stacked at 34em they were three screens of scrolling next to an empty
+          half-page, which is the thing that made the whole page look like it was
+          waiting for adverts.
+        */}
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          <Card className="h-full">
+            <h3 className="font-display text-lg font-bold text-text-hi">What you write</h3>
+            <p className="mt-2 text-sm text-text-mid">
+              Three to eight floors, and something at the bottom of them. Every floor gets two
+              doors that ask for different abilities and one that always works and always costs,
+              so somebody who arrives with nothing is out of pocket rather than stuck. You decide
+              which Callings are allowed, what is on the shelf, and how much Vigour they start
+              with. Six rooms off the shared shelf is a real dungeon and takes about two minutes;
+              writing every floor yourself takes an evening.
+            </p>
+          </Card>
+          <Card className="h-full">
+            <h3 className="font-display text-lg font-bold text-text-hi">
+              What the solver tells you
+            </h3>
+            <p className="mt-2 text-sm text-text-mid">
+              A solver plays{" "}
+              <strong className="text-text-hi">every character your settings allow</strong>, all
+              of them perfectly, and tells you the truth: what par is, how many of them get out
+              alive, which floor stops the rest, and which door nobody would ever take. It refuses
+              to publish a dungeon nobody can finish. So the difficulty word on the card was
+              measured rather than claimed, and nobody can call a walkover brutal.
+            </p>
+          </Card>
+          <Card className="h-full">
+            <h3 className="font-display text-lg font-bold text-text-hi">Why it reads as a place</h3>
+            <p className="mt-2 text-sm text-text-mid">
+              A door can leave a word on you, and a door further down can want it or refuse it:
+              take the lantern on the first floor and the crack on the third is a squeeze instead
+              of a gamble, or wade the water and the rope on the bridge will not have a wet man on
+              it. One rule, and a dungeon stops being a list.
+            </p>
+          </Card>
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
@@ -285,7 +321,7 @@ export default function HomePage() {
       </section>
 
       {/* --------------------------------------------------- what a character is */}
-      <section>
+      <section className="border-t border-border-dim pt-8">
         <p className="label-caps">Character creation is the product, not the preamble</p>
         <h2 className="mt-1 font-display text-2xl font-bold sm:text-3xl">
           What you actually build
@@ -333,8 +369,8 @@ export default function HomePage() {
             </h3>
             <p className="mt-2 text-text-mid">
               A Hook is not a note in the margin. It guarantees a scene of its own kind turns up in
-              the party&apos;s five, so your history is an edit to everybody else&apos;s night and
-              they can see whose fault it was.
+              the night&apos;s encounters, so your history is an edit to everybody else&apos;s night
+              and they can see whose fault it was.
             </p>
             <p className="mt-2 text-text-mid">
               It also carries {HOOK_TOKENS_MAX} tokens worth {HOOK_TOKEN_VALUE} each, and they only
@@ -367,7 +403,7 @@ export default function HomePage() {
       </section>
 
       {/* -------------------------------------------------------- how a run goes */}
-      <section>
+      <section className="border-t border-border-dim pt-8">
         <p className="label-caps">The shape of a night</p>
         <h2 className="mt-1 font-display text-2xl font-bold sm:text-3xl">
           How a run goes, in {RUN_LENGTH}
@@ -394,87 +430,75 @@ export default function HomePage() {
 
       <AdSlot zone="home-mid" className="mx-auto w-full max-w-3xl" />
 
-      {/* ----------------------------------------------------------- playing it */}
-      <section className="grid gap-4 sm:grid-cols-3">
-        {[
-          [
-            "Nobody free tonight?",
-            "Fill the empty chairs. They take the door the numbers point at and they never freeze on a deadline, which is more than can be said for some people. They also draft at random and they never vote, so beating them is not the same as beating a table.",
-          ],
-          [
-            "Playing with friends",
-            "Open a table, send the six-character code or the link, and you are rolling in under a minute. No lobbies and nothing to install.",
-          ],
-          [
-            "On a phone, one handed",
-            "Everything is built for a thumb, and the reading is set at a size you can read on a train. It runs on a locked-down work laptop too.",
-          ],
-        ].map(([title, body]) => (
-          <Card key={title} className="h-full">
-            <h3 className="font-display text-lg font-bold text-text-hi">{title}</h3>
-            <p className="mt-2 text-sm text-text-mid">{body}</p>
-          </Card>
-        ))}
-      </section>
+      {/*
+        ----------------------------------------------------------- SEO block
 
-      {/* ----------------------------------------------------------- SEO block */}
-      <section className="rounded-lg border border-border-dim bg-bg-1 p-5 sm:p-8">
+        The three-card "playing it" section that used to sit here is gone. It was
+        the third telling of the hero's argument: free, no lobby, nothing to
+        install, works on a phone. The one thing in it that was said nowhere else,
+        that the empty chairs fill with strangers who play properly, has moved to
+        the closing paragraph, which was already making that point in one line.
+
+        What is left here reads down one 62ch column, which is right for prose,
+        with the four idea lists in a rail beside it instead of buried mid
+        sentence. Their anchor text is CHARACTER_PAGES, so the link on the home
+        page and the heading on the page it points at cannot drift apart.
+      */}
+      <section className="border-t border-border-dim pt-8">
         <h2 className="font-display text-xl font-bold sm:text-2xl">
           A free online roleplaying game you can start in a minute
         </h2>
-        <div className="mt-3 flex max-w-[62ch] flex-col gap-3 text-text-mid">
-          <p>
-            Tavern Party is a fantasy character creator with a game attached. You get a name box,
-            six numbers and a draft, and about two minutes later you have somebody with a trade, a
-            grudge and a bad habit. Then the five encounters start and you find out what they are
-            made of. Nothing to install, nothing to buy, and no dice to lose under the sofa.
-          </p>
-          <p>
-            Every part of that is a list you can read before you ever open a table: eight{" "}
-            <Link href="/characters/classes" className="text-accent underline">
-              character class ideas
-            </Link>
-            , eight{" "}
-            <Link href="/characters/origins" className="text-accent underline">
-              places to be from
-            </Link>
-            , twelve pieces of{" "}
-            <Link href="/characters/gear" className="text-accent underline">
-              adventuring gear
-            </Link>{" "}
-            and twenty{" "}
-            <Link href="/characters/backstories" className="text-accent underline">
-              character backstory ideas
-            </Link>
-            , all written out. Take any of them to a game that has nothing to do with this one.
-          </p>
-          <p>
-            It is built as a one-shot: a whole story with an ending, in the time a lunch break
-            allows, rather than a campaign that needs everybody free on the same evening for a
-            month. If you have ever wanted to try a tabletop game with friends online but could
-            not get four diaries to agree, this is the version that fits in the gap. Send a link,
-            everybody gets a character, and it is over before anybody has to leave. There is more
-            on the shape of{" "}
-            <Link href="/online-roleplaying-games" className="text-accent underline">
-              playing this sort of thing in a browser
-            </Link>{" "}
-            if you want it.
-          </p>
-          <p>
-            There is no rulebook to read. The server rolls the dice, prints every modifier by name
-            so you can see exactly why a roll landed, and closes each phase on a timer, which means
-            a player who wanders off is a problem the rest of you can see and work around rather
-            than a stalled evening. Play against{" "}
-            <Link href="/tables" className="text-accent underline">
-              whoever is at an open table
-            </Link>{" "}
-            right now, or work through today&apos;s{" "}
-            <Link href="/daily" className="text-accent underline">
-              four puzzles
-            </Link>{" "}
-            on your own, including one that is nothing but building a character to beat a named
-            encounter.
-          </p>
+        <div className="mt-3 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="flex max-w-[62ch] flex-col gap-3 text-text-mid">
+            <p>
+              Tavern Party is a fantasy character creator with a game attached, built as a
+              one-shot: a whole story with an ending, in the time a lunch break allows, rather
+              than a campaign that needs everybody free on the same evening for a month. If you
+              have ever wanted to try a tabletop game with friends online but could not get four
+              diaries to agree, this is the version that fits in the gap. Nothing to install,
+              nothing to buy, and no dice to lose under the sofa. There is more on the shape of{" "}
+              <Link href="/online-roleplaying-games" className="text-accent underline">
+                playing this sort of thing in a browser
+              </Link>{" "}
+              if you want it.
+            </p>
+            <p>
+              There is no rulebook to read. The server rolls the dice, prints every modifier by
+              name so you can see exactly why a roll landed, and closes each phase on a timer,
+              which means a player who wanders off is a problem the rest of you can see and work
+              around rather than a stalled evening. Play against{" "}
+              <Link href="/tables" className="text-accent underline">
+                whoever is at an open table
+              </Link>{" "}
+              right now, or work through today&apos;s{" "}
+              <Link href="/daily" className="text-accent underline">
+                four puzzles
+              </Link>{" "}
+              on your own, including one that is nothing but building a character to beat a named
+              encounter.
+            </p>
+          </div>
+          <div className="rounded-lg border border-border-dim bg-bg-1 p-4">
+            {/* A heading rather than a styled line, so the rail is a findable block
+                and not four links floating next to a paragraph. */}
+            <h3 className="label-caps">Read the lists first</h3>
+            <ul className="mt-1 flex flex-col">
+              {CHARACTER_PAGES.map((page) => (
+                <li key={page.path}>
+                  <Link
+                    href={page.path}
+                    className="inline-flex min-h-11 items-center text-accent underline"
+                  >
+                    {page.heading}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-sm text-text-low">
+              The same prose the creation screen shows, given a page you can read before you ever
+              open a table.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -486,8 +510,13 @@ export default function HomePage() {
         <h2 className="font-display text-2xl font-bold sm:text-3xl">
           There is a chair, and a candle, and one of you is getting paid
         </h2>
-        <p className="mx-auto mt-3 max-w-md text-text-mid">
-          Two of you is enough. One of you is enough, if you do not mind who else is at the table.
+        {/* The one fact worth keeping from the deleted "playing it" cards, in the
+            sentence that was already making the same point. */}
+        <p className="mx-auto mt-3 max-w-xl text-text-mid">
+          Two of you is enough. One of you is enough, if you do not mind who else is at the table:
+          the empty chairs fill with strangers who take the door the numbers point at and never
+          freeze on a deadline. They draft at random and they never vote, so beating them is not
+          the same as beating a table.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
           <Link

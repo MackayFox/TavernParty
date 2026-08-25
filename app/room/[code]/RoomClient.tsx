@@ -29,6 +29,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Announcer, Card, ErrorNote, Spinner } from "@/components/ui";
+import { useLanded } from "@/components/daily/landed";
 import { Act } from "@/components/room/Act";
 import { Assign } from "@/components/room/Assign";
 import { Ballad, Final } from "@/components/room/Ending";
@@ -49,6 +50,11 @@ const POLL_MS = 2_500;
  * dead code and its chunk is never requested.
  */
 const REALTIME = process.env.NEXT_PUBLIC_REALTIME === "1";
+
+/** Which beat of the night this is: the phase, and which Act if there is one. */
+function beatOf(view: RoomView): string {
+  return `${view.phase}-${view.act?.index ?? 0}`;
+}
 
 export function RoomClient({
   code,
@@ -175,6 +181,33 @@ export function RoomClient({
   const [clock, setClock] = useState(false);
   useEffect(() => setClock(true), []);
 
+  /**
+   * Where the player is standing when the phase changes under them.
+   *
+   * The phase subtree below is keyed on the beat, so a phase arriving on the
+   * 2.5s poll throws the old screen away and mounts a new one. That part is
+   * wanted: it clears every half-made choice belonging to the phase that has
+   * just closed. What came with it was that whatever held focus was thrown away
+   * too, so focus fell back to the body in the middle of a run. A keyboard
+   * player was returned to the top of the document on somebody else's clock,
+   * and a screen reader lost its place entirely, both without a keystroke. The
+   * dailies already solved this: land the player on the thing that appeared.
+   *
+   * Called above the two early returns, because a hook cannot be skipped on the
+   * renders where there is no view yet.
+   *
+   * Not on the first beat. Landing somebody on arrival would scroll a freshly
+   * opened room off the code it was opened to read out, and nothing changed
+   * under them: they have only just got here.
+   */
+  const beat = view ? beatOf(view) : null;
+  const opened = useRef(beat);
+  // Seeded on the first render that has a view rather than on mount, because
+  // without a server snapshot the first render is the spinner and the beat this
+  // tab opened on arrives a poll later. Idempotent, so a double render is safe.
+  if (opened.current === null) opened.current = beat;
+  const landed = useLanded<HTMLDivElement>(beat === opened.current ? null : beat);
+
   if (gone) {
     return (
       <div className="py-16">
@@ -197,14 +230,20 @@ export function RoomClient({
   }
 
   const shown = clock ? view : { ...view, phaseEndsAt: null };
-  const beat = `${view.phase}-${view.act?.index ?? 0}`;
   const props = { view, post, busy };
 
   return (
     <div className="flex flex-1 flex-col gap-4 py-4">
       <PhaseBar view={shown} />
       <ErrorNote message={error} />
-      <DreadMeter view={view} />
+      {/*
+        Not in the lobby. Dread is 0 before a run starts and both its thresholds
+        describe things that cannot have happened yet, and it was sitting above
+        the code: five lines of rules about a number that cannot move, in front
+        of the one thing on the screen the host opened this page to read out. It
+        arrives with the run, at the muster.
+      */}
+      {view.phase !== "WAITING" && <DreadMeter view={view} />}
 
       {!view.me.id && view.phase !== "WAITING" && (
         <p className="rounded-md border border-border-strong px-3 py-2 text-sm text-text-mid">
@@ -214,7 +253,7 @@ export function RoomClient({
       )}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div key={beat} className="min-w-0">
+        <div key={beatOf(view)} ref={landed} className="min-w-0">
           {view.phase === "WAITING" && <Waiting {...props} />}
           {view.phase === "MUSTER" && <Muster view={view} />}
           {(view.phase === "DRAFT_CALLING" || view.phase === "DRAFT_KIT") && (
@@ -227,7 +266,14 @@ export function RoomClient({
           {view.phase === "FINAL" && <Final {...props} />}
         </div>
         <aside className="min-w-0 space-y-3 lg:sticky lg:top-4 lg:self-start">
-          <PartyRail view={view} />
+          {/*
+            Not in the lobby either. WAITING already lists the table, with the
+            host's pills and boot button on the rows, so the rail beside it was
+            the same names a second time in a column with nothing to say yet: no
+            Calling, no Renown, no Scars, on everybody. The Chronicle stays,
+            because who has just sat down is the thing you are watching for.
+          */}
+          {view.phase !== "WAITING" && <PartyRail view={view} />}
           <Chronicle view={view} />
         </aside>
       </div>

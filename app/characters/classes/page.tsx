@@ -35,7 +35,10 @@ export const metadata: Metadata = {
 
 export default function CallingsPage() {
   return (
-    <div className="flex flex-col gap-8 py-8 sm:py-12">
+    /* Centred. The reading measure is 646px and the shell is 1120px, so left-
+       aligned it left a third of the page empty on the right and read as a
+       layout that had broken rather than one that had been decided. */
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8 sm:py-12">
       <header className="flex flex-col gap-4">
         <Breadcrumb page={PAGE} />
         <p className="label-caps">The Callings</p>

@@ -160,6 +160,26 @@ const IMPOSSIBLE = {
   baseVigour: 5,
 };
 
+/**
+ * A DRAFT CODE, OR NOTHING. Never `json.code`.
+ *
+ * `handleError` answers a failure with `{ error, code: "internal" }`, and this
+ * script used to assert `!!json.code`, so a refusal read as a success and the run
+ * carried on against a dungeon named "internal". One unexposed schema therefore
+ * produced twelve failures, none of which said "the desk cannot write": the first
+ * line of the report claimed a draft had opened.
+ *
+ * So: the status has to be ok, and the code has to look like a code.
+ */
+function draftCode(res, what) {
+  const code = res.json?.code;
+  const real = res.ok && typeof code === "string" && /^[A-Z0-9]{6}$/.test(code);
+  const why = res.ok
+    ? `status ${res.status}, code ${JSON.stringify(code)}`
+    : `status ${res.status} ${(res.json?.error ?? res.text ?? "").toString().slice(0, 90)}`;
+  return check(what, real, why) ? code : null;
+}
+
 async function main() {
   console.log(`\nTHE DESK`);
   console.log(`  base   : ${BASE}`);
@@ -169,9 +189,10 @@ async function main() {
 
   // ---- 2. the gate cannot be routed around ------------------------------
   const bad = await alex.call("POST", "/api/dungeons", { name: "ALEX" });
-  if (!check("a draft opens with a code", !!bad.json?.code, `status ${bad.status}`)) return;
-  await alex.call("PUT", `/api/dungeons/${bad.json.code}`, IMPOSSIBLE);
-  const refused = await alex.call("POST", `/api/dungeons/${bad.json.code}/publish`, {});
+  const badCode = draftCode(bad, "a draft opens with a code");
+  if (!badCode) return;
+  await alex.call("PUT", `/api/dungeons/${badCode}`, IMPOSSIBLE);
+  const refused = await alex.call("POST", `/api/dungeons/${badCode}/publish`, {});
   check(
     "the gate refuses one nobody can get out of",
     refused.status === 400 && refused.json?.report?.ok === false,
@@ -189,8 +210,8 @@ async function main() {
 
   // ---- the happy path ---------------------------------------------------
   const made = await alex.call("POST", "/api/dungeons", { name: "ALEX" });
-  const code = made.json?.code;
-  if (!check("a second draft opens", !!code, `status ${made.status}`)) return;
+  const code = draftCode(made, "a second draft opens");
+  if (!code) return;
 
   const saved = await alex.call("PUT", `/api/dungeons/${code}`, GOOD);
   check("a guest can save their own draft", saved.ok, `status ${saved.status} ${saved.text.slice(0, 80)}`);
@@ -357,7 +378,8 @@ async function main() {
    */
   const dana = jar();
   const markMade = await dana.call("POST", "/api/dungeons", { name: "DANA" });
-  const mcode = markMade.json?.code;
+  const mcode = draftCode(markMade, "a draft opens for the gated dungeon");
+  if (!mcode) return;
   const GATED = {
     ...GOOD,
     title: "The Lamp Or Nothing",

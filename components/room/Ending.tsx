@@ -16,9 +16,12 @@ export function Ballad({ view, post, busy }: PhaseProps) {
   const voted = view.players.filter((p) => p.hasVoted).length;
   return (
     <div className="phase-in space-y-6">
+      {/* Worth eight of what. Renown is the only unit in the game and every
+          figure in the standings is denominated in it, so the two screens that
+          quoted a bare number were the only two that did not say so. */}
       <p className="prose-read">
         Somebody starts the song and everybody gets one line in it. A Laurel is worth{" "}
-        {LAUREL_VALUE}, it is secret until the last second, and it cannot be for you.
+        {LAUREL_VALUE} Renown, it is secret until the last second, and it cannot be for you.
         Whoever is out of the running still holds something the leaders want.
       </p>
 
@@ -45,7 +48,7 @@ export function Ballad({ view, post, busy }: PhaseProps) {
                     <span className="font-display block truncate text-text-hi">{p.name}</span>
                     <span className="block text-xs text-text-mid">
                       {p.renown} Renown · {p.scars.length} Scar
-                      {p.scars.length === 1 ? "" : "s"} worn
+                      {p.scars.length === 1 ? "" : "s"} kept
                     </span>
                   </span>
                   {mine === p.id && (
@@ -65,7 +68,7 @@ export function Ballad({ view, post, busy }: PhaseProps) {
             worth saying rather than leaving somebody to find out. */}
         <p className="text-sm text-text-low">
           Sing nothing and your Laurel goes nowhere. It is the only thing all night that
-          costs you nothing to skip, and it is worth {LAUREL_VALUE} to somebody.
+          costs you nothing to skip, and it is worth {LAUREL_VALUE} Renown to somebody.
         </p>
       </section>
     </div>
@@ -111,23 +114,31 @@ export function Final({ view, post, busy }: PhaseProps) {
                   ) : (
                     <Pill tone="accent">Takes the Hoard</Pill>
                   ))}
-                <span className="num text-xl">{row.total}</span>
+                {/* The one figure that decides the night, and it was the only
+                    one on the screen with no unit on it. Grouped so the word
+                    cannot wrap onto a line of its own away from its number. */}
+                <span className="flex items-baseline gap-1">
+                  <span className="num text-xl">{row.total}</span>
+                  <span className="text-xs">Renown</span>
+                </span>
               </div>
               <ul className="mt-2 space-y-0.5 text-sm">
                 <li>{row.renown} Renown earned</li>
                 <li>
-                  {row.keptScars} Scar{row.keptScars === 1 ? "" : "s"} worn
+                  {/* Kept, not worn: the same word the keep-or-hide decision was
+                      taken with two screens ago. */}
+                  {row.keptScars} Scar{row.keptScars === 1 ? "" : "s"} kept
                   {row.keptScars === 0
                     ? ""
                     : row.scarsPaid === row.keptScars
-                      ? `, paying ${scarPay}`
+                      ? `, paying ${scarPay} Renown`
                       : row.scarsPaid > 0
-                        ? `, and only ${row.scarsPaid} of them paid: ${scarPay}, off a Blood that does not care where you finished`
+                        ? `, and only ${row.scarsPaid} of them paid: ${scarPay} Renown, off a Blood that does not care where you finished`
                         : ", paying nothing: below the middle of the table"}
                 </li>
                 <li>
                   {row.laurels} Laurel{row.laurels === 1 ? "" : "s"}
-                  {row.laurels > 0 ? `, worth ${row.laurels * LAUREL_VALUE}` : ""}
+                  {row.laurels > 0 ? `, worth ${row.laurels * LAUREL_VALUE} Renown` : ""}
                 </li>
               </ul>
             </>

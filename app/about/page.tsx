@@ -28,7 +28,10 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="flex flex-col gap-8 py-8 sm:py-12">
+    /* Centred, like the rules page and the four character lists: the reading
+       measure is 646px inside a 1120px shell, and pinned left that is a third of
+       the page left empty. */
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8 sm:py-12">
       <header className="flex flex-col gap-3">
         <p className="label-caps">About</p>
         <h1 className="font-display text-3xl font-bold text-text-hi sm:text-4xl">

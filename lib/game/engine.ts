@@ -17,7 +17,8 @@
  * Nothing ever waits on a specific human. Every phase resolves on its deadline
  * whether or not everybody acted, and the default is always a real move rather
  * than a skip, so a closed tab is a problem the table can see rather than a
- * phase that hangs.
+ * phase that hangs. It also resolves the moment nobody is left to wait for: see
+ * `everybodyIn`, which is the other half of the same promise.
  */
 import { BLOODS } from "@/lib/content/bloods";
 import { CALLINGS } from "@/lib/content/callings";
@@ -118,9 +119,48 @@ function requirePlayer(room: Room, playerId: string): Player {
   return p;
 }
 
+/**
+ * What the table would call the beat it is on, mid-sentence.
+ *
+ * Deliberately not imported from `components/room/shared.tsx`, which keeps the
+ * same list for its headings: the engine imports nothing from `components/` or
+ * `app/`, and that rule is worth more than nine deduplicated words. Typed
+ * `Record<Phase, string>`, so a tenth phase cannot be added without one.
+ */
+const PHASE_NOW: Record<Phase, string> = {
+  WAITING: "waiting to start",
+  MUSTER: "reading the array",
+  DRAFT_CALLING: "picking Callings",
+  DRAFT_KIT: "picking kit",
+  ASSIGN: "making characters",
+  ACT: "in the Act",
+  ACT_RESULT: "reading the ledger",
+  BALLAD: "on the ballad",
+  FINAL: "finished for the night",
+};
+
+/**
+ * The commonest error a real player sees, and it used to say nothing at all.
+ *
+ * Every beat has a deadline and every client polls at 2.5s, so a press that lands
+ * in the last second of one arrives after somebody else's poll has already
+ * resolved it. Six players times seven beats a night means somebody meets this on
+ * most runs, and "That is not what is happening right now" left them unable to
+ * tell whether their move had landed, whether they had just flinched, or whether
+ * the table was broken. It has to say both halves: that the press did not land,
+ * and where the table actually is.
+ *
+ * The opening clause is kept close to the old wording on purpose: two suites match
+ * this message on /happening/i and /right now/i, and neither owns anything that
+ * would change if the sentence were reflowed, so there is nothing to be gained by
+ * making them fail.
+ */
 function requirePhase(room: Room, ...phases: Phase[]): void {
   if (!phases.includes(room.phase))
-    throw new GameError("wrong_phase", "That is not what is happening right now.");
+    throw new GameError(
+      "wrong_phase",
+      `That is not happening right now. The table is ${PHASE_NOW[room.phase]}, so your move did not land.`
+    );
 }
 
 function callingOf(p: Player): Calling | undefined {
@@ -164,6 +204,26 @@ function reachOn(p: Player, ability: Ability): number {
 /** Players who count as present for auto-play and "everybody is done" checks. */
 function isPresent(p: Player, now: number): boolean {
   return p.isBot || p.connected || now - (p.disconnectedAt ?? now) < HOST_MIGRATION_GRACE_MS;
+}
+
+/**
+ * Chairs somebody is actually in. What the lobby and the matchmaker count.
+ *
+ * `sweepPresence` has maintained `connected` for a while and NOTHING read it, so
+ * every count in the product was seats instead. Nothing removes a player from a
+ * WAITING table when their tab closes (`leave` is a press somebody has to make,
+ * and the sweep only marks them away), so a seat is held by a closed tab until the
+ * thirty-minute reaper takes the whole table. Live, that meant /tables advertising
+ * twenty tables with nobody at any of them, and Quick Match sorting fullest-first
+ * walked every arrival into the most thoroughly abandoned one.
+ *
+ * A bot counts. It is not company, but it is in the chair, so a table showing four
+ * of six has two chairs and the number under it has to be the one you cannot sit
+ * in. A human we have not heard from does not count, and `join` will take their
+ * chair for somebody who is here.
+ */
+export function occupiedSeats(room: Room): number {
+  return room.players.filter((p) => p.isBot || p.connected).length;
 }
 
 function freshPlayer(
@@ -269,10 +329,32 @@ export function join(room: Room, who: { id: string; name: string }, now: number)
   }
   if (room.phase !== "WAITING")
     throw new GameError("in_progress", "This run has already started.");
-  if (room.players.length >= room.settings.maxPlayers)
-    throw new GameError("full", "That table is full.");
   const name = who.name.trim().toUpperCase();
   if (!name) throw new GameError("bad_name", "Put a name to your character first.");
+
+  /**
+   * A full table gives up a chair nobody is sitting in, rather than refusing
+   * everybody. Checked after the name, so an invalid join never costs a chair.
+   *
+   * This is the other half of counting live humans: the lobby stopped counting
+   * ghost seats, so it now advertises a table as open that a seat count would
+   * call full, and the door has to agree with the sign. Six closed tabs used to
+   * make a table that was advertised, refused everybody, and could never be
+   * started, and it stayed that way for half an hour.
+   *
+   * The chair taken is the one belonging to whoever we have heard from least
+   * recently, and only once they are past even the host-migration grace, so a
+   * player mid-refresh keeps their seat. Nothing is lost with it: WAITING is
+   * before the array is rolled, so there is no sheet, no Renown and no Scars.
+   */
+  if (room.players.length >= room.settings.maxPlayers) {
+    const ghost = room.players
+      .filter((p) => !p.isBot && !isPresent(p, now))
+      .sort((a, b) => a.lastSeenAt - b.lastSeenAt)[0];
+    if (!ghost) throw new GameError("full", "That table is full.");
+    room.players = room.players.filter((p) => p.id !== ghost.id);
+    note(room, "system", `${ghost.name} is not coming back, and the chair is wanted`);
+  }
 
   room.players.push(
     freshPlayer(
@@ -1615,14 +1697,71 @@ export function rematch(room: Room, playerId: string, now: number): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Advance anything whose deadline has passed. Called before every read and
- * every write, because a serverless deployment has no timers.
+ * Has everybody the table is actually waiting for already answered?
+ *
+ * A beat whose whole table has committed is a countdown nobody is reading. At six
+ * players the last person to pick a door left five others watching forty seconds
+ * of nothing, every Act, and the fix is not a shorter deadline: it is not waiting
+ * once there is nobody left to wait for.
+ *
+ * Read from state, not from a counter, and answered by `tick` rather than by the
+ * action that completed the set. That is what keeps the promise in the module
+ * docblock: the engine stays pure, the resolution still happens on a poll with an
+ * injected rng, and a table that half-empties mid-beat re-answers this correctly on
+ * the next poll instead of holding a tally that is now wrong.
+ *
+ * Who is NOT waited on:
+ *   - bots, which choose at resolution time in `resolveAct`, `applyCallingDraft`,
+ *     `applyKitDraft`, `beginRun` and `finish`, so waiting for them is waiting for
+ *     ourselves;
+ *   - humans we have not heard from, or one closed tab holds every beat of the
+ *     night for its full deadline, which is the thing the deadlines exist to stop.
+ * An empty table returns false and is left to its deadlines, so nothing
+ * fast-forwards a whole run because a passer-by opened the page.
+ *
+ * MUSTER is absent because it asks for nothing, and ACT_RESULT because it is the
+ * beat you READ: everything you can do in it is optional, so "everybody has acted"
+ * is never true there, and cutting the ledger short is the opposite of the fix.
+ */
+function everybodyIn(room: Room, now: number): boolean {
+  const waitingOn = room.players.filter((p) => !p.isBot && isPresent(p, now));
+  if (waitingOn.length === 0) return false;
+  switch (room.phase) {
+    case "DRAFT_CALLING": {
+      const draft = room.callingDraft;
+      return !!draft && waitingOn.every((p) => draft.wants[p.id]);
+    }
+    case "DRAFT_KIT": {
+      const draft = room.kitDraft;
+      return !!draft && waitingOn.every((p) => draft.wants[p.id]);
+    }
+    case "ASSIGN":
+      return waitingOn.every((p) => p.scores && p.hookId);
+    case "ACT": {
+      const act = room.act;
+      return !!act && waitingOn.every((p) => act.choices[p.id]);
+    }
+    case "BALLAD":
+      return waitingOn.every((p) => p.laurelFor);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Advance anything whose deadline has passed, or that nobody is still answering.
+ * Called before every read and every write, because a serverless deployment has
+ * no timers.
  */
 export function tick(room: Room, now: number, rng: Rng = defaultRng): boolean {
   const before = room.version;
   sweepPresence(room, now);
   maybeMigrateHost(room, now);
-  if (room.phaseEndsAt === null || now < room.phaseEndsAt) return room.version !== before;
+  const due = room.phaseEndsAt !== null && now >= room.phaseEndsAt;
+  if (!due && !everybodyIn(room, now)) return room.version !== before;
+  // Said out loud, because a timer that vanishes with thirty seconds on it looks
+  // like a fault rather than a courtesy.
+  if (!due) note(room, "system", "Everybody has answered, so nobody waits");
 
   switch (room.phase) {
     case "MUSTER":

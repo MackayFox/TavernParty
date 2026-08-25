@@ -32,12 +32,38 @@ export default async function LeaderboardPage() {
       </p>
 
       {rows.length === 0 ? (
-        <p className="mt-6 rounded-lg border border-border-dim bg-bg-1 p-4 text-text-mid">
-          Nobody with an account has finished a run yet. Guests are not listed here, which is the
-          trade for not needing one.
-        </p>
+        /* An empty state with nothing to press is a dead end, and this one is the
+           easiest board on the site to get onto, so it says where to go. Both
+           halves are needed: a guest can finish a run all night and the board
+           will still be empty, because a guest run is written down under a name
+           with nothing attached to it. */
+        <div className="mt-6 rounded-lg border border-border-dim bg-bg-1 p-4">
+          <p className="text-text-mid">
+            Nobody with an account has finished a run yet. Guests are not listed here, which is
+            the trade for not needing one.
+          </p>
+          <p className="mt-3 text-text-mid">
+            It is a short queue to join.{" "}
+            <Link href="/tables" className="text-accent underline">
+              Find a table
+            </Link>{" "}
+            and see the night through, with{" "}
+            <Link href="/signup" className="text-accent underline">
+              a name in the book
+            </Link>
+            , and yours is the only line on it.
+          </p>
+        </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-border-dim">
+        <div
+          className="mt-6 overflow-x-auto rounded-lg border border-border-dim"
+          role="region"
+          aria-label="The board of Hoards, scrollable sideways"
+          /* Focusable on purpose. The table is wider than a phone, and without
+             this a keyboard user can tab the names and never reach the figures
+             to the right of them: nothing else in the region scrolls it. */
+          tabIndex={0}
+        >
           <table className="w-full min-w-[28rem] border-collapse text-sm">
             <caption className="sr-only">Players ranked by Hoards taken</caption>
             <thead>
