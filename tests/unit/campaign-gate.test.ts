@@ -266,3 +266,38 @@ describe("the house content passes its own gate", () => {
     expect(r.notes.filter((n) => n.severity === "block"), r.summary).toHaveLength(0);
   });
 });
+
+describe("kit that cannot do anything down here", () => {
+  /**
+   * Five of the twelve items are charges, and nothing in the Deep Run reads a
+   * charge: they are gear for a table with other people at it. The daily filters
+   * them off its own shelf, and a comment in `puzzleFrom` claimed the gate warned
+   * authors about them. It did not. It counted the shelf and never looked at what
+   * was on it, so an author could tick four charges, publish, and hand every
+   * player a shelf where nothing they take matters.
+   */
+  it("warns about a charge on the shelf and still publishes", async () => {
+    const report = await reportFor(
+      design({ kitIds: ["tarred-rope", "pick-roll", "whetstone"] })
+    );
+    const text = report.notes.map((n) => n.text).join(" ");
+    expect(text).toMatch(/whetstone/i);
+    expect(text).toMatch(/charge/i);
+    // A warning, not a wall: they picked it, and two of the three still work.
+    expect(report.notes.some((n) => n.severity === "block" && /charge/i.test(n.text))).toBe(false);
+  });
+
+  it("blocks a shelf where nothing works at all", async () => {
+    const report = await reportFor(design({ kitIds: ["whetstone", "cracked-mirror"] }));
+    const blocking = report.notes.filter((n) => n.severity === "block");
+    expect(blocking.map((n) => n.text).join(" ")).toMatch(/nothing on your shelf/i);
+    expect(report.ok).toBe(false);
+  });
+
+  it("says nothing when every card on the shelf works", async () => {
+    const report = await reportFor(
+      design({ kitIds: ["tarred-rope", "pick-roll", "corrected-map"] })
+    );
+    expect(report.notes.some((n) => /charge/i.test(n.text))).toBe(false);
+  });
+});

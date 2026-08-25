@@ -1,14 +1,30 @@
 /**
  * THE DEEP RUN, content. Server-only, and imported only by `deeprun.ts`.
  *
- * Fifteen rooms across three bands, five per band, plus five things at the
- * bottom. Twenty in total. A night takes six of them, so the pool has to be big
- * enough that a week does not repeat and small enough that every room is
- * actually written rather than generated. These are written.
+ * Twenty-eight rooms across three bands, plus five things at the bottom: twelve
+ * in band one, eleven in band two, five in band three. A night takes six of them,
+ * so the pool has to be big enough that a week does not repeat and small enough
+ * that every room is actually written rather than generated. These are written.
  *
- * This comment used to say twenty-five, and four separate design passes quoted
- * it back as fact when estimating how long the pool lasts. Every one of those
- * estimates was a quarter optimistic. Count the arrays, not the header.
+ * This comment used to say twenty-five when there were twenty, and four separate
+ * design passes quoted it back as fact when estimating how long the pool lasts.
+ * Every one of those estimates was a quarter optimistic. Count the arrays, not the
+ * header.
+ *
+ * WHY BAND ONE AND TWO GREW AND BAND THREE DID NOT. `roomsFor` deals two cards a
+ * night from each of bands one and two and one from band three, so those first two
+ * pools were emptying every three days and were the whole of the repeat problem:
+ * ninety per cent of days used to share a room with the day before. Band three and
+ * the bosses turn over slowly enough already.
+ *
+ * ON THE ABILITY SPREAD, because it is easy to get wrong twice. Wits is the
+ * natural third door for any room that is a puzzle, so it accumulates without
+ * anybody deciding it should: the first fifteen rooms had it on a fifth of all
+ * doors, and the first draft of these thirteen pushed it to a quarter. Three doors
+ * were rewritten to bring it back. Grit stays the lightest on purpose, and that is
+ * not an oversight to correct: Grit already pays twice, once as starting Vigour and
+ * again as the Vigour you carry out, so a Grit door is a third payment on the stat
+ * that is already the strongest thing on the sheet.
  *
  * THE SHAPE OF A ROOM, and why it is always this shape.
  *
@@ -337,6 +353,300 @@ const BAND_1: RoomDef[] = [
       ),
     ],
   },
+  {
+    id: "r-toll",
+    band: 1,
+    title: "The Toll",
+    setup:
+      "Somebody has put a table across the passage. Behind it sits a man in a coat too good for the job, with a ledger, a lamp and a strongbox, and he asks for the fee as though there has always been a fee.",
+    options: [
+      {
+        id: "argue",
+        label: "Ask to see the schedule of charges",
+        kind: "check",
+        ability: "wits",
+        tn: 12,
+        vigour: 2,
+        promise: "A man with a ledger can be beaten with a ledger.",
+        win: "He turns three pages, finds nothing, and waves you past with the weary air of a man who will be having words with someone.",
+        lose: "He produces a schedule of charges. It is long, it is signed, and reading it in that light costs you more than the fee would have.",
+      },
+      {
+        id: "flatter",
+        label: "Tell him the coat is a fine coat",
+        kind: "check",
+        ability: "charm",
+        tn: 11,
+        vigour: 2,
+        promise: "Nobody wears a coat like that down here to go unremarked.",
+        win: "He stands up to show you the lining, and you are past the table before he sits back down.",
+        lose: "He agrees at length about the coat, the tailor, and the tailor's brother, and you lose a piece of the night to it.",
+      },
+      {
+        id: "table",
+        label: "Move the table",
+        kind: "check",
+        ability: "brawn",
+        tn: 13,
+        vigour: 2,
+        promise: "It is a table. You have moved tables.",
+        win: "You walk it aside one-handed with the ledger still open on it, and he watches you go without a word.",
+        lose: "The table is bolted through to the rock, which you learn with your shins.",
+      },
+      brace(
+        "pay",
+        "Pay the fee",
+        2,
+        "It is not a large fee. It is the principle, and the principle is expensive tonight.",
+        "You pay, he writes it down, and he thanks you by name, which he should not know."
+      ),
+    ],
+  },
+  {
+    id: "r-stair",
+    band: 1,
+    title: "The Wet Stair",
+    setup:
+      "The stair goes down under an inch of moving water and does not stop where you can see. Something upstream of it has been opened and nobody came back to close it.",
+    options: [
+      {
+        id: "feel",
+        label: "Go down feeling for each tread",
+        kind: "check",
+        ability: "deft",
+        tn: 12,
+        vigour: 2,
+        promise: "Slow is a speed. Nobody has ever fallen slowly.",
+        win: "You find the two that are missing before they find you, and step over both.",
+        lose: "The fourth one from the bottom is not there, and you arrive at the bottom in the manner of a dropped sack.",
+      },
+      {
+        id: "brace-rail",
+        label: "Jam yourself across it and go down braced",
+        kind: "check",
+        ability: "brawn",
+        tn: 11,
+        vigour: 2,
+        promise: "A hand on each wall and none of your weight on the treads at all.",
+        win: "You come down it like a man lowering himself into a well, and the missing treads are somebody else's problem.",
+        lose: "The wall on the left is wetter than the wall on the right, and your arms find that out at the halfway point.",
+      },
+      {
+        id: "quick",
+        label: "Take it fast before you can think about it",
+        kind: "check",
+        ability: "nerve",
+        tn: 13,
+        vigour: 2,
+        promise: "Momentum solves a stair. Thinking solves nothing on a stair.",
+        win: "You are down and out the arch at the bottom with your boots full and nothing broken.",
+        lose: "You get halfway on nerve alone, and the second half happens to you rather than the other way round.",
+      },
+      brace(
+        "sit",
+        "Sit down and go down on your backside",
+        2,
+        "Undignified. Also survivable, which beats dignified.",
+        "You come off the bottom step soaked to the ribs and grazed the whole length of one arm, and entirely alive."
+      ),
+    ],
+  },
+  {
+    id: "r-queue",
+    band: 1,
+    title: "The Queue",
+    setup:
+      "Thirty of them standing single file along the passage wall, facing front, not talking. Nobody at the head of it is doing anything and nobody in it seems to mind. The passage past them is entirely clear.",
+    options: [
+      {
+        id: "ask",
+        label: "Ask what the queue is for",
+        kind: "check",
+        ability: "charm",
+        tn: 12,
+        vigour: 2,
+        promise: "Somebody in a queue this long has an opinion about it.",
+        win: "The third one back tells you at length, and by the end of it you know which door matters and he has taken your place.",
+        lose: "Nobody in it knows and all of them resent being asked, and you are still asking when you notice you are standing in it.",
+      },
+      {
+        id: "wait",
+        label: "Join it and wait your turn",
+        kind: "check",
+        ability: "grit",
+        tn: 13,
+        vigour: 2,
+        promise: "Queues move. It is the one thing they do.",
+        win: "It moves. It takes a while and it costs you nothing but the while, and you come off the front of it through the door.",
+        lose: "It does not move, and standing in a line that does not move takes something out of a person that walking never would.",
+      },
+      {
+        id: "past",
+        label: "Walk straight up the outside of it",
+        kind: "check",
+        ability: "nerve",
+        tn: 12,
+        vigour: 2,
+        promise: "It is not your queue. You did not agree to it.",
+        win: "You go the whole length at a working pace, and thirty of them watch you do it and not one says anything.",
+        lose: "One of them says something. Then all of them do, and the passage is not clear any more.",
+      },
+      brace(
+        "front",
+        "Buy your way to the front of it",
+        2,
+        "Everybody in a queue has a price and the ones at the front have the highest.",
+        "You are through the door inside a minute, and what it cost to get there was not money."
+      ),
+    ],
+  },
+  {
+    id: "r-inventory",
+    band: 1,
+    title: "The Inventory",
+    setup:
+      "The room is racks and racks of other people's gear, sorted, labelled and dusted. Somebody has been bringing everything down here and writing it all up, and the last three labels are in fresh ink.",
+    options: [
+      {
+        id: "shelf",
+        label: "Find the shelf your name would be on",
+        kind: "check",
+        ability: "wits",
+        tn: 12,
+        vigour: 2,
+        promise: "If it is sorted, it is sorted by something, and you can read a system.",
+        win: "You find the gap where you would go, take the lamp off the hook above it, and leave before anybody files you.",
+        lose: "You find your name already written, in a hand you recognise, and you spend a while not being any use to yourself.",
+      },
+      {
+        id: "quiet",
+        label: "Cross it without disturbing the dust",
+        kind: "check",
+        ability: "deft",
+        tn: 13,
+        vigour: 2,
+        promise: "Whoever dusts this will know if you have been in it.",
+        win: "You go through on the balls of your feet and leave the room exactly as tidy as you found it.",
+        lose: "You catch a rack with your hip, and the sound of eleven labelled things going over follows you for a while.",
+      },
+      {
+        id: "take",
+        label: "Take what you came for and be quick",
+        kind: "check",
+        ability: "grit",
+        tn: 12,
+        vigour: 2,
+        promise: "It is a store room. Stores are for taking.",
+        win: "You are out the far door with an armful and the racks still standing, which is better than you deserved.",
+        lose: "Something objects to the taking, at length, and you keep the armful but pay for it.",
+      },
+      brace(
+        "leave",
+        "Touch nothing and walk straight through",
+        2,
+        "The one thing in here that is definitely not a trap is the floor.",
+        "You cross it with your hands behind your back like a man in a shop he cannot afford, and it lets you, and the walking alone takes something out of you."
+      ),
+    ],
+  },
+  {
+    id: "r-narrow",
+    band: 1,
+    title: "The Squeeze",
+    setup:
+      "The passage closes down to a gap the width of a shoulder, and the draught coming through it is warm. Nothing warm should be down here, which is either the way out or the reason nobody uses it.",
+    options: [
+      {
+        id: "through",
+        label: "Turn sideways and force it",
+        kind: "check",
+        ability: "brawn",
+        tn: 12,
+        vigour: 2,
+        promise: "Rock gives before ribs do, most of the time.",
+        win: "You go through it in three shoves and come out the other side with your coat behind you.",
+        lose: "You get to the shoulders and stop, and getting back out costs more than getting in did.",
+      },
+      {
+        id: "empty",
+        label: "Put everything down and go through thin",
+        kind: "check",
+        ability: "deft",
+        tn: 11,
+        vigour: 2,
+        promise: "You will have to reach back through for it, which is a problem for the other side of the gap.",
+        win: "You fold through it like a letter and pull your kit after you one piece at a time.",
+        lose: "You are halfway through and thin when you find out what the warm draught is coming from.",
+      },
+      {
+        id: "hold",
+        label: "Go through head first and keep going",
+        kind: "check",
+        ability: "nerve",
+        tn: 13,
+        vigour: 2,
+        promise: "The only bad moment is the one where you stop.",
+        win: "You are out the far end before the part of you that objects has finished objecting.",
+        lose: "You stop. In the dark, in the rock, with your arms pinned, and it is a while before you start again.",
+      },
+      brace(
+        "widen",
+        "Take the edge off it with whatever you have",
+        2,
+        "Loud, slow, and it works.",
+        "You knock a hand's width off the near side and go through easily, and every single thing in the passage behind you now knows where you are."
+      ),
+    ],
+  },
+  {
+    id: "r-clerk",
+    band: 1,
+    title: "The Clerk",
+    setup:
+      "There is a desk in the passage with a man asleep at it, and the passage runs straight past him. There is a bell on the desk, a form on a spike, and a sign saying all visitors must be recorded.",
+    options: [
+      {
+        id: "past",
+        label: "Go past him quietly",
+        kind: "check",
+        ability: "deft",
+        tn: 11,
+        vigour: 2,
+        promise: "He is asleep. The sign is not.",
+        win: "You are twenty feet down the passage before the desk creaks, and it creaks on its own.",
+        lose: "The floor by the desk is laid to creak, which is a thing a clerk would do, and he is awake and reaching for the bell.",
+      },
+      {
+        id: "fill",
+        label: "Fill the form in and leave it on the spike",
+        kind: "check",
+        ability: "wits",
+        tn: 12,
+        vigour: 2,
+        promise: "Give the system what it wants and the system stops caring about you.",
+        win: "You put down a name, a purpose and a time of entry, all three untrue, and the passage lets you through on the strength of it.",
+        lose: "The form asks for something you cannot answer, and by the time you have stopped trying he is awake and has the bell in his hand.",
+      },
+      {
+        id: "wake",
+        label: "Wake him and tell him you are expected",
+        kind: "check",
+        ability: "charm",
+        tn: 13,
+        vigour: 2,
+        promise: "A man woken up will believe almost anything for about four seconds.",
+        win: "He apologises, stamps something, and points you down the passage himself.",
+        lose: "He is entirely awake, has been for some time, and was waiting to see which of you spoke first.",
+      },
+      brace(
+        "bell",
+        "Ring the bell yourself and walk on",
+        2,
+        "Something will come. You would rather choose when.",
+        "You ring it, and you are well past the desk by the time the answer arrives, and the answer follows you a long way and takes a piece."
+      ),
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -553,6 +863,300 @@ const BAND_2: RoomDef[] = [
         3,
         "Do not stop, do not answer, do not look at the stalls.",
         "You are through. Every stallholder watched you the whole way and something followed you to the stair before it gave up."
+      ),
+    ],
+  },
+  {
+    id: "r-audit",
+    band: 2,
+    title: "The Audit",
+    setup:
+      "Three of them are waiting at a long table with your kit laid out on it, itemised, and they want to go through it with you. None of them is armed and none of them is going to move until you sit down.",
+    options: [
+      {
+        id: "account",
+        label: "Account for every item",
+        kind: "check",
+        ability: "wits",
+        tn: 15,
+        vigour: 3,
+        promise: "You know where you got all of it. Mostly.",
+        win: "You go down the list item by item, and at the end the one in the middle nods and slides the whole lot back across the table.",
+        lose: "There is one thing on the list you cannot place, and they have all night, and you do not.",
+      },
+      {
+        id: "refuse",
+        label: "Decline to be audited",
+        kind: "check",
+        ability: "nerve",
+        tn: 16,
+        vigour: 3,
+        promise: "They have no authority down here. Neither has anyone.",
+        win: "You take your kit off the table in front of all three of them and none of them stands up.",
+        lose: "You find out what happens when nobody stands up and the room does it instead.",
+      },
+      {
+        id: "cooperate",
+        label: "Be their favourite person for ten minutes",
+        kind: "check",
+        ability: "charm",
+        tn: 14,
+        vigour: 3,
+        promise: "Nobody at a table like this has been thanked for the work.",
+        win: "You ask about the process, sound interested, and leave with a stamped chit and everything you came in with.",
+        lose: "They enjoy it, and enjoy it, and are still enjoying it when you realise what the ten minutes cost.",
+      },
+      brace(
+        "abandon",
+        "Leave them the kit and go",
+        3,
+        "It is only things. You can carry on without things.",
+        "You walk out with your hands empty and the going is harder every step, and behind you they keep writing."
+      ),
+    ],
+  },
+  {
+    id: "r-restructure",
+    band: 2,
+    title: "The Restructure",
+    setup:
+      "The passage you came down is not the passage behind you. The whole floor has been reorganised while you were in it, and somewhere a long way off you can hear more of it being reorganised.",
+    options: [
+      {
+        id: "map",
+        label: "Work out the pattern and get ahead of it",
+        kind: "check",
+        ability: "wits",
+        tn: 16,
+        vigour: 3,
+        promise: "Something is moving these walls to a plan. Find the plan.",
+        win: "You spot the sequence, wait one beat in a doorway, and step through into a corridor that was not there and is going your way.",
+        lose: "There is a plan and you are not in it, and the wall you were counting on arrives somewhere else.",
+      },
+      {
+        id: "run",
+        label: "Move faster than the walls do",
+        kind: "check",
+        ability: "deft",
+        tn: 15,
+        vigour: 3,
+        promise: "It is slow. You are not.",
+        win: "You take three gaps in a row as they close and come out into the stairwell with the floor still shuffling behind you.",
+        lose: "The fourth gap closes on schedule rather than on yours, and you take the whole weight of it on one side.",
+      },
+      {
+        id: "stand",
+        label: "Stand still and let it finish",
+        kind: "check",
+        ability: "grit",
+        tn: 15,
+        vigour: 3,
+        promise: "It will stop. Everything down here eventually stops.",
+        win: "It goes quiet with you in a room that has a door, and the door is the one you wanted.",
+        lose: "It goes quiet with you in a room that has no door at all, and the waiting to be moved again is its own kind of cost.",
+      },
+      brace(
+        "wreck",
+        "Break something load-bearing and go through the hole",
+        3,
+        "It cannot reorganise what is not there.",
+        "You put a hole in the plan and go through it, and the floor above you settles onto the hole and onto you on the way past."
+      ),
+    ],
+  },
+  {
+    id: "r-lantern",
+    band: 2,
+    title: "The Lantern Keeper",
+    setup:
+      "One lamp in the whole gallery and a woman sitting under it with a book. She has been down here long enough to have a chair, and she says the lamp is the last one and asks what you are going to do about it.",
+    options: [
+      {
+        id: "share",
+        label: "Offer to sit with her a while",
+        kind: "check",
+        ability: "charm",
+        tn: 15,
+        vigour: 3,
+        promise: "She has not talked to anyone in a long time and it shows.",
+        win: "She reads you two pages of it, laughs at something, and walks you to the far end with the lamp held up.",
+        lose: "She talks. She talks for a long time, and it is dark at the end of it and she is not there.",
+      },
+      {
+        id: "dark",
+        label: "Go on into the dark without it",
+        kind: "check",
+        ability: "nerve",
+        tn: 16,
+        vigour: 3,
+        promise: "You had no lamp before you saw hers.",
+        win: "You feel your way the length of the gallery and out, and behind you the light stays exactly where it was.",
+        lose: "You get far enough in to be committed, and then find out what the last lamp was being kept lit for.",
+      },
+      {
+        id: "read",
+        label: "Look at what she is reading",
+        kind: "check",
+        ability: "wits",
+        tn: 15,
+        vigour: 3,
+        promise: "A woman with one lamp is spending it on that book for a reason.",
+        win: "It is a register of everybody who has come through, and the last page tells you which of the three arches has been used and which two have not.",
+        lose: "You read your own name near the bottom with a date on it, and the date has not happened yet.",
+      },
+      brace(
+        "take",
+        "Take the lamp",
+        3,
+        "She is one person and it is one lamp.",
+        "You take it and she lets you, and she says something as you go that you will be thinking about for the rest of the descent."
+      ),
+    ],
+  },
+  {
+    id: "r-machine",
+    band: 2,
+    title: "The Works",
+    setup:
+      "Something enormous is running in the dark on the far side of the gallery, and it has been running so long the rock is polished where it turns. The walkway across goes over the middle of it.",
+    options: [
+      {
+        id: "time",
+        label: "Time the turn and cross on the beat",
+        kind: "check",
+        ability: "deft",
+        tn: 16,
+        vigour: 3,
+        promise: "It is regular. Regular can be walked on.",
+        win: "You go across in four strides between beats and it never comes closer to you than a hand's width.",
+        lose: "It is regular until it is not, and you find the irregularity from the walkway.",
+      },
+      {
+        id: "stop",
+        label: "Feel along it in the noise until you find the shaft",
+        kind: "check",
+        ability: "grit",
+        tn: 15,
+        vigour: 3,
+        promise: "It is hot, it is loud, and it will take a while. Nothing about that is a reason not to.",
+        win: "You find the shaft with your hands, jam it with something you were not going to need, and cross a silent gallery.",
+        lose: "You are still feeling for it when the heat off the housing decides how long you are staying.",
+      },
+      {
+        id: "haul",
+        label: "Go under it hand over hand",
+        kind: "check",
+        ability: "brawn",
+        tn: 16,
+        vigour: 3,
+        promise: "The underside is still and the underside is enough.",
+        win: "You come up on the far lip with your arms burning and the whole thing turning over your head untroubled.",
+        lose: "Your grip goes with a third of it left, and you finish the crossing the fast way.",
+      },
+      brace(
+        "wait",
+        "Wait for it to come round and take the hit",
+        3,
+        "It is a machine. It does not aim.",
+        "You go across on the back of it and step off at the far side, and it took the price out of you on the way past without noticing."
+      ),
+    ],
+  },
+  {
+    id: "r-quota",
+    band: 2,
+    title: "The Quota",
+    setup:
+      "A door with a slot in it and a tally chalked beside the slot, and the tally is one short. Whoever is on the other side is not opening anything until the number is right.",
+    options: [
+      {
+        id: "talk",
+        label: "Talk to whoever is behind it",
+        kind: "check",
+        ability: "charm",
+        tn: 15,
+        vigour: 3,
+        promise: "There is somebody in there and somebody can be reasoned with.",
+        win: "You get them talking about the quota, who set it, and what it is like being held to it, and the door comes open on its own.",
+        lose: "They will not be drawn on the quota. They are very clear that they will not be drawn on the quota.",
+      },
+      {
+        id: "forge",
+        label: "Add to the tally yourself",
+        kind: "check",
+        ability: "wits",
+        tn: 14,
+        vigour: 3,
+        promise: "It is chalk. It is a wall. You have hands.",
+        win: "You match the hand and the angle, add the one that was missing, and the bolts go back on the other side.",
+        lose: "The chalk is counted from the far side as well, and the mismatch is noticed while your hand is still on the wall.",
+      },
+      {
+        id: "force",
+        label: "Take the door off",
+        kind: "check",
+        ability: "brawn",
+        tn: 16,
+        vigour: 3,
+        promise: "The quota is not your quota.",
+        win: "It comes off the frame in one piece and whatever was counting goes quiet immediately.",
+        lose: "The door holds, the frame holds, and the noise brings the count up to date without your help.",
+      },
+      brace(
+        "make",
+        "Make up the number the way they mean it",
+        3,
+        "You know what the missing one is. You are not going to enjoy it.",
+        "The tally goes right, the bolts come back, and you go through carrying what it cost to make the number work."
+      ),
+    ],
+  },
+  {
+    id: "r-mirror",
+    band: 2,
+    title: "The Long Gallery",
+    setup:
+      "A gallery of the people who came down here before you, standing along both walls, dressed and posed and perfectly still. They are all facing the way you are going, and the last one on the left is wearing your coat.",
+    options: [
+      {
+        id: "walk",
+        label: "Walk the length of it and do not stop",
+        kind: "check",
+        ability: "nerve",
+        tn: 16,
+        vigour: 3,
+        promise: "They are exhibits. Exhibits do not do anything.",
+        win: "You go the whole length at one pace and not one of them is in a different position when you look back.",
+        lose: "One of them is in a different position when you look back, and then so are the rest.",
+      },
+      {
+        id: "study",
+        label: "Look at how each of them died",
+        kind: "check",
+        ability: "wits",
+        tn: 15,
+        vigour: 3,
+        promise: "Every one of these is a mistake somebody made once.",
+        win: "You read six deaths off six poses and know exactly what is waiting at the bottom of the stair.",
+        lose: "You read your own, off the one in your coat, and it takes something out of you that does not come back tonight.",
+      },
+      {
+        id: "coat",
+        label: "Take your coat off and leave it with them",
+        kind: "check",
+        ability: "grit",
+        tn: 14,
+        vigour: 3,
+        promise: "Give the gallery what it is expecting and it may not need the rest.",
+        win: "You hang it on the empty one at the end, and the gallery stops being interested in you entirely.",
+        lose: "It was never the coat, and going the rest of the way cold has its own price.",
+      },
+      brace(
+        "eyes",
+        "Go down the middle looking at the floor",
+        3,
+        "You do not need to see them to get past them.",
+        "You come out at the far arch having looked at nothing but your own boots, and the effort of not looking has taken a real piece out of you."
       ),
     ],
   },

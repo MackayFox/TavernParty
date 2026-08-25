@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Tonight } from "@/components/daily/Tonight";
 import { Card } from "@/components/ui";
 import { DAILY_GAMES, DAILY_META, prettyDate, utcDate } from "@/lib/daily/core";
 
@@ -17,8 +18,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * The hub. A server component on purpose: it is four links and a date, and
- * there is nothing here worth shipping JavaScript for.
+ * The hub. Still a server component: the four cards are the copy this page is
+ * indexed on, so they render on the server as they always did.
+ *
+ * The one client island is `Tonight`, which says which of the four you have
+ * already played and what you scored. That cannot be server-rendered at all,
+ * because it is in this browser's localStorage and nowhere else.
  */
 export default function DailyHub() {
   const today = utcDate();
@@ -33,6 +38,8 @@ export default function DailyHub() {
         three minutes. Three of them publish a par worked out by brute force, so you find out not
         just what you scored but what there was to score.
       </p>
+
+      <Tonight today={today} />
 
       <ul className="mt-6 space-y-3">
         {DAILY_GAMES.map((game) => {

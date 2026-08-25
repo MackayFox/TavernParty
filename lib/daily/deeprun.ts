@@ -238,22 +238,88 @@ export function secondDie(date: string, roomIndex: number): number {
   return dieFor(`${date}:again`, roomIndex);
 }
 
+/**
+ * Which day this is, as a number, so consecutive days can be told apart.
+ *
+ * `dateSeed` hashes the date to a scattered integer, which is what you want for
+ * dice and exactly what you do not want here: dealing a deck needs to know that
+ * the 3rd came after the 2nd. Parsing a pinned UTC string is deterministic, takes
+ * no clock reading, and the engine's rule is against `Math.random`, not against
+ * arithmetic on a date somebody passed in.
+ */
+function dayNumber(date: string): number {
+  const ms = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(ms) ? Math.floor(ms / 86_400_000) : 0;
+}
+
+/**
+ * DEAL FROM A DECK, DO NOT DRAW FROM A BAG.
+ *
+ * Every day used to shuffle each band independently and take the top cards, which
+ * is drawing with replacement across days, and the pools are small: band one is
+ * two rooms out of six, band two is two out of five. The chance that a given day
+ * repeated at least one room from the day before was ninety per cent. Somebody
+ * playing two nights running was therefore almost certain to walk back into a room
+ * they had just solved, which is the whole of "is there enough variety".
+ *
+ * So the deal is global rather than per day. Slot `n` of the endless deal is card
+ * `n % N` of pass `floor(n / N)`, and each pass is its own shuffle. Inside a pass
+ * a room cannot come back at all: three days for band one, two or three for band
+ * two, five for band three, twenty for the boss.
+ *
+ * WHAT THIS DOES NOT FIX, measured rather than hoped: two passes meeting at a
+ * boundary are two independent shuffles, so the same card can land either side of
+ * the join. Band one crosses a boundary every third day and band two every third
+ * or fourth, which leaves roughly forty-five per cent of consecutive days sharing
+ * something, against ninety before. A real halving, and not the zero it would be
+ * nice to claim.
+ *
+ * Closing the join exactly would mean each pass knowing the pass before it, and
+ * therefore every pass before that, which a function addressed by a date cannot do
+ * without keeping state. The honest remaining fix is more rooms: band one is six
+ * cards, so it is dealt out in three days no matter how well it is shuffled. See
+ * docs/GAME_DESIGN.md.
+ *
+ * ponytail: pass-boundary repeats stay. Write more band one and band two rooms
+ * before reaching for cleverness here; a pool of twelve makes the join rare on its
+ * own.
+ *
+ * No state, no storage, no reading of any other day: slot arithmetic on the date
+ * alone, so every player in the world still gets the same rooms in the same order
+ * and an archive day still deals what it dealt at the time.
+ */
+function dealt(pool: readonly RoomDef[], take: number, slot0: number, key: string): RoomDef[] {
+  const size = pool.length;
+  if (size === 0) return [];
+  const out: RoomDef[] = [];
+  for (let i = 0; i < take; i++) {
+    const slot = slot0 + i;
+    const pass = Math.floor(slot / size);
+    // Shuffled per pass, so the order is not the same every time round.
+    const order = seededShuffle(pool, mulberry32(dateSeed(`${key}:pass:${pass}`)));
+    out.push(order[slot % size]);
+  }
+  return out;
+}
+
 function roomsFor(date: string): RoomDef[] {
+  const day = dayNumber(date);
   // Banded rather than shuffled flat, so it gets worse as you go down. That is
   // the only shape a descent can have.
   const picked: RoomDef[] = [];
   const perBand = [2, 2, 1];
   for (const band of [1, 2, 3] as const) {
-    const pool = seededShuffle(
-      DEEP_ROOMS.filter((r) => r.band === band),
-      mulberry32(dateSeed(`${date}:deeprun:band:${band}`))
+    const take = perBand[band - 1];
+    picked.push(
+      ...dealt(
+        DEEP_ROOMS.filter((r) => r.band === band),
+        take,
+        day * take,
+        `deeprun:band:${band}`
+      )
     );
-    picked.push(...pool.slice(0, perBand[band - 1]));
   }
-  const boss = seededShuffle(
-    DEEP_BOSSES,
-    mulberry32(dateSeed(`${date}:deeprun:boss`))
-  )[0];
+  const boss = dealt(DEEP_BOSSES, 1, day, "deeprun:boss")[0];
   return [...picked.slice(0, ROOMS), boss];
 }
 
@@ -435,7 +501,9 @@ export type Design = {
 };
 
 export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
-  const date = design.seed;
+  // Named for what it is. Calling this `date` is what let the seed reach a field
+  // the client sends back as a date; everything below picks dice with it.
+  const seed = design.seed;
   const rand = mulberry32(dateSeed(`${arraySeed}:deeprun:array`));
   // Four dice, drop the lowest, six times: the same curve the live game uses, so
   // a player who knows one already knows the other.
@@ -447,7 +515,43 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
   const callingPool = design.callingIds
     ? CALLINGS.filter((c) => design.callingIds!.includes(c.id))
     : CALLINGS;
-  const callings = seededShuffle(callingPool, mulberry32(dateSeed(`${date}:deeprun:callings`)))
+  /**
+   * THREE CALLINGS, THREE DIFFERENT KNACKS.
+   *
+   * Eight Callings share five knacks between them: the Warden and the Sapper both
+   * walk through a room, the Chanter and the Reckoner both add five after the die,
+   * the Hedge-witch and the Oathbound both clear a room and mend. So a straight
+   * shuffle of three could and did offer two whose once-a-night move was word for
+   * word the same, leaving a choice between two ability spreads dressed up as a
+   * choice between three characters.
+   *
+   * Taking the first of each kind fixes it without narrowing anything: the pool is
+   * shuffled first, so which of a pair turns up is still the day's business, and
+   * all eight still appear across a week. Only the duplicate is dropped.
+   *
+   * An AUTHOR's list is left alone, the same as their kit: if somebody has put the
+   * Warden and the Sapper in their dungeon on purpose, that is their dungeon.
+   */
+  const spread = design.callingIds
+    ? seededShuffle(callingPool, mulberry32(dateSeed(`${seed}:deeprun:callings`)))
+    : (() => {
+        const shuffled = seededShuffle(
+          callingPool,
+          mulberry32(dateSeed(`${seed}:deeprun:callings`))
+        );
+        const kinds = new Set<string>();
+        const picked = shuffled.filter((c) => {
+          const kind = KNACK_BY_CALLING[c.id];
+          if (kinds.has(kind)) return false;
+          kinds.add(kind);
+          return true;
+        });
+        // If the content ever has fewer distinct knacks than seats, fill from the
+        // shuffle rather than serving a short list.
+        return picked.length >= CALLING_CHOICES ? picked : shuffled;
+      })();
+
+  const callings = spread
     .slice(0, design.callingIds ? callingPool.length : CALLING_CHOICES)
     .map((c) => {
       const kind = KNACK_BY_CALLING[c.id];
@@ -470,14 +574,17 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
    * filters its own pool this way and says why: offering a choice that cannot
    * matter is worse than offering fewer choices.
    *
-   * An AUTHOR's list is left exactly as they set it. They chose those items, the
-   * gate warns them about a dud, and silently dropping a card somebody picked is
-   * worse than letting them ship a thin shelf.
+   * An AUTHOR's list is left exactly as they set it. They chose those items, and
+   * silently dropping a card somebody picked is worse than letting them ship a
+   * thin shelf. The gate warns them about a dud and blocks a shelf where nothing
+   * works at all, which it did NOT do when this comment first claimed it: the
+   * check was added later, in `gate.ts`, after the comment was found to be the
+   * only thing standing between an author and a shelf of four dead cards.
    */
   const kitPool = design.kitIds
     ? KIT.filter((k) => design.kitIds!.includes(k.id))
     : KIT.filter((k) => k.bonus);
-  const kit = seededShuffle(kitPool, mulberry32(dateSeed(`${date}:deeprun:kit`)))
+  const kit = seededShuffle(kitPool, mulberry32(dateSeed(`${seed}:deeprun:kit`)))
     .slice(0, design.kitIds ? kitPool.length : KIT_CHOICES)
     .map((k) => ({
       id: k.id,
@@ -508,7 +615,22 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
   }));
 
   return {
-    date,
+    /**
+     * WHAT IT IS CALLED, never what its dice are pinned to.
+     *
+     * This was `design.seed`, which is the same string on almost every day and so
+     * looked right for months. It is not the same string on a day whose first
+     * draw was unwinnable: `dieSeedFor` salts the seed to "2026-08-25#1" and
+     * re-draws, and the payload then told the client its date was that. The
+     * client hands the date straight back on every POST, where the zod schema
+     * requires a plain date, so a salted day would have started refusing the
+     * second floor of every run with a validation error.
+     *
+     * It surfaced when the room pool grew and re-draws stopped being rare. Two
+     * fields, two jobs: `seed` pins the dice, `date` and `label` are what a person
+     * is shown and what comes back on the wire.
+     */
+    date: design.label,
     seed: design.seed,
     label: design.label,
     array,

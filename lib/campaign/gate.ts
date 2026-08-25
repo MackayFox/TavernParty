@@ -28,6 +28,7 @@
  */
 import { ABILITIES, type Ability } from "@/lib/game/types";
 import { abilityMod } from "@/lib/game/rules";
+import { KIT } from "@/lib/content/kit";
 import {
   ceilingFor,
   puzzleFrom,
@@ -333,6 +334,43 @@ export function reportFor(design: Design): Report {
         severity: "warn",
         text: `"${m}" is handed out and never asked for. No door anywhere reads it, so it changes nothing. Usually that means it is spelled two ways.`,
       });
+  }
+
+  /**
+   * KIT THAT CANNOT DO ANYTHING DOWN HERE.
+   *
+   * Five of the twelve items are charges rather than bonuses, and nothing in the
+   * Deep Run reads a charge: they are multiplayer gear. The daily filters them out
+   * of its own shelf and `puzzleFrom` says why, and that comment ended with "the
+   * gate warns them about a dud", which the gate did not do. It counted the shelf
+   * and never looked at what was on it, so an author could tick four charges,
+   * publish, and hand every player a shelf where nothing they take matters.
+   *
+   * A warning and not a block, for the same reason the daily filters and an
+   * author's list does not get filtered: they picked those cards, and silently
+   * dropping somebody's choice is worse than letting them ship a thin shelf. It
+   * only becomes a block when NOTHING on the shelf works, because at that point
+   * "take two off the shelf" is not a decision at all.
+   */
+  const shelf = design.kitIds ?? [];
+  if (shelf.length > 0) {
+    const inert = shelf.filter((id) => {
+      const card = KIT.find((k) => k.id === id);
+      return !card || !card.bonus;
+    });
+    if (inert.length > 0) {
+      const names = inert
+        .map((id) => KIT.find((k) => k.id === id)?.name ?? id)
+        .map((n) => `"${n}"`)
+        .join(", ");
+      notes.push({
+        severity: inert.length === shelf.length ? "block" : "warn",
+        text:
+          inert.length === shelf.length
+            ? `Nothing on your shelf does anything down here. ${names} are all charges, and a charge is something you spend at a table with other people in it. Put at least one thing on the shelf that adds to a roll.`
+            : `${names} ${inert.length === 1 ? "is a charge" : "are charges"}, which is gear for a table with other people at it. Down here ${inert.length === 1 ? "it does" : "they do"} nothing, so anybody who takes ${inert.length === 1 ? "it" : "them"} has wasted a pick.`,
+      });
+    }
   }
 
   // Per-floor shape: is the choice on this floor a real one?

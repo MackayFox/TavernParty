@@ -464,3 +464,118 @@ describe("failing costs more than certainty", () => {
     }
   });
 });
+
+describe("variety", () => {
+  /**
+   * The rooms are DEALT, not drawn, and this is the property that says so.
+   *
+   * Each band used to be shuffled fresh every day and the top cards taken, which
+   * across days is drawing with replacement out of a pool of five or six. Measured
+   * on the old code: ninety per cent of days repeated at least one room from the
+   * previous day, so two nights running almost always meant re-solving a floor.
+   *
+   * The bound is a MEASUREMENT, not an aspiration. Inside a pass a repeat is
+   * impossible; what is left comes from the join between two passes, which
+   * `roomsFor` documents and which cannot be closed without keeping state. Dealing
+   * took it from ninety per cent to forty-two, and doubling bands one and two took
+   * that to fourteen.
+   *
+   * Thirty-five leaves room for the pool to be reshaped without a false alarm,
+   * while failing hard on the ninety a bag draw gives and on anything halfway back
+   * to it. Both halves of the fix are load-bearing, so both are worth catching.
+   */
+  it("repeats a room from yesterday far less often than a bag draw would", () => {
+    const days: string[] = [];
+    for (let d = 0; d < 60; d++) {
+      const ms = Date.parse("2026-09-01T00:00:00Z") + d * 86_400_000;
+      days.push(new Date(ms).toISOString().slice(0, 10));
+    }
+
+    let shared = 0;
+    let worst = 0;
+    for (let i = 1; i < days.length; i++) {
+      const before = new Set(puzzleFor(days[i - 1]).rooms.map((r) => r.id));
+      const again = puzzleFor(days[i]).rooms.filter((r) => before.has(r.id));
+      if (again.length > 0) shared++;
+      worst = Math.max(worst, again.length);
+    }
+    const rate = shared / (days.length - 1);
+    console.log(
+      `consecutive-day overlap: ${shared}/${days.length - 1} (${(rate * 100).toFixed(0)}%), worst ${worst}`
+    );
+    expect(rate, `${shared} of ${days.length - 1} days repeated something`).toBeLessThan(0.35);
+    // Half a floor list carried over would mean the deal is not dealing at all.
+    expect(worst, "a day repeated most of the previous day").toBeLessThanOrEqual(2);
+  });
+
+  /**
+   * THE DATE A PLAYER IS TOLD IS NEVER THE SEED.
+   *
+   * `puzzleFrom` had a local called `date` holding `design.seed`, and put it in the
+   * payload's `date`. Identical on almost every day, so it read as correct for
+   * months. On a day whose first dice draw nobody could survive, `dieSeedFor`
+   * salts the seed to "2026-08-25#1" and re-draws, and the client was then told
+   * that was its date. It posts the date back on every floor, where the schema
+   * requires a plain one, so a salted day would have refused every run after the
+   * first floor.
+   *
+   * It only surfaced when the room pool doubled and re-draws stopped being rare,
+   * which is the argument for asserting it rather than trusting that it looks
+   * right. Scan a stretch of days so a salted one is actually included.
+   */
+  it("tells the player the date and keeps the salt in the seed", () => {
+    let salted = 0;
+    for (let d = 0; d < 45; d++) {
+      const ms = Date.parse("2026-09-01T00:00:00Z") + d * 86_400_000;
+      const date = new Date(ms).toISOString().slice(0, 10);
+      const puzzle = puzzleFor(date);
+      expect(puzzle.date, `${date} was told the wrong date`).toBe(date);
+      expect(puzzle.label, date).toBe(date);
+      // The seed is allowed to carry a salt, and is the only field that may.
+      expect(puzzle.seed.startsWith(date), `${date} seed ${puzzle.seed}`).toBe(true);
+      if (puzzle.seed !== date) salted++;
+    }
+    // If no day in a month and a half needed a re-draw, this test proves nothing
+    // and the thing it guards is untested. Say so rather than passing quietly.
+    expect(salted, "no day needed a re-draw, so the salt path went unexercised").toBeGreaterThan(0);
+  });
+
+  /**
+   * The three Callings on offer never share a knack.
+   *
+   * Eight Callings, five knacks, three seats: a straight shuffle offered two with
+   * the same once-a-night move often enough to matter, and two characters whose
+   * special move is word for word identical are one character with two names.
+   */
+  it("offers three different knacks, and still uses every Calling", () => {
+    const seenCallings = new Set<string>();
+    for (let d = 0; d < 60; d++) {
+      const ms = Date.parse("2026-09-01T00:00:00Z") + d * 86_400_000;
+      const date = new Date(ms).toISOString().slice(0, 10);
+      const offered = puzzleFor(date).callings;
+      const kinds = offered.map((c) => c.knack.kind);
+      expect(new Set(kinds).size, `${date} offered ${kinds.join(", ")}`).toBe(kinds.length);
+      offered.forEach((c) => seenCallings.add(c.id));
+    }
+    // Deduplicating knacks must not quietly retire the second of each pair.
+    expect(seenCallings.size, `only ${[...seenCallings].join(", ")} ever appeared`).toBe(
+      Object.keys(KNACK_BY_CALLING).length
+    );
+  });
+
+  it("still uses the whole pool, rather than settling on a favourite", () => {
+    const seen = new Map<string, number>();
+    for (let d = 0; d < 120; d++) {
+      const ms = Date.parse("2026-09-01T00:00:00Z") + d * 86_400_000;
+      const date = new Date(ms).toISOString().slice(0, 10);
+      for (const room of puzzleFor(date).rooms) {
+        seen.set(room.id, (seen.get(room.id) ?? 0) + 1);
+      }
+    }
+    // Every room and every boss appears over four months, or the deal is not
+    // dealing: a bag draw can starve a card indefinitely, a deck cannot.
+    for (const room of [...DEEP_ROOMS, ...DEEP_BOSSES]) {
+      expect(seen.get(room.id) ?? 0, `${room.id} never came up`).toBeGreaterThan(0);
+    }
+  });
+});
