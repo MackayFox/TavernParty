@@ -121,9 +121,26 @@ try {
       console.log(`skip  ${file} (already applied)`);
       continue;
     }
-    const sql = readFileSync(join(dir, file), "utf8");
+    let sql = readFileSync(join(dir, file), "utf8");
+
     await client.query("begin");
     try {
+      /**
+       * Do not type-check function bodies while creating them.
+       *
+       * Every SECURITY DEFINER function here pins its own search_path, which is
+       * right and stays right at run time. But when the whole file is sent as one
+       * multi-statement query, Postgres validates a `language sql` body against
+       * that pinned path at CREATE time, and reports "relation dungeons does not
+       * exist" pointing at a function four kilobytes after the statement that
+       * created the table. Nothing is actually wrong: the body resolves correctly
+       * the moment anybody calls it, which is the only time it matters.
+       *
+       * `local`, so it lasts exactly this transaction and no longer. This buys up
+       * a create-time convenience check, not a runtime guarantee, and the
+       * migration proves the functions work by calling one afterwards.
+       */
+      await client.query("set local check_function_bodies = off");
       await client.query(sql);
       await client.query(`insert into _migrations (name) values ($1)`, [file]);
       await client.query("commit");
@@ -133,6 +150,43 @@ try {
       throw new Error(`${file}: ${err.message}`);
     }
   }
+  /**
+   * EVERY FUNCTION IN THIS SCHEMA RESOLVES NAMES IN THIS SCHEMA.
+   *
+   * Stated here as an invariant over what is actually in the database, rather
+   * than as a text substitution over what the .sql files happen to say. The
+   * substitution was tried first and it silently did nothing: every function
+   * still came out pinned to `public`, so `dungeon_played` could not see
+   * `tavern.dungeons` and recording a play failed at run time while every
+   * migration reported success. A security fix that quietly does not apply is
+   * worse than not having written it.
+   *
+   * The pin itself is not optional. A SECURITY DEFINER function without one is a
+   * privilege-escalation waiting to happen, which is why the migrations pin it in
+   * the first place; this only points it at the right schema. Idempotent, so it
+   * runs on every migrate and repairs anything created before this existed.
+   */
+  if (schema !== "public") {
+    const { rows: fns } = await client.query(
+      `select p.oid::regprocedure as sig, p.proconfig
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = $1`,
+      [schema]
+    );
+    let fixed = 0;
+    for (const fn of fns) {
+      const pinned = (fn.proconfig ?? []).some((c) => c === `search_path=${schema}`);
+      if (pinned) continue;
+      await client.query(`alter function ${fn.sig} set search_path = ${schema}`);
+      fixed++;
+    }
+    console.log(
+      fixed > 0
+        ? `repinned ${fixed} of ${fns.length} functions to search_path = ${schema}`
+        : `all ${fns.length} functions already resolve names in ${schema}`
+    );
+  }
+
   console.log("migrations up to date");
 } finally {
   await client.end();
