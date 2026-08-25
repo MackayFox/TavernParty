@@ -82,6 +82,33 @@ export type OptionDef = {
   promise: string;
   win: string;
   lose: string;
+
+  /**
+   * MARKS. What you are carrying, and what it opens or shuts further down.
+   *
+   * Author-named words: "wet", "seen", "carrying the lamp". The only mechanic in
+   * the dungeon where floor two changes floor five, and the thing that turns six
+   * rooms in a row into a descent rather than a list.
+   *
+   * Not the same thing as a mark in the Hall, which is somebody saying a dungeon
+   * was worth their time. Same word, different floor of the building.
+   *
+   * Three rules, each shaped deliberately:
+   *
+   *   sets     you come away with these, but only from a door that WORKED. A
+   *            failed check leaves you nothing but the bill, which is the only
+   *            version where "carrying the lamp" means you got the lamp.
+   *   needs    all of these, or the door is not open to you.
+   *   forbids  any one of these, and it is not open to you.
+   *
+   * A mark is never taken back once held. Not laziness: it keeps the state
+   * monotone, which is what keeps the par search a table instead of a tree, and
+   * it means nobody can write a dungeon where one door is open, then shut, then
+   * open again.
+   */
+  sets?: string[];
+  needs?: string[];
+  forbids?: string[];
 };
 
 export type RoomDef = {

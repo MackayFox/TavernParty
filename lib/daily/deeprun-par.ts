@@ -40,6 +40,8 @@ import {
   characterFor,
   dieFor,
   secondDie,
+  marksRead,
+  openTo,
   startingVigour,
   type Build,
   type Puzzle,
@@ -48,14 +50,20 @@ import {
 } from "./deeprun";
 import type { KnackKind } from "./deeprun-data";
 
-/** What one (option, knack) does, worked out once and then just looked up. */
-type Move = { step: Step; cleared: boolean; vigour: number };
+/**
+ * What one (option, knack) does, worked out once and then just looked up.
+ *
+ * `sets` rides along because the search has to know what a line leaves you
+ * carrying: besides Vigour it is the only thing a later floor can read.
+ */
+type Move = { step: Step; cleared: boolean; vigour: number; sets: readonly string[] };
 
 function movesFor(
   puzzle: Puzzle,
   build: Build,
   roomIndex: number,
-  knackAvailable: boolean
+  knackAvailable: boolean,
+  held: ReadonlySet<string>
 ): Move[] {
   const who = characterFor(puzzle, build);
   const room = puzzle.rooms[roomIndex];
@@ -71,14 +79,27 @@ function movesFor(
 
   const plain = (option: PuzzleOption): Move => {
     if (option.kind === "brace")
-      return { step: { optionId: option.id }, cleared: true, vigour: -option.vigour };
+      return {
+        step: { optionId: option.id },
+        cleared: true,
+        vigour: -option.vigour,
+        sets: option.sets,
+      };
     const ability = option.ability ?? "grit";
     const total = die + bonusFor(ability);
     const cleared = clears(die, total, option.tn ?? 99);
-    return { step: { optionId: option.id }, cleared, vigour: cleared ? 0 : -option.vigour };
+    return {
+      step: { optionId: option.id },
+      cleared,
+      vigour: cleared ? 0 : -option.vigour,
+      sets: option.sets,
+    };
   };
 
   for (const option of room.options) {
+    // A door that is shut to them is not a move. The same predicate the runner
+    // uses, or the solver prices a line nobody can play.
+    if (!openTo(option, held)) continue;
     moves.push(plain(option));
     if (!knackAvailable) continue;
     const withKnack = knackMove(puzzle, who.knack, option, die, bonusFor, roomIndex);
@@ -96,21 +117,23 @@ function knackMove(
   roomIndex: number
 ): Move | null {
   const step: Step = { optionId: option.id, knack: true };
+  const sets = option.sets;
   switch (kind) {
     case "pass":
-      return { step, cleared: true, vigour: 0 };
+      return { step, cleared: true, vigour: 0, sets };
     case "mend":
-      return { step, cleared: true, vigour: MEND };
+      return { step, cleared: true, vigour: MEND, sets };
     case "slip":
       // Not cleared. That is the trade, and it is why the Knife is a gamble
-      // rather than a strictly better Warden.
-      return { step, cleared: false, vigour: 0 };
+      // rather than a strictly better Warden. Nothing is picked up either,
+      // because you were never in the room.
+      return { step, cleared: false, vigour: 0, sets };
     case "boost": {
       if (option.kind !== "check") return null;
       const ability = option.ability ?? "grit";
       const total = die + bonusFor(ability) + BOOST;
       const cleared = clears(die, total, option.tn ?? 99);
-      return { step, cleared, vigour: cleared ? 0 : -option.vigour };
+      return { step, cleared, vigour: cleared ? 0 : -option.vigour, sets };
     }
     case "rethrow": {
       if (option.kind !== "check") return null;
@@ -118,7 +141,7 @@ function knackMove(
       const ability = option.ability ?? "grit";
       const total = again + bonusFor(ability);
       const cleared = clears(again, total, option.tn ?? 99);
-      return { step, cleared, vigour: cleared ? 0 : -option.vigour };
+      return { step, cleared, vigour: cleared ? 0 : -option.vigour, sets };
     }
   }
 }
@@ -126,18 +149,45 @@ function knackMove(
 /**
  * The best line for one fixed character.
  *
- * Memoised on (room, vigour, knack), which is the entire state: nothing else
- * from the path can change what happens next.
+ * Memoised on (room, vigour, knack, what you are carrying), which is the entire
+ * state: nothing else from the path can change what happens next.
+ *
+ * MARKS ARE WHY THE FOURTH TERM EXISTS, and they are the only thing that has ever
+ * widened this table. Two economies keep it honest:
+ *
+ *   * Only marks that some door READS go in the key. A mark nothing tests is
+ *     flavour, and flavour does not branch a search. Most dungeons read none, and
+ *     then the key is what it always was plus one empty string.
+ *   * A mark is never taken back, so the state is monotone: what is reachable at
+ *     floor n is only ever a superset of what you had at floor n-1. The table is
+ *     bounded by 2^(marks read), and in practice by nothing like it.
+ *
+ * The gate caps how many distinct marks a dungeon may read for exactly this
+ * reason. That cap is the difference between a table and a tree.
  */
 export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: Step[] } {
   const memo = new Map<string, { score: number; steps: Step[] }>();
+  const read = marksRead(puzzle.rooms);
 
-  const walk = (roomIndex: number, vigour: number, knack: boolean): { score: number; steps: Step[] } => {
+  /** Only the part of what you are carrying that any door can test. */
+  const stateOf = (held: ReadonlySet<string>): string => {
+    if (read.size === 0 || held.size === 0) return "";
+    const relevant: string[] = [];
+    for (const m of read) if (held.has(m)) relevant.push(m);
+    return relevant.sort().join(",");
+  };
+
+  const walk = (
+    roomIndex: number,
+    vigour: number,
+    knack: boolean,
+    held: ReadonlySet<string>
+  ): { score: number; steps: Step[] } => {
     if (vigour <= 0) return { score: 0, steps: [] };
     if (roomIndex >= puzzle.rooms.length)
       return { score: OUT_ALIVE + vigour * VIGOUR_VALUE, steps: [] };
 
-    const key = `${roomIndex}:${vigour}:${knack ? 1 : 0}`;
+    const key = `${roomIndex}:${vigour}:${knack ? 1 : 0}:${stateOf(held)}`;
     const hit = memo.get(key);
     if (hit) return hit;
 
@@ -145,13 +195,16 @@ export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: S
     // Walking away is always available: a submission that simply stops here.
     let best: { score: number; steps: Step[] } = { score: 0, steps: [] };
 
-    for (const move of movesFor(puzzle, build, roomIndex, knack)) {
+    for (const move of movesFor(puzzle, build, roomIndex, knack, held)) {
       const gain = move.cleared ? ROOM_CLEARED + (boss ? BOSS_BEATEN : 0) : 0;
       const after = vigour + move.vigour;
+      // The runner's rule: only a door that worked leaves anything on you.
+      const carrying =
+        move.cleared && move.sets.length > 0 ? new Set([...held, ...move.sets]) : held;
       const rest =
         after <= 0
           ? { score: 0, steps: [] }
-          : walk(roomIndex + 1, after, knack && !move.step.knack);
+          : walk(roomIndex + 1, after, knack && !move.step.knack, carrying);
       const total = gain + rest.score;
       if (total > best.score) best = { score: total, steps: [move.step, ...rest.steps] };
     }
@@ -160,7 +213,7 @@ export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: S
     return best;
   };
 
-  return walk(0, startingVigour(characterFor(puzzle, build), puzzle.baseVigour), true);
+  return walk(0, startingVigour(characterFor(puzzle, build), puzzle.baseVigour), true, new Set());
 }
 
 const PAR_CACHE = new Map<string, { par: number; best: { build: Build; steps: Step[] } | null }>();
@@ -189,7 +242,13 @@ function mechanicalKey(puzzle: Puzzle): string {
       .map(
         (r) =>
           `${r.id}${r.boss ? "!" : ""}:` +
-          r.options.map((o) => `${o.id}/${o.kind}/${o.ability ?? "-"}/${o.tn ?? "-"}/${o.vigour}`).join("+")
+          r.options
+            .map(
+              (o) =>
+                `${o.id}/${o.kind}/${o.ability ?? "-"}/${o.tn ?? "-"}/${o.vigour}` +
+                `/${o.needs.join("&")}/${o.forbids.join("&")}/${o.sets.join("&")}`
+            )
+            .join("+")
       )
       .join(";"),
   ].join("|");

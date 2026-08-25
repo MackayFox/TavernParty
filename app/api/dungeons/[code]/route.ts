@@ -26,6 +26,18 @@ const optionSchema = z.object({
   promise: z.string().trim().max(200),
   win: z.string().trim().max(400),
   lose: z.string().trim().max(400),
+  /**
+   * Marks. Short, lower case, and few.
+   *
+   * The length cap is not storage, it is legibility: these words are printed on
+   * the play screen next to a door, so "wet" and "carrying the lamp" both work
+   * and a sentence does not. Lower-cased here rather than in the UI so that
+   * "Wet" and "wet" cannot become two marks in the same dungeon, which is the
+   * single most likely authoring mistake in the whole feature.
+   */
+  sets: z.array(z.string().trim().toLowerCase().min(1).max(24)).max(3).optional(),
+  needs: z.array(z.string().trim().toLowerCase().min(1).max(24)).max(3).optional(),
+  forbids: z.array(z.string().trim().toLowerCase().min(1).max(24)).max(3).optional(),
 });
 
 const roomSchema = z.object({

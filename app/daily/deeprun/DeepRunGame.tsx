@@ -52,6 +52,14 @@ type Option = {
   tn: number | null;
   vigour: number;
   promise: string;
+  /**
+   * Marks: what this door wants, what it will not have, and what it leaves on
+   * you. Public rules, like the target number, and for the same reason: this is a
+   * bet rather than a riddle. The die and the prose stay behind the wall.
+   */
+  needs?: string[];
+  forbids?: string[];
+  sets?: string[];
 };
 type Room = { id: string; index: number; title: string; setup: string; boss: boolean; options: Option[] };
 
@@ -80,6 +88,9 @@ type Line = {
   vigourSpent: number;
   vigourAfter: number;
   text: string;
+  /** What that floor left on you, and everything in hand after it. */
+  gained?: string[];
+  marks?: string[];
 };
 
 type RunReply = {
@@ -99,6 +110,12 @@ type RunReply = {
 };
 
 type Step = { optionId: string; knack?: boolean };
+
+/** "wet", "wet and seen", "wet, seen and lit". Printed, so it has to read. */
+function list(words: readonly string[]): string {
+  if (words.length <= 1) return words[0] ?? "";
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
 
 /** Everything about a run in progress: the character, and how far down they are. */
 type Saved = {
@@ -338,6 +355,16 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   const vigour = reply ? reply.vigour : null;
   const room = data.rooms[steps.length];
   const knackSpent = steps.some((s) => s.knack);
+  /**
+   * What they are carrying, straight off the last line the server sent.
+   *
+   * Never accumulated here. The server replays the whole run on every choice and
+   * says what is in hand afterwards, so this screen has no state of its own to get
+   * wrong, and a reloaded tab is right for free.
+   */
+  const carrying: string[] =
+    reply?.lines.length ? reply.lines[reply.lines.length - 1].marks ?? [] : [];
+  const holding = new Set(carrying);
 
   return (
     <section className="mx-auto w-full max-w-2xl py-8">
@@ -566,6 +593,12 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                   ✕ {line.vigourSpent} Vigour, {line.vigourAfter} left
                 </p>
               )}
+              {(line.gained?.length ?? 0) > 0 && (
+                <p className="mt-1 text-sm text-text-hi">
+                  <span aria-hidden>&#9670; </span>
+                  You come away {list(line.gained ?? [])}.
+                </p>
+              )}
             </article>
           ))}
 
@@ -574,9 +607,19 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
               <header className="flex flex-wrap items-center gap-2">
                 <span className="label-caps">Floor {room.index + 1}</span>
                 {room.boss && <Pill tone="danger">The bottom</Pill>}
+                {carrying.map((m) => (
+                  <Pill key={m} tone="accent">
+                    {m}
+                  </Pill>
+                ))}
               </header>
               <h2 className="font-display mt-1 text-xl text-text-hi">{room.title}</h2>
               <p className="prose-read mt-2">{room.setup}</p>
+              {carrying.length > 0 && (
+                <p className="mt-1 text-sm text-text-mid">
+                  You are {list(carrying)}, and some doors care about that.
+                </p>
+              )}
               <p className="mt-3 text-sm text-text-low">
                 You do not know what this room rolled. Nobody does until somebody opens it.
               </p>
@@ -585,6 +628,12 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
               <ul className="mt-3 space-y-3">
                 {room.options.map((option) => {
                   const bonus = option.ability ? bonusFor(option.ability) : 0;
+                  // Which of this door's demands are not met. Named rather than
+                  // implied: a door that is simply greyed out is a bug as far as
+                  // the player is concerned.
+                  const wants = (option.needs ?? []).filter((m) => !holding.has(m));
+                  const refuses = (option.forbids ?? []).filter((m) => holding.has(m));
+                  const shut = wants.length > 0 || refuses.length > 0;
                   // Floored at 2 and capped at 20 by `faceNeeded`, not at 1 and 20:
                   // this line used to promise a door on "a 1 or better" when a 1
                   // is the one face that never opens anything.
@@ -601,19 +650,32 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                     >
                       <p className="font-display text-text-hi">{option.label}</p>
                       <p className="mt-1 text-sm text-text-mid">{option.promise}</p>
+                      {shut && (
+                        <p className="mt-1 text-sm text-text-hi">
+                          <span aria-hidden>&#9866; </span>
+                          {wants.length > 0 && `Not for you without ${list(wants)}.`}
+                          {wants.length > 0 && refuses.length > 0 && " "}
+                          {refuses.length > 0 && `Not while you are ${list(refuses)}.`}
+                        </p>
+                      )}
+                      {!shut && (option.sets ?? []).length > 0 && (
+                        <p className="mt-1 text-sm text-text-low">
+                          Works, and you come away {list(option.sets ?? [])}.
+                        </p>
+                      )}
                       <p className="num mt-1 text-sm text-text-low">
                         {option.kind === "brace"
                           ? `Always works. Costs ${option.vigour} Vigour, every time.`
                           : `${ABILITY_LABEL[option.ability!]} · you bring ${bonus >= 0 ? "+" : ""}${bonus} · needs ${option.tn}, so a ${need} or better · costs ${option.vigour} if it goes wrong`}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <Button disabled={busy} onClick={() => void choose(option, false)}>
+                        <Button disabled={busy || shut} onClick={() => void choose(option, false)}>
                           {option.label}
                         </Button>
                         {canKnack && (
                           <Button
                             variant="secondary"
-                            disabled={busy}
+                            disabled={busy || shut}
                             onClick={() => void choose(option, true)}
                           >
                             {calling!.knack.label}

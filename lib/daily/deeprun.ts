@@ -95,6 +95,17 @@ export type PuzzleOption = {
   tn: number | null;
   vigour: number;
   promise: string;
+  /**
+   * The Marks rules, and they are PUBLIC, exactly like the target number.
+   *
+   * This is a bet, not a riddle. You are told a door wants the lamp before you
+   * decide whether to go and get one, the same way you are told a door wants a 14
+   * before you decide whether to try it. What stays behind the wall is the die
+   * and the prose, and neither of those is here.
+   */
+  needs: string[];
+  forbids: string[];
+  sets: string[];
 };
 
 export type PuzzleRoom = {
@@ -153,6 +164,9 @@ export type Line = {
   vigourAfter: number;
   /** One sentence. Never states the numbers; the mods do that. */
   text: string;
+  /** What this floor left on you, and everything you are carrying after it. */
+  gained: string[];
+  marks: string[];
 };
 
 export type Result = {
@@ -296,6 +310,9 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
       tn: o.tn ?? null,
       vigour: o.vigour ?? 0,
       promise: o.promise,
+      needs: o.needs ?? [],
+      forbids: o.forbids ?? [],
+      sets: o.sets ?? [],
     })),
   }));
 
@@ -372,6 +389,37 @@ export function characterFor(puzzle: Puzzle, build: Build): Character {
 }
 
 /**
+ * Is this door open to somebody carrying these marks?
+ *
+ * One predicate, three readers: the runner, the par search and the play screen.
+ * If they ever disagree, a player is offered a door the solver never priced, or
+ * priced against a par they could not have scored.
+ *
+ * Ungated is the default and the common case, so it costs two length checks.
+ */
+export function openTo(
+  option: { needs?: string[]; forbids?: string[] },
+  held: ReadonlySet<string>
+): boolean {
+  const needs = option.needs;
+  if (needs && needs.length > 0 && !needs.every((m) => held.has(m))) return false;
+  const forbids = option.forbids;
+  if (forbids && forbids.length > 0 && forbids.some((m) => held.has(m))) return false;
+  return true;
+}
+
+/** Every mark any door in this dungeon reads. Nothing else can change a decision. */
+export function marksRead(rooms: readonly { options: readonly { needs?: string[]; forbids?: string[] }[] }[]): Set<string> {
+  const read = new Set<string>();
+  for (const room of rooms)
+    for (const o of room.options) {
+      for (const m of o.needs ?? []) read.add(m);
+      for (const m of o.forbids ?? []) read.add(m);
+    }
+  return read;
+}
+
+/**
  * How much Vigour a character walks in with.
  *
  * The base belongs to the DUNGEON, not to this module. It used to read the
@@ -423,12 +471,24 @@ export function run(
   let roomsCleared = 0;
   let bossBeaten = false;
   let depth = 0;
+  /** What they are carrying. Only ever grows; see OptionDef for why. */
+  const held = new Set<string>();
 
   for (const room of puzzle.rooms) {
     const step = steps[room.index];
     if (!step) break; // They stopped, or the tab did.
     const option = room.options.find((o) => o.id === step.optionId);
     if (!option) break;
+    /**
+     * A door that is not open to them ends the run where it stands.
+     *
+     * Not an error, and deliberately the same behaviour as running out of steps:
+     * `run` is total, it never throws, and a submission that names a shut door is
+     * indistinguishable from one that walked away. Somebody hand-posting a locked
+     * option id gets a short run and no score, which is the whole of the
+     * punishment it deserves.
+     */
+    if (!openTo(option, held)) break;
 
     // A knack is once a run, and only on an option that has somewhere to put it.
     const usingKnack = !!step.knack && knackLeft && knackApplies(who.knack, option);
@@ -441,13 +501,17 @@ export function run(
       knackLabel: who.knackLabel,
     });
     vigour = line.vigourAfter;
-    lines.push(line);
     depth = room.index + 1;
 
     if (line.cleared) {
       roomsCleared++;
       if (room.boss) bossBeaten = true;
+      // Only a door that worked leaves anything on you.
+      for (const m of option.sets) held.add(m);
     }
+    line.gained = line.cleared ? [...option.sets] : [];
+    line.marks = [...held];
+    lines.push(line);
     // Out of Vigour is where the run stops, cleared room or not.
     if (vigour <= 0) break;
   }
@@ -498,6 +562,10 @@ function resolveOption(
     vigourSpent: 0,
     vigourAfter: ctx.vigour,
     text: cleared ? def.win : def.lose,
+    // Filled in by `run`, which is the only thing that knows what is being
+    // carried. `resolveOption` resolves one door and has no memory.
+    gained: [],
+    marks: [],
     ...over,
   });
 

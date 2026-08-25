@@ -354,7 +354,28 @@ it went.
    that always works and always costs Vigour, so no room is ever a wall, only a
    price. Par stays cheap to compute for a nice reason: because the die is fixed
    before you choose, there is no probability in the problem at all, so the whole
-   search collapses to a table over (floor, Vigour, knack still in hand).
+   search collapses to a table over (floor, Vigour, knack still in hand, marks).
+
+   **Marks** are the fourth term and the only mechanic where one floor changes a
+   later one. A door may leave a word on you ("wet", "carrying the lamp"), and
+   another door further down may want it or refuse it. Three rules hold the whole
+   thing up:
+
+   - You only come away with a mark from a door that **worked**. A failed check
+     leaves you the bill and nothing else, which is the only version where
+     carrying the lamp means you got the lamp.
+   - A mark is **never taken back**. That keeps the state monotone, which is what
+     keeps par a table rather than a tree, and it means nobody can write a
+     dungeon where a door is open, then shut, then open again.
+   - **At least one option per floor that always works must be ungated.** A gated
+     brace is a wall, and the whole engine exists so that a floor is a price.
+
+   The house daily deliberately uses **none of this**, and the reason is
+   mechanical rather than aesthetic: its rooms are shuffled per band from a pool,
+   so a room whose door wants the lamp would land in dungeons where nothing hands
+   one out. Marks need an author who can see the whole descent, which is exactly
+   what the campaign builder is. Pool rooms offered to authors are held to the
+   same rule: they may hand a mark out, they may never require one.
 3. **The Ledger.** A five by five debt grid solved by constraint propagation
    from four true statements. No dice in it anywhere. Up to three CHECKS, each of
    which costs you a mark, and the number you used is the score you share.

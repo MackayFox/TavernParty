@@ -23,6 +23,13 @@
  *   4. IT PLAYS, through the same handler as the daily, and the share points at
  *      the dungeon.
  *   5. SOMEBODY ELSE'S DRAFT IS NOT YOURS.
+ *   6. MARKS WORK OVER THE WIRE. The payload carries what each door wants, and a
+ *      shut door posted straight at the server ends the run rather than opening.
+ *
+ * ONE DEV-SERVER GOTCHA. Run it twice after editing a route. The first hit after
+ * an edit pays for Next's on-demand compile, and a route that takes long enough
+ * can fail a check that passes on every subsequent run. That is the dev server,
+ * not the product.
  */
 
 const flag = (name, fallback) => {
@@ -319,6 +326,100 @@ async function main() {
   );
   const peekLog = await bev.call("GET", `/api/dungeons/${code}/log`);
   check("nobody else can read it", peekLog.status === 403, `status ${peekLog.status}`);
+
+  // ---- 6. marks, over the wire -------------------------------------------
+  /**
+   * The one seam the unit tests cannot reach: does the payload carry the gating
+   * rules, and does the server refuse a shut door posted straight at it?
+   *
+   * Floor one's brace hands out the lamp, floor two's checks want it, and floor
+   * two's brace is deliberately ungated because the gate insists on that. So a
+   * run that takes the lamp gets three floors, and a run that posts floor two's
+   * gated check without it stops on floor one.
+   */
+  const dana = jar();
+  const markMade = await dana.call("POST", "/api/dungeons", { name: "DANA" });
+  const mcode = markMade.json?.code;
+  const GATED = {
+    ...GOOD,
+    title: "The Lamp Or Nothing",
+    rooms: [
+      {
+        ...room("m1", 2, "brawn", 14, "wits", 15),
+        options: room("m1", 2, "brawn", 14, "wits", 15).options.map((o) =>
+          o.kind === "brace" ? { ...o, sets: ["the lamp"] } : o
+        ),
+      },
+      {
+        ...room("m2", 2, "brawn", 14, "grit", 15),
+        options: room("m2", 2, "brawn", 14, "grit", 15).options.map((o) =>
+          o.kind === "check" ? { ...o, needs: ["the lamp"] } : o
+        ),
+      },
+      room("m3", 3, "brawn", 17, "charm", 16),
+    ],
+  };
+  await dana.call("PUT", `/api/dungeons/${mcode}`, GATED);
+  const gatedReport = await dana.call("POST", `/api/dungeons/${mcode}/report`, {});
+  check(
+    "the gate is happy with a dungeon whose second floor wants the lamp",
+    gatedReport.json?.ok === true,
+    JSON.stringify(gatedReport.json?.notes ?? []).slice(0, 200)
+  );
+  const gatedPub = await dana.call("POST", `/api/dungeons/${mcode}/publish`, {});
+  check("it publishes", gatedPub.json?.ok === true, `status ${gatedPub.status}`);
+
+  const gatedPuzzle = await dana.call("GET", `/api/daily/deeprun?c=${mcode}`);
+  const secondFloor = gatedPuzzle.json?.rooms?.[1]?.options ?? [];
+  check(
+    "the payload says which doors want what",
+    secondFloor.some((o) => (o.needs ?? []).includes("the lamp")),
+    JSON.stringify(secondFloor.map((o) => o.needs))
+  );
+  check(
+    "and it says what the first floor hands out",
+    (gatedPuzzle.json?.rooms?.[0]?.options ?? []).some((o) => (o.sets ?? []).includes("the lamp")),
+    "no sets in the payload"
+  );
+
+  const gp = gatedPuzzle.json;
+  const brace = (i) => gp.rooms[i].options.find((o) => o.kind === "brace").id;
+  const gatedCheck = gp.rooms[1].options.find((o) => (o.needs ?? []).length > 0).id;
+
+  const withLamp = await dana.call("POST", `/api/daily/deeprun?c=${mcode}`, {
+    callingId: gp.callings[0].id,
+    placement: [0, 1, 2, 3, 4, 5],
+    kitIds: [gp.kit[0].id, gp.kit[1].id],
+    steps: [{ optionId: brace(0) }, { optionId: gatedCheck }, { optionId: brace(2) }],
+  });
+  check(
+    "carrying the lamp opens the door that wanted it",
+    withLamp.json?.lines?.length === 3,
+    `${withLamp.json?.lines?.length} floors, status ${withLamp.status}`
+  );
+  check(
+    "and the run says what is being carried",
+    (withLamp.json?.lines?.[0]?.marks ?? []).includes("the lamp"),
+    JSON.stringify(withLamp.json?.lines?.[0]?.marks)
+  );
+
+  const withoutLamp = await dana.call("POST", `/api/daily/deeprun?c=${mcode}`, {
+    callingId: gp.callings[0].id,
+    placement: [0, 1, 2, 3, 4, 5],
+    kitIds: [gp.kit[0].id, gp.kit[1].id],
+    // Floor one's UNGATED check instead of its brace, so no lamp, and then
+    // straight at the door that wants one.
+    steps: [
+      { optionId: gp.rooms[0].options.find((o) => o.kind === "check").id },
+      { optionId: gatedCheck },
+      { optionId: brace(2) },
+    ],
+  });
+  check(
+    "posting a shut door straight at the server stops the run there",
+    withoutLamp.json?.lines?.length === 1 && withoutLamp.json?.out === false,
+    `${withoutLamp.json?.lines?.length} floors, out ${withoutLamp.json?.out}`
+  );
 
   // ---- the pages ---------------------------------------------------------
   for (const path of ["/write", "/dungeons", `/d/${code}`]) {

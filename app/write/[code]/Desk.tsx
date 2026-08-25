@@ -35,6 +35,9 @@ type Option = {
   ability?: Ability;
   tn?: number;
   vigour?: number;
+  sets?: string[];
+  needs?: string[];
+  forbids?: string[];
   promise: string;
   win: string;
   lose: string;
@@ -101,6 +104,77 @@ const COST: Record<1 | 2 | 3, number> = { 1: 2, 2: 3, 3: 4 };
 const BAND_WORD: Record<1 | 2 | 3, string> = { 1: "Shallow", 2: "Middling", 3: "Deep" };
 
 /** Which word a target number currently sits on, so the select shows the truth. */
+/**
+ * MARKS, on one door.
+ *
+ * Three comma-separated text boxes rather than a tag widget with autocomplete.
+ * Not laziness about the UI: an author writing "wet, seen" in a box gets it right
+ * first time, and the mistake a tag widget prevents (two spellings of one word) is
+ * caught properly by the gate, which can say "wet is handed out and never asked
+ * for" with the whole dungeon in view. A widget can only ever guess.
+ *
+ * Collapsed by default. Most doors have no marks at all and the form is already
+ * long.
+ */
+function Marks({
+  door,
+  option,
+  onChange,
+}: {
+  door: number;
+  option: Option;
+  onChange: (patch: Partial<Option>) => void;
+}) {
+  const words = (list: string[] | undefined) => (list ?? []).join(", ");
+  const parse = (raw: string) =>
+    raw
+      .split(",")
+      .map((w) => w.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 3);
+  const any =
+    (option.sets?.length ?? 0) + (option.needs?.length ?? 0) + (option.forbids?.length ?? 0) > 0;
+
+  const field = (
+    label: string,
+    hint: string,
+    key: "sets" | "needs" | "forbids"
+  ) => (
+    <label className="block">
+      <span className="sheet-label">{label}</span>
+      <input
+        type="text"
+        value={words(option[key])}
+        placeholder={hint}
+        aria-label={`Door ${door + 1}: ${label}`}
+        onChange={(e) => onChange({ [key]: parse(e.target.value) } as Partial<Option>)}
+        className="mt-1 min-h-11 w-full rounded border border-paper-rule bg-white/40 px-3 text-sm text-paper-ink"
+      />
+    </label>
+  );
+
+  return (
+    <details className="mt-3" open={any}>
+      <summary className="cursor-pointer text-xs text-paper-ink-mid">
+        Marks {any ? "· set on this door" : "· nothing yet"}
+      </summary>
+      <p className="mt-2 text-xs text-paper-ink-mid">
+        A mark is a word you invent: wet, seen, carrying the lamp. This is the only way one floor
+        can change a later one. Separate several with commas, and keep one way through every floor
+        open to somebody carrying nothing.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-3">
+        {field("They come away", "wet", "sets")}
+        {field("Only if they are", "carrying the lamp", "needs")}
+        {field("Not if they are", "seen", "forbids")}
+      </div>
+      <p className="mt-1 text-xs text-paper-ink-mid">
+        They only come away with something from a door that worked.
+      </p>
+    </details>
+  );
+}
+
 function wordFor(band: 1 | 2 | 3, tn: number): string {
   const table = TN_TABLE[band];
   const hit = Object.entries(table).find(([, v]) => v === tn);
@@ -163,7 +237,17 @@ export function Desk({ code }: { code: string }) {
       draft.kitIds,
       draft.rooms.map((r) => [
         r.band,
-        r.options.map((o) => [o.kind, o.ability ?? "", o.tn ?? 0, o.vigour ?? 0]),
+        r.options.map((o) => [
+          o.kind,
+          o.ability ?? "",
+          o.tn ?? 0,
+          o.vigour ?? 0,
+          // Marks are mechanics, not prose: change one and par can move, so the
+          // desk owes the author a fresh solve.
+          (o.sets ?? []).join("&"),
+          (o.needs ?? []).join("&"),
+          (o.forbids ?? []).join("&"),
+        ]),
       ]),
     ]);
   }, [draft]);
@@ -746,6 +830,7 @@ function Floor({
                 </p>
               )}
             </div>
+            <Marks door={j} option={o} onChange={(patch) => onOption(j, patch)} />
           </div>
         ))}
       </div>

@@ -47,6 +47,19 @@ export const MAX_CALLINGS = 4;
 export const MAX_KIT = 6;
 export const MIN_CALLINGS = 1;
 export const MIN_KIT = 2;
+/**
+ * How many distinct marks a dungeon may READ.
+ *
+ * This one is not a taste cap, it is the wall between a table and a tree. The par
+ * search memoises on what you are carrying, so every mark a door tests can double
+ * the table: four is at most sixteen times a memo that holds a couple of hundred
+ * entries per character, which is nothing, and eight would be 256 times, which is
+ * a request that times out. Marks nothing tests are free and uncapped, because
+ * flavour cannot branch a search.
+ */
+export const MAX_MARKS_READ = 4;
+/** Per door, so one option cannot carry a shopping list. */
+export const MAX_MARKS_PER_OPTION = 3;
 
 /**
  * How many characters the solver will enumerate for a design.
@@ -104,6 +117,8 @@ export function instantProblems(design: Design): string[] {
   if (kit < MIN_KIT) bad.push(`They take two things off the shelf, so at least ${MIN_KIT} have to be on it.`);
   if (kit > MAX_KIT) bad.push(`${MAX_KIT} things on the shelf is the most. This one has ${kit}.`);
 
+  bad.push(...markProblems(design.rooms));
+
   design.rooms.forEach((room, i) => {
     const checks = room.options.filter((o) => o.kind === "check");
     const braces = room.options.filter((o) => o.kind === "brace");
@@ -118,12 +133,86 @@ export function instantProblems(design: Design): string[] {
       bad.push(`Floor ${i + 1} needs one way through that always works and always costs.`);
     if (new Set(checks.map((o) => o.ability)).size !== checks.length)
       bad.push(`Floor ${i + 1} asks the same ability twice, so the choice is not a choice.`);
+
+    /**
+     * AT LEAST ONE BRACE PER FLOOR MUST BE UNGATED.
+     *
+     * The rule the whole Marks mechanic hangs off. A brace is the promise that
+     * every floor has a price rather than a wall, and a gated brace is not a
+     * promise: somebody arriving without the lamp meets a floor with two checks
+     * they may fail and a door that will not open, which is precisely the dead end
+     * the engine exists to prevent. Gate the checks all you like.
+     */
+    if (braces.length > 0 && !braces.some((o) => !o.needs?.length && !o.forbids?.length))
+      bad.push(
+        `Floor ${i + 1}: every way through that always works is behind a mark. Leave one open, or somebody arrives here with nothing and finds a wall.`
+      );
+
+    for (const o of room.options) {
+      const listed = [...(o.needs ?? []), ...(o.forbids ?? []), ...(o.sets ?? [])];
+      if (listed.length > MAX_MARKS_PER_OPTION * 3)
+        bad.push(`Floor ${i + 1}: "${o.label || "a door"}" is carrying too many marks to read.`);
+      for (const m of listed)
+        if (!m.trim()) bad.push(`Floor ${i + 1}: "${o.label || "a door"}" has a mark with no name.`);
+      // A door that both wants and refuses the same thing never opens.
+      for (const m of o.needs ?? [])
+        if ((o.forbids ?? []).includes(m))
+          bad.push(
+            `Floor ${i + 1}: "${o.label || "a door"}" wants "${m}" and refuses it. It will never open.`
+          );
+    }
     for (const o of room.options) {
       if (!o.label.trim()) bad.push(`Floor ${i + 1} has a door with no name on it.`);
       if (!o.win.trim() || !o.lose.trim())
         bad.push(`Floor ${i + 1}: "${o.label || "a door"}" needs both endings written.`);
     }
   });
+  return bad;
+}
+
+/**
+ * MARKS, checked across the whole dungeon rather than one floor at a time.
+ *
+ * Everything here needs to see the ORDER of the floors, which is what makes it
+ * separate from the per-room loop above. A mark is only ever picked up by clearing
+ * a door, so a door on floor two that wants the lamp is a door that never opens
+ * unless some door on floor one hands the lamp out. That is not a balance opinion,
+ * it is dead content, and the author cannot see it by looking at either floor.
+ */
+export function markProblems(rooms: readonly RoomDef[]): string[] {
+  const bad: string[] = [];
+
+  const read = new Set<string>();
+  for (const room of rooms)
+    for (const o of room.options) {
+      for (const m of o.needs ?? []) read.add(m);
+      for (const m of o.forbids ?? []) read.add(m);
+    }
+  if (read.size > MAX_MARKS_READ)
+    bad.push(
+      `${read.size} different marks are being tested. ${MAX_MARKS_READ} is the most the solver will take, because every one of them doubles the work of finding par.`
+    );
+
+  // What can possibly be in hand by the time you reach each floor.
+  const availableBy: Set<string>[] = [];
+  const carried = new Set<string>();
+  for (const room of rooms) {
+    availableBy.push(new Set(carried));
+    for (const o of room.options) for (const m of o.sets ?? []) carried.add(m);
+  }
+
+  rooms.forEach((room, i) => {
+    for (const o of room.options) {
+      for (const m of o.needs ?? []) {
+        if (!availableBy[i].has(m)) {
+          bad.push(
+            `Floor ${i + 1}: "${o.label || "a door"}" wants "${m}", and nothing above this floor hands that out. Nobody will ever open it.`
+          );
+        }
+      }
+    }
+  });
+
   return bad;
 }
 
@@ -200,6 +289,25 @@ export function reportFor(design: Design): Report {
       severity: "warn",
       text: "Nearly everybody gets out of this one. Allowed, and the card will call it a walk.",
     });
+  }
+
+  // A mark handed out that nothing ever tests. Legal and free, and nearly always
+  // a word spelled two ways.
+  const setSomewhere = new Set<string>();
+  for (const room of design.rooms)
+    for (const o of room.options) for (const m of o.sets ?? []) setSomewhere.add(m);
+  const readSomewhere = new Set<string>();
+  for (const room of design.rooms)
+    for (const o of room.options) {
+      for (const m of o.needs ?? []) readSomewhere.add(m);
+      for (const m of o.forbids ?? []) readSomewhere.add(m);
+    }
+  for (const m of setSomewhere) {
+    if (!readSomewhere.has(m))
+      notes.push({
+        severity: "warn",
+        text: `"${m}" is handed out and never asked for. No door anywhere reads it, so it changes nothing. Usually that means it is spelled two ways.`,
+      });
   }
 
   // Per-floor shape: is the choice on this floor a real one?
