@@ -25,6 +25,7 @@ type Card = {
   finishers: number;
   marks: number;
   ranked: boolean;
+  chosen: boolean;
 };
 
 type Payload = { minFinishers: number; wellThoughtOf: Card[]; fresh: Card[] };
@@ -115,6 +116,11 @@ export function Hall() {
                     <span className="font-display text-lg text-text-hi">{d.title}</span>
                     <span className="text-sm text-text-mid">by {d.author}</span>
                     {d.difficulty && <Pill tone="accent">{d.difficulty}</Pill>}
+                    {d.chosen && (
+                      <span className="border border-accent px-2 py-0.5 text-xs text-accent">
+                        <span aria-hidden>&#9733; </span>Chosen
+                      </span>
+                    )}
                   </div>
                   {d.intro && (
                     <p className="mt-1 line-clamp-2 text-sm text-text-mid">{d.intro}</p>

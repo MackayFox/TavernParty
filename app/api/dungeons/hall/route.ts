@@ -29,6 +29,7 @@ export async function GET() {
           plays: row.plays,
           finishes: row.finishes,
           publishedAt: row.publishedAt,
+          chosen: !!row.chosenAt,
           ...standing,
           ranked: standing.finishers >= MIN_FINISHERS,
         };

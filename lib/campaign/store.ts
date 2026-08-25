@@ -55,6 +55,7 @@ function fromDb(r: DbRow): DungeonRow {
     kitIds: (r.kit_ids as string[]) ?? [],
     baseVigour: r.base_vigour as number,
     visibility: r.visibility as Visibility,
+    chosenAt: (r.chosen_at as string | null) ?? null,
     par: (r.par as number | null) ?? null,
     difficulty: (r.difficulty as string | null) ?? null,
     report: r.report ?? null,
@@ -79,6 +80,7 @@ function toDb(d: DungeonRow): DbRow {
     kit_ids: d.kitIds,
     base_vigour: d.baseVigour,
     visibility: d.visibility,
+    chosen_at: d.chosenAt,
     par: d.par,
     difficulty: d.difficulty,
     report: d.report,
@@ -181,6 +183,31 @@ export function ownedBy(row: DungeonRow, identityId: string | null | undefined):
 /** The Hall. Only ever listed rows, and only ever ones a person put there. */
 export async function listPublished(limit = 40): Promise<DungeonRow[]> {
   return listByVisibility("listed", limit);
+}
+
+/**
+ * The one that was chosen most recently, or nothing.
+ *
+ * Read by a PAGE, never by `lib/daily/`. The daily itself stays a pure function
+ * of the date, and this is a link that sits next to it.
+ */
+export async function chosenDungeon(): Promise<DungeonRow | null> {
+  if (!supabaseConfigured()) {
+    return (
+      [...memDungeons.values()]
+        .filter((d) => d.chosenAt && d.visibility === "listed")
+        .sort((a, b) => (b.chosenAt ?? "").localeCompare(a.chosenAt ?? ""))[0] ?? null
+    );
+  }
+  const { data } = await adminClient()
+    .from("dungeons")
+    .select("*")
+    .eq("visibility", "listed")
+    .not("chosen_at", "is", null)
+    .order("chosen_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ? fromDb(data) : null;
 }
 
 /** The queue a human works through. Submitted, oldest first: nobody waits twice. */

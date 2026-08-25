@@ -31,6 +31,7 @@ type DoorInfo = {
   kit: number;
   plays: number;
   finishes: number;
+  chosenAt: string | null;
 };
 
 type Standing = { finishers: number; marks: number; wilson: number };
@@ -64,6 +65,12 @@ export function Door({
         {door.title}
       </h1>
       <p className="mt-1 text-text-mid">by {door.author}</p>
+      {door.chosenAt && (
+        <p className="mt-3 inline-block border border-accent px-3 py-1 text-sm text-accent">
+          <span aria-hidden>&#9733; </span>
+          Chosen. This one was put in front of the whole site, and that does not expire.
+        </p>
+      )}
 
       {door.intro && <p className="prose-read mt-4">{door.intro}</p>}
 
@@ -120,6 +127,16 @@ export function Door({
           you can write your own
         </Link>
         .
+      </p>
+      <p className="mt-2 text-xs text-text-low">
+        Somebody wrote this, and it is their writing rather than mine. If it should not be up,{" "}
+        <Link
+          href={`/contact?about=dungeon&code=${door.code}`}
+          className="text-text-mid underline"
+        >
+          tell me and I will read it myself
+        </Link>
+        . There is no button that hides a dungeon automatically, on purpose.
       </p>
     </section>
   );

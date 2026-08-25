@@ -348,3 +348,62 @@ describe("the play log", () => {
     expect(body.observed).toBe(1);
   });
 });
+
+describe("chosen for the week", () => {
+  it("shelves it, stamps it, and the stamp does not move on a second choosing", async () => {
+    const code = await published("The Chosen One");
+    vi.stubEnv("ADMIN_USERNAMES", "adam");
+    who = { id: "admin_1", kind: "user", username: "adam" };
+    const params = Promise.resolve({ code });
+    const first = await json(
+      await actRoute.POST(req(`/api/admin/dungeons/${code}`, { action: "choose" }), { params })
+    );
+    expect(first.visibility).toBe("listed");
+    expect(typeof first.chosenAt).toBe("string");
+    // Choosing again must not re-date it. "Chosen in August" stops being true and
+    // stays worth saying, so the stamp is the FIRST time it happened.
+    const again = await json(
+      await actRoute.POST(req(`/api/admin/dungeons/${code}`, { action: "choose" }), { params })
+    );
+    expect(again.chosenAt).toBe(first.chosenAt);
+  });
+
+  it("is the one thing the daily links to, and only if it is on the shelf", async () => {
+    const { chosenDungeon, getDungeon, saveDungeon } = await import("@/lib/campaign/store");
+    const code = await published("Front Of House");
+    vi.stubEnv("ADMIN_USERNAMES", "adam");
+    who = { id: "admin_1", kind: "user", username: "adam" };
+    await actRoute.POST(req(`/api/admin/dungeons/${code}`, { action: "choose" }), {
+      params: Promise.resolve({ code }),
+    });
+    expect((await chosenDungeon())?.code).toBe(code);
+
+    // Taken down afterwards: the front page must stop pointing at it, stamp or no
+    // stamp. A permanent stamp is not a permanent link.
+    const row = await getDungeon(code);
+    await saveDungeon({ ...row!, visibility: "banned" });
+    expect((await chosenDungeon())?.code).not.toBe(code);
+  });
+
+  it("shows on the Hall card", async () => {
+    const code = await published("Stamped");
+    vi.stubEnv("ADMIN_USERNAMES", "adam");
+    who = { id: "admin_1", kind: "user", username: "adam" };
+    await actRoute.POST(req(`/api/admin/dungeons/${code}`, { action: "choose" }), {
+      params: Promise.resolve({ code }),
+    });
+    const body = await json(await hallRoute.GET());
+    const card = (body.fresh as { code: string; chosen: boolean }[]).find((d) => d.code === code);
+    expect(card?.chosen).toBe(true);
+  });
+
+  it("does not let a guest choose anything", async () => {
+    const code = await published();
+    vi.stubEnv("ADMIN_USERNAMES", "adam");
+    who = { id: "guest_author", kind: "guest", displayName: "adam" };
+    const res = await actRoute.POST(req(`/api/admin/dungeons/${code}`, { action: "choose" }), {
+      params: Promise.resolve({ code }),
+    });
+    expect(res.status).toBe(404);
+  });
+});

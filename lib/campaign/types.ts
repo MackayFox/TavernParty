@@ -50,6 +50,16 @@ export type DungeonRow = {
   kitIds: string[];
   baseVigour: number;
   visibility: Visibility;
+  /**
+   * When somebody put this one in front of the whole site, and a permanent mark.
+   *
+   * Deliberately NOT a rotation: nothing here reads a table to decide what
+   * tonight's daily is. The house daily stays the purest deterministic module in
+   * the product, and being chosen is a stamp on a dungeon plus one curated link.
+   * It never expires, because "chosen in August" stops being true and stays worth
+   * saying.
+   */
+  chosenAt: string | null;
   /** Null until it has passed the gate once. */
   par: number | null;
   difficulty: string | null;
@@ -103,6 +113,7 @@ export function emptyDraft(
     kitIds: ["tarred-rope", "whetstone", "pitch-torches", "cracked-mirror"],
     baseVigour: 9,
     visibility: "unlisted",
+    chosenAt: null,
     par: null,
     difficulty: null,
     report: null,

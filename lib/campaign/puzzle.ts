@@ -54,5 +54,6 @@ export function doorFor(row: DungeonRow) {
     kit: row.kitIds.length,
     plays: row.plays,
     finishes: row.finishes,
+    chosenAt: row.chosenAt,
   };
 }

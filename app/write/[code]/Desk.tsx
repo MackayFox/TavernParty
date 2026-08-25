@@ -538,6 +538,15 @@ export function Desk({ code }: { code: string }) {
               </div>
             ) : (
               <div className="mt-4 grid gap-2">
+                <p className="mb-2 text-xs text-paper-ink-mid">
+                  Publishing keeps this yours and gives me permission to host it and show it, for
+                  as long as it is up. Your own writing only, and nothing you would not want a
+                  stranger to open. The{" "}
+                  <a href="/terms" className="underline">
+                    terms
+                  </a>{" "}
+                  say it in five sentences.
+                </p>
                 <Button size="lg" disabled={!canPublish || busy} onClick={() => void publish()}>
                   {draft.publishedAt
                     ? "Already out there"

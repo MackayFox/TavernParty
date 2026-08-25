@@ -16,6 +16,10 @@ const CONTACT_SUBJECTS = [
   "A bug",
   "A rule that reads wrong",
   "An encounter for the deck",
+  // Somebody else's dungeon. There is deliberately no report BUTTON anywhere on
+  // the site, because a control that hides whatever enough people click is a
+  // griefing tool. This is the whole reporting mechanism: a form a person reads.
+  "A dungeon that should not be up",
   "Accessibility",
   "Something else",
 ] as const;
@@ -44,10 +48,25 @@ const ERRORS: Record<string, string> = {
 export default async function ContactPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string; error?: string }>;
+  searchParams: Promise<{ sent?: string; error?: string; about?: string; code?: string }>;
 }) {
-  const { sent, error } = await searchParams;
+  const { sent, error, about, code } = await searchParams;
   const problem = error ? (ERRORS[error] ?? ERRORS.store) : null;
+  /**
+   * Arriving from a dungeon, with its code already in the box.
+   *
+   * The code is the only thing somebody reporting a dungeon has and the only
+   * thing I need to find it, and asking them to copy six letters across two pages
+   * is how a report does not get sent. Validated to the shape a code actually
+   * has, because it lands in a text field on a form that gets emailed.
+   */
+  const dungeon = /^[A-Z0-9]{6}$/.test((code ?? "").toUpperCase())
+    ? (code as string).toUpperCase()
+    : null;
+  const subject =
+    about === "dungeon" && CONTACT_SUBJECTS.includes("A dungeon that should not be up")
+      ? "A dungeon that should not be up"
+      : CONTACT_SUBJECTS[0];
 
   return (
     <div className="flex flex-col gap-8 py-8 sm:py-12">
@@ -104,7 +123,7 @@ export default async function ContactPage({
               <span className="label-caps mb-1 block">What is it about</span>
               <select
                 name="subject"
-                defaultValue={CONTACT_SUBJECTS[0]}
+                defaultValue={subject}
                 className="min-h-11 w-full rounded-md border border-border-input bg-bg-0 px-4 py-2.5 text-base text-text-hi"
               >
                 {CONTACT_SUBJECTS.map((s) => (
@@ -124,6 +143,7 @@ export default async function ContactPage({
                 maxLength={CONTACT_MAX}
                 className="w-full rounded-md border border-border-input bg-bg-0 px-4 py-2.5 text-base text-text-hi placeholder:text-text-low"
                 placeholder="What happened, and what you expected instead."
+                defaultValue={dungeon ? `Dungeon ${dungeon}. ` : undefined}
               />
               <span className="mt-1 block text-xs text-text-low">
                 Up to {CONTACT_MAX.toLocaleString("en-GB")} characters.

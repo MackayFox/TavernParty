@@ -5,7 +5,7 @@
  *
  * The prose is flattened onto the page rather than linked, because the only way
  * a moderator actually reads every room is if reading every room costs no
- * clicks. The three verbs sit under it, in the order they get used.
+ * clicks. The four verbs sit under it, in the order they get used.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -37,7 +37,7 @@ export function Queue() {
       .catch(() => setError("Could not read the queue."));
   }, []);
 
-  async function act(code: string, action: "list" | "return" | "ban") {
+  async function act(code: string, action: "list" | "return" | "ban" | "choose") {
     setBusy(code);
     setError(null);
     try {
@@ -107,6 +107,16 @@ export function Queue() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => act(d.code, "list")} disabled={busy === d.code}>
                   Put it on the shelf
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => act(d.code, "choose")}
+                  disabled={busy === d.code}
+                  // Shelves it and stamps it. The stamp never expires, so this is
+                  // the one button here worth hesitating over.
+                  title="On the shelf and in front of the whole site. The stamp is permanent."
+                >
+                  Choose it
                 </Button>
                 <Button
                   variant="ghost"

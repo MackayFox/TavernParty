@@ -100,7 +100,41 @@ export default function TermsPage() {
         </p>
       </Clause>
 
-      <Clause n={5} title="No warranty, and no promises about uptime">
+      <Clause n={5} title="Dungeons you write">
+        <p>
+          If you write a dungeon here, it stays yours. You keep the copyright in your rooms and
+          your words. What you give me is permission to host it, show it, put it on the shelf out
+          front, and quote a line of it when pointing people at it. That permission lasts as long
+          as the dungeon is on the site, and unlisting it ends it.
+        </p>
+        <p>
+          Publish only writing that is your own. Not somebody else&apos;s adventure retyped, not
+          text out of a published roleplaying product, and nothing generated and passed off as
+          written. Nothing threatening, nothing sexual involving anybody who is not clearly an
+          adult, nothing aimed at a real person, and nothing that exists to make somebody feel
+          unwelcome. A dungeon that breaks this comes down, and the account behind it goes with
+          it if it was deliberate.
+        </p>
+        <p>
+          Nothing published here is checked by me before it appears, so a dungeon reachable by
+          link is one person&apos;s writing and not mine. The Hall out front is different: every
+          dungeon on it was read by a person before it went up. If you find something that should
+          not be there, send me the six-letter code through the{" "}
+          <Link href="/contact" className="text-accent underline">
+            contact form
+          </Link>{" "}
+          and I will look at it myself. There is no automatic takedown button, deliberately: a
+          button that hides anything enough people click is a griefing tool.
+        </p>
+        <p>
+          Your dungeon can be taken down without notice if it breaks any of the above. It can also
+          come down if it turns out to be broken in a way the solver did not catch. I do not
+          promise to keep anything forever, and you should keep your own copy of anything you
+          would be sorry to lose.
+        </p>
+      </Clause>
+
+      <Clause n={6} title="No warranty, and no promises about uptime">
         <p>
           The site is provided as it is. It may be down, a run may be interrupted, a table may
           be lost, and a score may fail to save. It is a free game run by one person, and none
@@ -116,7 +150,7 @@ export default function TermsPage() {
         </p>
       </Clause>
 
-      <Clause n={6} title="Advertising">
+      <Clause n={7} title="Advertising">
         <p>
           Adverts pay for the hosting. They are served by Google and are never shown during a
           live encounter or a daily puzzle in progress. What an advert says is the advertiser&apos;s
@@ -129,7 +163,7 @@ export default function TermsPage() {
         </p>
       </Clause>
 
-      <Clause n={7} title="Changes, and ending it">
+      <Clause n={8} title="Changes, and ending it">
         <p>
           These terms can change, and the current version is always the one on this page. Rules
           and numbers in the game change too, because it is being balanced. I can suspend or
@@ -138,7 +172,7 @@ export default function TermsPage() {
         </p>
       </Clause>
 
-      <Clause n={8} title="The law that applies">
+      <Clause n={9} title="The law that applies">
         <p>
           These terms and any dispute about them are governed by the law of England and Wales,
           and the courts of England and Wales have exclusive jurisdiction. If you are a
