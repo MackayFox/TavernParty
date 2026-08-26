@@ -12,10 +12,25 @@
  * exactly that.
  */
 import { useEffect, useRef, useState } from "react";
-import { Announcer, Button, Card, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
+import {
+  Announcer,
+  Button,
+  Card,
+  ErrorNote,
+  Pill,
+  Sheet,
+  Spinner,
+} from "@/components/ui";
 import { RouteError, postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
-import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
+import {
+  DailyHeader,
+  NextUp,
+  RuleLine,
+  ShareCard,
+  finishDaily,
+  getPuzzle,
+} from "../shell";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 
 const GAME = "ledger" as const;
@@ -40,7 +55,12 @@ type Payload = {
  * left the screen insisting on no checks left while the server was holding three.
  * So the local number is a first guess, and every reply overwrites it.
  */
-type CheckReply = { mode: "check"; correctRows: number; rows: number; spent: number };
+type CheckReply = {
+  mode: "check";
+  correctRows: number;
+  rows: number;
+  spent: number;
+};
 
 type Closed = {
   mode: "close";
@@ -57,8 +77,10 @@ type Saved = { assignment: number[]; checks: number; closed: Closed | null };
 
 function usable(value: Closed | null | undefined, rows: number): Closed | null {
   if (!value || value.mode !== "close") return null;
-  if (!Array.isArray(value.solution) || value.solution.length !== rows) return null;
-  if (typeof value.share !== "string" || typeof value.score !== "number") return null;
+  if (!Array.isArray(value.solution) || value.solution.length !== rows)
+    return null;
+  if (typeof value.share !== "string" || typeof value.score !== "number")
+    return null;
   return value;
 }
 
@@ -95,7 +117,9 @@ export function LedgerGame({ date }: { date?: string | null }) {
     let live = true;
     setRestored(false);
     setCheckNote(null);
-    getPuzzle<Payload>(`/api/daily/ledger${date ? `?date=${encodeURIComponent(date)}` : ""}`)
+    getPuzzle<Payload>(
+      `/api/daily/ledger${date ? `?date=${encodeURIComponent(date)}` : ""}`,
+    )
       .then((payload) => {
         if (!live) return;
         const rows = payload.names.length;
@@ -104,16 +128,24 @@ export function LedgerGame({ date }: { date?: string | null }) {
           saved &&
           Array.isArray(saved.assignment) &&
           saved.assignment.length === rows &&
-          saved.assignment.every((a) => Number.isInteger(a) && a >= 0 && a < rows);
+          saved.assignment.every(
+            (a) => Number.isInteger(a) && a >= 0 && a < rows,
+          );
         setData(payload);
-        setAssignment(ok ? saved!.assignment : Array.from({ length: rows }, (_, i) => i));
+        setAssignment(
+          ok ? saved!.assignment : Array.from({ length: rows }, (_, i) => i),
+        );
         setChecks(ok && typeof saved!.checks === "number" ? saved!.checks : 0);
         setClosed(ok ? usable(saved!.closed, rows) : null);
         setRestored(true);
       })
       .catch((err: unknown) => {
         if (!live) return;
-        setError(err instanceof Error ? err.message : "Tonight's ledger will not load.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Tonight's ledger will not load.",
+        );
         setRestored(true);
       });
     return () => {
@@ -123,7 +155,11 @@ export function LedgerGame({ date }: { date?: string | null }) {
 
   useEffect(() => {
     if (!restored || !data) return;
-    writeProgress(GAME, data.date, { assignment, checks, closed } satisfies Saved);
+    writeProgress(GAME, data.date, {
+      assignment,
+      checks,
+      closed,
+    } satisfies Saved);
   }, [restored, data, assignment, checks, closed]);
 
   const locked = closed !== null;
@@ -140,7 +176,9 @@ export function LedgerGame({ date }: { date?: string | null }) {
     next[row] = amountIndex;
     setAssignment(next);
     setArming(false); // they are still writing; the close is not armed any more
-    setAnnounce(`${data.names[row]} written down for ${data.amounts[amountIndex]} shillings`);
+    setAnnounce(
+      `${data.names[row]} written down for ${data.amounts[amountIndex]} shillings`,
+    );
   }
 
   /**
@@ -181,7 +219,11 @@ export function LedgerGame({ date }: { date?: string | null }) {
         // Take it, or the pill goes on offering a check that cannot be taken.
         const held = err instanceof RouteError ? err.body?.spent : null;
         if (typeof held === "number") setChecks(held);
-        setError(err instanceof Error ? err.message : "That check would not run. Try again.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "That check would not run. Try again.",
+        );
       }
     } finally {
       if (alive.current) setBusy(false);
@@ -206,22 +248,36 @@ export function LedgerGame({ date }: { date?: string | null }) {
         setAnnounce(
           res.solved
             ? `The ledger balances. ${res.score} of ${res.maxScore} on the tally.`
-            : "The ledger does not balance. The true figures are now shown."
+            : "The ledger does not balance. The true figures are now shown.",
         );
       }
-      const next = await finishDaily(GAME, data.date, res.score, null, res.archive);
+      const next = await finishDaily(
+        GAME,
+        data.date,
+        res.score,
+        null,
+        res.archive,
+      );
       if (alive.current) setStreak(next);
     } catch (err: unknown) {
       if (alive.current)
-        setError(err instanceof Error ? err.message : "That would not close. Try again.");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "That would not close. Try again.",
+        );
     } finally {
       if (alive.current) setBusy(false);
     }
   }
 
   return (
-    <section className="mx-auto w-full max-w-2xl py-6">
-      <DailyHeader game={GAME} date={data?.date ?? null} archive={!!data?.archive} />
+    <section className="mx-auto w-full max-w-2xl py-6 lg:max-w-5xl">
+      <DailyHeader
+        game={GAME}
+        date={data?.date ?? null}
+        archive={!!data?.archive}
+      />
       <RuleLine game={GAME} />
       <ErrorNote message={error} />
       <Announcer message={announce} />
@@ -232,132 +288,181 @@ export function LedgerGame({ date }: { date?: string | null }) {
         </Card>
       ) : data ? (
         <>
-          <Card className="mt-4">
-            <p className="label-caps">What is known, and all of it is true</p>
-            <ol className="mt-2 space-y-2">
-              {data.clues.map((clue, i) => (
-                <li key={i} className="flex gap-3 text-text-hi">
-                  <span className="num shrink-0 text-text-low">{i + 1}</span>
-                  <span>{clue}</span>
-                </li>
-              ))}
-            </ol>
-            {/* "12 shillings", not "12s". The abbreviation is only obvious if you
+          {/*
+          THE STATEMENTS AND THE LEDGER, SIDE BY SIDE.
+
+          This was one narrow column: four statements, then the sheet, then the
+          buttons. Which means the only way to fill in a line was to read a
+          statement, scroll down, type, scroll back up, read the next one, and do
+          it again, for every one of five drinkers. Adam: "it's very annoying that
+          you have to scroll up to the rules and back down to select the
+          amounts". A deduction puzzle where you cannot see the deductions and the
+          grid at the same time is a memory test wearing a puzzle's coat.
+
+          Two columns from `lg` up, and the statements are sticky, so they stay
+          put while you work down the sheet. Below that it stays one column and
+          stays in the order it always was: a phone has no second column to give,
+          and the statements come first because you read them first.
+        */}
+          <div className="mt-4 lg:grid lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start lg:gap-6">
+            <div className="lg:sticky lg:top-4">
+              <Card>
+                <p className="label-caps">
+                  What is known, and all of it is true
+                </p>
+                <ol className="mt-2 space-y-2">
+                  {data.clues.map((clue, i) => (
+                    <li key={i} className="flex gap-3 text-text-hi">
+                      <span className="num shrink-0 text-text-low">
+                        {i + 1}
+                      </span>
+                      <span>{clue}</span>
+                    </li>
+                  ))}
+                </ol>
+                {/* "12 shillings", not "12s". The abbreviation is only obvious if you
                 already read old money, and this is the line that tells a first
                 time player what the five figures in the grid even are. */}
-            <p className="mt-3 text-sm text-text-low">
-              Five debts, one each: {data.amounts.slice(0, -1).join(", ")} and{" "}
-              {data.amounts[data.amounts.length - 1]} shillings. There is exactly one arrangement
-              that fits all four statements.
-            </p>
-          </Card>
+                <p className="mt-3 text-sm text-text-low">
+                  Five debts, one each: {data.amounts.slice(0, -1).join(", ")}{" "}
+                  and {data.amounts[data.amounts.length - 1]} shillings. There
+                  is exactly one arrangement that fits all four statements.
+                </p>
+              </Card>
+            </div>
 
-          <div className="mt-4">
-            <Sheet title="The Ledger" subtitle={data.date}>
-              <ul className="space-y-3">
-                {data.names.map((name, row) => {
-                  const truth = closed ? data.amounts[closed.solution[row]] : null;
-                  const right = closed ? closed.solution[row] === assignment[row] : null;
-                  return (
-                    <li key={name} className="border-b border-paper-rule pb-3 last:border-0">
-                      <label className="block">
-                        <span className="font-display block text-lg font-bold text-paper-ink">
-                          {name}
-                        </span>
-                        <span className="sheet-label mb-1 block">owes</span>
-                        <select
-                          className="min-h-11 w-full rounded-none border border-paper-rule bg-paper px-3 text-base text-paper-ink disabled:opacity-70"
-                          value={assignment[row] ?? 0}
-                          disabled={locked}
-                          onChange={(e) => assign(row, Number(e.target.value))}
-                          aria-label={`What ${name} owes`}
-                        >
-                          {data.amounts.map((amount, i) => (
-                            <option key={i} value={i}>
-                              {amount} shillings
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {closed ? (
-                        <p className="mt-2 flex flex-wrap items-baseline gap-2 text-sm text-paper-ink">
-                          <span aria-hidden>{right ? "✓" : "✕"}</span>
-                          <span className="sheet-label">{right ? "Correct" : "Wrong"}</span>
-                          <span className="num">
-                            {name} owed {truth} shillings
+            <div className="mt-4 min-w-0 lg:mt-0">
+              <Sheet
+                title="The Ledger"
+                subtitle={data.date}
+                className="max-w-none"
+              >
+                <ul className="space-y-3">
+                  {data.names.map((name, row) => {
+                    const truth = closed
+                      ? data.amounts[closed.solution[row]]
+                      : null;
+                    const right = closed
+                      ? closed.solution[row] === assignment[row]
+                      : null;
+                    return (
+                      <li
+                        key={name}
+                        className="border-b border-paper-rule pb-3 last:border-0"
+                      >
+                        <label className="block">
+                          <span className="font-display block text-lg font-bold text-paper-ink">
+                            {name}
                           </span>
-                        </p>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            </Sheet>
-          </div>
+                          <span className="sheet-label mb-1 block">owes</span>
+                          <select
+                            className="min-h-11 w-full rounded-none border border-paper-rule bg-paper px-3 text-base text-paper-ink disabled:opacity-70"
+                            value={assignment[row] ?? 0}
+                            disabled={locked}
+                            onChange={(e) =>
+                              assign(row, Number(e.target.value))
+                            }
+                            aria-label={`What ${name} owes`}
+                          >
+                            {data.amounts.map((amount, i) => (
+                              <option key={i} value={i}>
+                                {amount} shillings
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {closed ? (
+                          <p className="mt-2 flex flex-wrap items-baseline gap-2 text-sm text-paper-ink">
+                            <span aria-hidden>{right ? "✓" : "✕"}</span>
+                            <span className="sheet-label">
+                              {right ? "Correct" : "Wrong"}
+                            </span>
+                            <span className="num">
+                              {name} owed {truth} shillings
+                            </span>
+                          </p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Sheet>
 
-          {duplicates && !locked ? (
-            <p role="alert" className="mt-3 text-sm text-warning">
-              <span aria-hidden>◆ </span>Two drinkers are down for the same figure. Each debt
-              belongs to exactly one of them.
-            </p>
-          ) : null}
+              {/* The warning and the controls belong with the sheet, because they
+                are about what you have written on it. */}
+              {duplicates && !locked ? (
+                <p role="alert" className="mt-3 text-sm text-warning">
+                  <span aria-hidden>◆ </span>Two drinkers are down for the same
+                  figure. Each debt belongs to exactly one of them.
+                </p>
+              ) : null}
 
-          {!locked ? (
-            <div className="mt-4 space-y-3">
-              {/*
+              {!locked ? (
+                <div className="mt-4 space-y-3">
+                  {/*
                 The tally, not marks. A Mark is a scene naming a player, a mark is
                 a word a builder pins to a door, and a mark is what a dungeon
                 collects in the Hall, so the one number this game actually scores
                 was the fourth thing in the product called the same word. A tally
                 is what a landlord keeps, and nothing else here uses it.
               */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Pill tone={checksLeft > 0 ? "accent" : "danger"}>
-                  {checksLeft} of {data.maxChecks} checks left
-                </Pill>
-                <Pill tone="neutral">
-                  worth {data.maxScore - checks} of {data.maxScore} on the tally
-                </Pill>
-              </div>
-              {checkNote ? (
-                <p className="rounded-md border border-border-dim bg-bg-1 px-3 py-2 text-sm text-text-hi">
-                  {checkNote}
-                </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pill tone={checksLeft > 0 ? "accent" : "danger"}>
+                      {checksLeft} of {data.maxChecks} checks left
+                    </Pill>
+                    <Pill tone="neutral">
+                      worth {data.maxScore - checks} of {data.maxScore} on the
+                      tally
+                    </Pill>
+                  </div>
+                  {checkNote ? (
+                    <p className="rounded-md border border-border-dim bg-bg-1 px-3 py-2 text-sm text-text-hi">
+                      {checkNote}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="secondary"
+                      className="flex-1 aria-disabled:opacity-40"
+                      onClick={check}
+                      aria-disabled={busy || duplicates || checksLeft <= 0}
+                      aria-busy={busy}
+                    >
+                      {checksLeft <= 0
+                        ? "No checks left"
+                        : "Check it (one off the tally)"}
+                    </Button>
+                    <Button
+                      size="lg"
+                      className="flex-1 aria-disabled:opacity-40"
+                      onClick={armOrClose}
+                      aria-disabled={busy || duplicates}
+                      aria-busy={busy}
+                    >
+                      {arming ? "Yes, close it" : "Close the ledger"}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-text-low">
+                    {arming
+                      ? "Press it again and that is your answer for today."
+                      : "Closing it is free and final, so it takes two presses. A check tells you how many lines are right and never which, and it takes one off the tally whether the news is good or not."}
+                  </p>
+                </div>
               ) : null}
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1 aria-disabled:opacity-40"
-                  onClick={check}
-                  aria-disabled={busy || duplicates || checksLeft <= 0}
-                  aria-busy={busy}
-                >
-                  {checksLeft <= 0 ? "No checks left" : "Check it (one off the tally)"}
-                </Button>
-                <Button
-                  size="lg"
-                  className="flex-1 aria-disabled:opacity-40"
-                  onClick={armOrClose}
-                  aria-disabled={busy || duplicates}
-                  aria-busy={busy}
-                >
-                  {arming ? "Yes, close it" : "Close the ledger"}
-                </Button>
-              </div>
-              <p className="text-sm text-text-low">
-                {arming
-                  ? "Press it again and that is your answer for today."
-                  : "Closing it is free and final, so it takes two presses. A check tells you how many lines are right and never which, and it takes one off the tally whether the news is good or not."}
-              </p>
             </div>
-          ) : null}
+          </div>
 
           {closed ? (
             <div className="mt-6 space-y-4" ref={landed}>
               <Card>
-                <p className="label-caps">{closed.solved ? "It balances" : "It does not balance"}</p>
+                <p className="label-caps">
+                  {closed.solved ? "It balances" : "It does not balance"}
+                </p>
                 <p className="num mt-1 text-4xl text-text-hi">
-                  {closed.score} <span className="text-lg text-text-low">/ {closed.maxScore}</span>
+                  {closed.score}{" "}
+                  <span className="text-lg text-text-low">
+                    / {closed.maxScore}
+                  </span>
                 </p>
                 <p className="mt-1 text-text-mid">
                   {closed.solved

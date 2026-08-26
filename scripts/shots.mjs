@@ -91,10 +91,48 @@ try {
     const stillOpen = await page.locator("dialog[open]").count();
     console.log("  sheet closed on Close:", stillOpen === 0 ? "yes" : "NO");
 
-    // A door, so the reveal and the hit flash can be seen.
+    /*
+     * THE WHOLE MOBILE CONTRACT, ASSERTED.
+     *
+     * A phone cannot show prose, four doors and your character at once, so the
+     * deal is: the roll and the outcome are a modal, and the next floor begins
+     * at its beginning. That is two claims and both are checkable. Scroll to the
+     * bottom of the floor first, because landing at the top is only meaningful
+     * if you were somewhere else.
+     */
+    const stageSel = 'div[class*="overflow-y-auto"]';
+    await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollTop = el.scrollHeight;
+    }, stageSel);
+    await page.waitForTimeout(200);
+    const before = await page.evaluate(
+      (sel) => document.querySelector(sel)?.scrollTop ?? -1,
+      stageSel
+    );
+    console.log("  scrolled to bottom of floor 1:", Math.round(before) + "px");
+
     await page.locator("article ul li button:not([disabled])").first().click();
+    await page.waitForSelector("dialog[open]", { timeout: 15000 });
     await page.waitForTimeout(2600);
     await shot(page, `${name}-4-reveal`);
+    console.log("  outcome arrived in a modal:", (await page.locator("dialog[open]").count()) > 0 ? "yes" : "NO");
+
+    await page.getByRole("button", { name: /Press on|See how it went/ }).click();
+    await page.waitForTimeout(900);
+    const after = await page.evaluate(
+      (sel) => document.querySelector(sel)?.scrollTop ?? -1,
+      stageSel
+    );
+    const floor = await page.evaluate(() => {
+      const el = [...document.querySelectorAll("span")].find((n) =>
+        /^Floor [0-9]+ of [0-9]+$/i.test((n.textContent || "").trim())
+      );
+      return el ? el.textContent.trim() : "?";
+    });
+    console.log("  next floor starts at:", Math.round(after) + "px", "(" + floor + ")");
+    console.log("  landed at the top:", after === 0 ? "yes" : "NO");
+    await shot(page, `${name}-5-nextfloor`);
 
     // And the way out is reachable from the descent.
     const out = await page.getByRole("link", { name: /Leave the descent/ }).count();

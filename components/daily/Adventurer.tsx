@@ -194,18 +194,30 @@ export function AdventurerStrip({ sheet, onOpen }: { sheet: Sheet; onOpen: () =>
               {t.label}
             </span>
             {/*
-              BOTH NUMBERS, because they answer different questions and the
-              strip was only answering one. The score is the thing you placed
-              during the build and the thing you would call your Brawn; the
-              total is what actually goes on the die. Printing only the total
-              made the sheet the one surface in the product that would not tell
-              you your own character's numbers.
+              SCORE BIG, MODIFIER SMALL, in that order, because that is what a
+              character sheet has looked like for fifty years and this is the
+              one surface in the product that is trying to look like one.
+              Adam: "shouldn't the main text be the stat value? Feels backwards."
+
+              It was the other way round on a real argument, which is worth
+              recording because it loses: the doors deliberately do not say which
+              ability they lean on, so the number a player actually decides with
+              is what they BRING, not what they scored. That is true and it does
+              not matter, because a number in the position where everybody has
+              always read a score will be read as a score whatever it is.
+              Fighting a convention that strong to save one inference is a bad
+              trade.
+
+              The modifier stays signed and legible rather than shrinking to a
+              footnote, because it is not decoration: with training and kit on
+              top, twelve Brawn brings plus five, and somebody reading "12" as
+              "average" would be wrong about the only thing that reaches a die.
             */}
-            <span aria-hidden className="num block text-sm leading-tight text-paper-ink">
-              {signed(t.total)}
-            </span>
-            <span aria-hidden className="num block text-[9px] leading-tight text-paper-ink-mid">
+            <span aria-hidden className="num block text-base leading-tight text-paper-ink">
               {t.score}
+            </span>
+            <span aria-hidden className="num block text-[11px] leading-tight text-paper-ink-mid">
+              {signed(t.total)}
             </span>
           </li>
         ))}

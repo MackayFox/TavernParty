@@ -52,7 +52,6 @@ import {
 import { Reveal } from "@/components/daily/Reveal";
 import { playOut, setSoundOn, soundOn } from "@/components/daily/sfx";
 import { Runner } from "@/components/daily/Runner";
-import { useLanded } from "@/components/daily/landed";
 import { readHero, recordNight, type Hero } from "@/lib/daily/hero";
 import { ABILITY_BLURB, ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
 import {
@@ -344,14 +343,42 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   const descending = down && !finished;
 
   /**
-   * Take the player to the floor, every floor, not just the first.
+   * EVERY FLOOR STARTS AT THE TOP OF THE FLOOR.
    *
-   * Keyed on `seen` rather than on `down`, because the scene is replaced on every
-   * press-on and the heading of the new one is where somebody on a keyboard has
-   * to end up. The `Announcer` line below covers the same move for a screen
-   * reader.
+   * A phone cannot hold sixty words of prose, four doors that each carry two
+   * sentences, and your character, all at once, and pretending otherwise is how
+   * you end up with a screen that fits nothing properly. Adam's read, and it is
+   * the right one: the roll and the outcome are a modal, so the only thing that
+   * has to be true afterwards is that the next floor begins at its beginning.
+   * Scrolling prose is what reading is.
+   *
+   * This used `useLanded`, which the other three dailies share and which centres
+   * what it lands on. Centring is right for a result appended to a page and wrong
+   * here: it left the eyebrow and the title floating in the middle of the stage
+   * with the top of the floor scrolled off, from wherever you happened to be
+   * standing at the bottom of the last one.
+   *
+   * So: the stage goes to the top, instantly, and the heading takes focus without
+   * scrolling. Instant rather than smooth because the scene is NEW content, it
+   * arrives with its own `tp-descend`, and animating a scroll through prose
+   * nobody has read yet is motion for its own sake.
    */
-  const scene = useLanded<HTMLHeadingElement>(descending ? seen : null);
+  const stage = useRef<HTMLDivElement | null>(null);
+  const scene = useRef<HTMLHeadingElement | null>(null);
+  useEffect(() => {
+    if (!descending) return;
+    if (stage.current) stage.current.scrollTop = 0;
+    const heading = scene.current;
+    if (!heading) return;
+    // `focus()` on a non-focusable element silently does nothing, and a silent
+    // nothing is how this kind of fix gets shipped broken.
+    if (heading.tabIndex < 0) heading.tabIndex = -1;
+    try {
+      heading.focus({ preventScroll: true });
+    } catch {
+      heading.focus();
+    }
+  }, [descending, seen]);
 
   /**
    * The stage is `position: fixed`, so the document behind it is still scrollable
@@ -707,7 +734,10 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
               when a floor is longer than the screen. A short floor sits in the
               middle of the viewport instead of jammed under the header.
             */}
-            <div className="absolute inset-0 flex flex-col overflow-y-auto py-5 pl-11 pr-3 sm:pl-14 sm:pr-6">
+            <div
+              ref={stage}
+              className="absolute inset-0 flex flex-col overflow-y-auto py-5 pl-11 pr-3 sm:pl-14 sm:pr-6"
+            >
               <div className="mx-auto my-auto w-full max-w-[39rem]">
                 <ErrorNote message={error} />
 
