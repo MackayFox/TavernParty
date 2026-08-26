@@ -162,7 +162,15 @@ export function instantProblems(design: Design): string[] {
       );
 
     for (const o of room.options) {
-      const listed = [...(o.needs ?? []), ...(o.forbids ?? []), ...(o.sets ?? [])];
+      // `ruinSets` counts. It joins what you are carrying exactly like `sets`
+      // does, so a blank one publishes cleanly and then prints "You come away ."
+      // at the worst possible moment.
+      const listed = [
+        ...(o.needs ?? []),
+        ...(o.forbids ?? []),
+        ...(o.sets ?? []),
+        ...(o.ruinSets ?? []),
+      ];
       if (listed.length > MAX_MARKS_PER_OPTION * 3)
         bad.push(`Floor ${i + 1}: "${o.label || "a door"}" is carrying too many marks to read.`);
       for (const m of listed)
@@ -175,6 +183,20 @@ export function instantProblems(design: Design): string[] {
           );
     }
     for (const o of room.options) {
+      /*
+       * A CHECK WITH NO TARGET IS A TRAP, and it only became one recently.
+       *
+       * `option.tn ?? 99` used to make a target-less check an ordinary always-fail
+       * costing its price plus one. With the failure gradient, missing by ninety
+       * is a *ruin* every single time: the highest price, the ruin sentence, and
+       * the ruin's marks, on every attempt, forever. Par and the runner agree
+       * about it, which is what makes it dangerous rather than merely broken. The
+       * desk would rate the dungeon and publish it without a word.
+       */
+      if (o.kind === "check" && (o.tn ?? 0) <= 0)
+        bad.push(
+          `Floor ${i + 1}: "${o.label || "a door"}" is a check with no number to beat, so it can only ever go catastrophically wrong. Give it a target.`
+        );
       if (!o.label.trim()) bad.push(`Floor ${i + 1} has a door with no name on it.`);
       if (!o.win.trim() || !o.lose.trim())
         bad.push(`Floor ${i + 1}: "${o.label || "a door"}" needs both endings written.`);
@@ -206,12 +228,23 @@ export function markProblems(rooms: readonly RoomDef[]): string[] {
       `${read.size} different marks are being tested. ${MAX_MARKS_READ} is the most the solver will take, because every one of them doubles the work of finding par.`
     );
 
-  // What can possibly be in hand by the time you reach each floor.
+  /**
+   * What can possibly be in hand by the time you reach each floor.
+   *
+   * `ruinSets` counts, and leaving it out was a real hole: a mark handed out only
+   * by catastrophes is still a mark somebody can be carrying, so a door below it
+   * that tests for one is live content, not dead content. Without this the gate
+   * would tell an author their perfectly good "not while you are hurt" door could
+   * never open, and block a dungeon that works.
+   */
   const availableBy: Set<string>[] = [];
   const carried = new Set<string>();
   for (const room of rooms) {
     availableBy.push(new Set(carried));
-    for (const o of room.options) for (const m of o.sets ?? []) carried.add(m);
+    for (const o of room.options) {
+      for (const m of o.sets ?? []) carried.add(m);
+      for (const m of o.ruinSets ?? []) carried.add(m);
+    }
   }
 
   rooms.forEach((room, i) => {
@@ -546,7 +579,27 @@ export function mechanicalHash(design: Design): string {
       r.id,
       r.band,
       r.boss ?? false,
-      r.options.map((o) => [o.kind, o.ability ?? "", o.tn ?? 0, o.vigour ?? 0]),
+      /*
+       * EVERY FIELD THAT CAN MOVE PAR, and the mark fields can move it a long
+       * way: putting a `needs` nobody can satisfy on every check of the demo
+       * dungeon drops par from 54 to 36 while the rest of this hash does not
+       * change by a byte. Without them `seedDemoDungeon` compares equal, decides
+       * nothing has changed, and the Hall serves the old rooms under the old par
+       * forever, with no error anywhere. That is the exact failure the sibling
+       * `mechanicalKey` in deeprun-par.ts warns about: tune a floor, watch
+       * nothing happen. Prose stays out on purpose, because prose cannot move par
+       * and prose is what an author does all afternoon.
+       */
+      r.options.map((o) => [
+        o.kind,
+        o.ability ?? "",
+        o.tn ?? 0,
+        o.vigour ?? 0,
+        (o.needs ?? []).join("&"),
+        (o.forbids ?? []).join("&"),
+        (o.sets ?? []).join("&"),
+        (o.ruinSets ?? []).join("&"),
+      ]),
     ]),
   ]);
 }

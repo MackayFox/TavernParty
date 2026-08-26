@@ -228,7 +228,7 @@ export function Assign({ view, post, busy }: PhaseProps) {
         <dl className="mt-4 space-y-2 border-t border-paper-rule pt-3 text-sm text-paper-ink">
           {calling && (
             <div>
-              <dt className="sheet-label">Signature, once a night</dt>
+              <dt className="sheet-label">Signature: one special move, once a night</dt>
               <dd>{calling.signature.label}</dd>
             </div>
           )}

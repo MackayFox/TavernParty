@@ -356,26 +356,67 @@ it went.
    before you choose, there is no probability in the problem at all, so the whole
    search collapses to a table over (floor, Vigour, knack still in hand, marks).
 
-   **You are told what the room wants, not what you bring.** A door names its
-   target and its price; it does not name the ability it leans on, and it does not
-   print your modifier for it. That last pair was the whole problem: with "Deft,
+   **You are told what you are trying and what it costs to get it badly wrong.
+   You are told no numbers at all.** A door names the action, why somebody would
+   pick it, and what a catastrophe on that particular door leaves on you. It names
+   neither the ability it leans on nor the number it wants.
+
+   Both redactions were made for the same reason, and the second reversed an
+   earlier decision, so it is worth writing down properly. The first: with "Deft,
    you bring +4, needs 11" on every door, the fastest way to play well was to
    ignore every word of the writing and take the biggest number, which is the
    wrong incentive for a game about a dungeon. At a table you say what you are
    going to do and the person running it tells you what to roll, so the fiction
-   comes first and the stat is a consequence. Working out that "set your feet and
-   meet it" is Brawn and "wait, then step out of the line" is Deft *is* the game.
-   The full itemised sum arrives in the ledger the moment the floor resolves,
-   which is where it teaches you what you should have read.
+   comes first and the stat is a consequence.
 
-   The target itself stays public, because this is a bet and not a riddle, and
-   because it discriminates: an attempt at a difficulty word instead read "Looks
+   The target number survived that cut on the argument that this is a bet rather
+   than a riddle. That argument assumed the number sat on top of a real choice,
+   and counting the pool showed it did not: **every room prices all of its checks
+   identically**, so the target was the only thing separating one door from
+   another, and "read three numbers, take the smallest, never read a word" was
+   still the whole optimal strategy. Adam's question, shown "the room wants an
+   11", was "eleven what, and do I just pick the lowest number?". Yes, and so
+   would anybody.
+
+   What replaced it is not a difficulty word. That was tried, and it read "Looks
    fair" on all three doors of a floor wanting 11, 12 and 13, which is noise
-   dressed as signal.
+   dressed as signal. What replaced it is the **stake**: what going badly wrong on
+   this door leaves on you, authored per door. It is a fact about the fiction, it
+   cannot be sorted into an order, and it says nothing whatsoever about whether
+   you personally will make it. Risk you can picture instead of a number you can
+   rank.
 
-   **Failing costs one more Vigour than bracing**, and that gradient is
-   deliberate. A brace costs its price and clears the floor; a failed check costs
-   the price plus one and clears nothing, so it forfeits four points as well.
+   The number is not hidden, it is **deferred**. The reveal prints the whole
+   itemised sum and "it wanted 14" the moment the floor resolves, which is where
+   it teaches you what you should have read rather than letting you skip the
+   reading. Working out that "set your feet and meet it" is Brawn and "wait, then
+   step out of the line" is Deft *is* the game.
+
+   **A failure has degrees, and they cost differently.** A check that misses by
+   three or less is a graze and is forgiven a point of the bill. An ordinary miss
+   costs the door's price plus one. A 1 on the die, or a miss by eight or more, is
+   a *ruin*: two more than an ordinary miss, its own authored sentence, and on
+   most doors its own mark left on you. Before this, missing by one and missing by
+   nine were the same sentence and the same bill, which is most of why three doors
+   read as three routes to one fixed outcome.
+
+   Grading was affordable for the same reason par is: **the die is thrown before
+   anybody chooses**, so the margin is a constant per door per character, and the
+   band is as knowable up front as "does it clear" always was. The par search
+   gains no dimension, the memo table does not widen, and the solve stays exact.
+   That was the one thing that could have made this unaffordable, and it does not.
+
+   A sharper version of the same point, measured rather than assumed: **the
+   gradient is invisible to par.** Zeroing the near-miss relief and the ruin
+   surcharge, and removing the fumble rule, produces an identical par on eight
+   sampled days and on the demo dungeon, because par's optimal line never eats a
+   failed check at all. Everything the gradient does, it does strictly below par,
+   which is exactly where it should do it: it changes what a bad night feels like
+   without moving the number a good one is measured against.
+
+   The flat gradient underneath is still there and still deliberate. A brace costs
+   its price and clears the floor; a failed check costs the price plus one and
+   clears nothing, so it forfeits four points as well.
    Before the extra point the two Vigour figures were equal and the screen read
    "same cost, free upside", which is a fair reading of what it said and a wrong
    reading of the game: valuing leftover Vigour at the point each is worth, the
@@ -393,9 +434,10 @@ it went.
    another door further down may want it or refuse it. Three rules hold the whole
    thing up:
 
-   - You only come away with a mark from a door that **worked**. A failed check
-     leaves you the bill and nothing else, which is the only version where
-     carrying the lamp means you got the lamp.
+   - You come away with a mark from a door that **worked**, or from one that went
+     catastrophically wrong. An ordinary miss leaves you the bill and nothing
+     else. That keeps "carrying the lamp" meaning you got the lamp, while letting
+     a disaster on floor two be the reason a door on floor five is shut.
    - A mark is **never taken back**. That keeps the state monotone, which is what
      keeps par a table rather than a tree, and it means nobody can write a
      dungeon where a door is open, then shut, then open again.
@@ -419,18 +461,40 @@ it went.
    tell you the die.
 
    The cost of that guarantee is measured: the share of characters who get out
-   under perfect play goes from 84% to 87%, and no day is impossible. What that
+   under perfect play goes from 84% to 87%, and no day is impossible.
+
+   Adding the failure gradient and the marks moved that figure back to **84%**,
+   measured the same way over thirteen sampled days a month apart (1129 of 1350
+   enumerated characters), with par landing between 48 and 61. Three points is the
+   price of a ruin costing two more than an ordinary miss, and it is the right
+   direction: the tax falls on guessing badly rather than on guessing. What that
    means for a **human**, who does not play perfectly, is still unknown, and the
    play log is what will answer it. A first pass with a probe that reads the
    numbers off the screen scored 32 against a par of 51 and did not come back,
    where a probe that ignored them scored 8, which is at least the right shape.
 
-   The house daily deliberately uses **none of this**, and the reason is
-   mechanical rather than aesthetic: its rooms are shuffled per band from a pool,
-   so a room whose door wants the lamp would land in dungeons where nothing hands
-   one out. Marks need an author who can see the whole descent, which is exactly
-   what the campaign builder is. Pool rooms offered to authors are held to the
-   same rule: they may hand a mark out, they may never require one.
+   The house daily uses marks, but **only the half of the mechanic a dealt pool
+   can support**, and the distinction is exact.
+
+   For its whole life before this the pool used none of them, while this document
+   described them as the thing that turns six rooms into a descent. The descent
+   really was a list. The stated reason was that rooms are shuffled per band, so a
+   door wanting the lamp would land in dungeons where nothing hands one out. That
+   reasoning is correct, and it applies to `needs` only.
+
+   - **`needs` is an authored-dungeon feature.** It is sound when somebody fixed
+     the floor order and can guarantee the mark is handed out above. It is dead
+     content in a dealt pool, and the campaign gate blocks it as such: six `needs`
+     doors were written into the pool during this pass, and the gate caught them
+     on a day that dealt a floor wanting "lit" with nothing above it handing a
+     light out.
+   - **`forbids` has no such problem**, because carrying nothing leaves every door
+     open. A fresh run can never meet a wall, and the only way to shut a door is to
+     have picked up the thing that shuts it. That is where all of the bite is.
+
+   Four marks, and four is a budget rather than a round number: par memoises on the
+   subset of marks some door tests, so the table is bounded by two to the power of
+   the marks read. `lit` is a thing you win; the other three happen to you.
 3. **The Ledger.** A five by five debt grid solved by constraint propagation
    from four true statements. No dice in it anywhere. Up to three CHECKS, each of
    which costs you a mark, and the number you used is the score you share.

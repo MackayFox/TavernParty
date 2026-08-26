@@ -8,7 +8,7 @@
  * only and reached through `app/api/daily/*`.
  */
 
-import { CRIT, FUMBLE } from "@/lib/game/rules";
+import { CRIT, FUMBLE, clears } from "@/lib/game/rules";
 
 /**
  * WHAT A FAILED CHECK COSTS OVER AND ABOVE THE DOOR'S PRICE.
@@ -36,9 +36,106 @@ import { CRIT, FUMBLE } from "@/lib/game/rules";
  */
 export const FAILED_CHECK_EXTRA = 1;
 
-/** What this door takes off you if you try it and it does not work. */
-export function failCost(option: { kind: string; vigour: number }): number {
-  return option.kind === "brace" ? option.vigour : option.vigour + FAILED_CHECK_EXTRA;
+/**
+ * HOW BADLY IT WENT, not merely whether it went.
+ *
+ * A flat pass/fail is the thing that made every door read as the same bet: three
+ * ways of paying an identical bill, so the only question left on the screen was
+ * arithmetic. At a table, missing a hard climb by one is a barked shin and
+ * missing it by nine is the bottom of the shaft, and the difference is most of
+ * what makes anybody care about the throw.
+ *
+ * Four bands, and they are cheap for a reason that is specific to this game:
+ * every room's die is thrown before anybody chooses, so `total - tn` is a
+ * CONSTANT for a fixed character and a fixed door. The band is therefore just
+ * another thing known up front, exactly like `cleared` was. The par search does
+ * not gain a dimension, the memo table does not widen, and the exact solve stays
+ * exact. This was the one thing that could have made grading unaffordable and it
+ * does not, because nothing here is probabilistic.
+ */
+export type Outcome = "cleared" | "near" | "bad" | "ruin";
+
+/** Missed by this much or less and you very nearly had it. */
+export const NEAR_BY = 3;
+/** Missed by this much or more and you did not so much fail as fall. */
+export const RUIN_BY = 8;
+
+export function outcomeOf(face: number, total: number, tn: number): Outcome {
+  if (clears(face, total, tn)) return "cleared";
+  // A 1 is its own catastrophe whatever the sum said. The die rule is the one
+  // thing in this game that overrides the arithmetic in both directions.
+  if (face === FUMBLE) return "ruin";
+  const short = tn - total;
+  if (short <= NEAR_BY) return "near";
+  return short >= RUIN_BY ? "ruin" : "bad";
+}
+
+/** A near miss is forgiven a point of the bill; a ruin is charged two more. */
+export const NEAR_RELIEF = 1;
+export const RUIN_EXTRA = 2;
+
+/**
+ * What this door takes off you when it does not work.
+ *
+ * Defaults to the ordinary failure, which is what every caller meant before
+ * there was anything else to mean, and what an author is quoted at the desk.
+ */
+export function failCost(
+  option: { kind: string; vigour: number },
+  outcome: Outcome = "bad"
+): number {
+  if (option.kind === "brace") return option.vigour;
+  const ordinary = option.vigour + FAILED_CHECK_EXTRA;
+  if (outcome === "near") return Math.max(1, ordinary - NEAR_RELIEF);
+  if (outcome === "ruin") return ordinary + RUIN_EXTRA;
+  return ordinary;
+}
+
+/** The whole spread, for a desk that has to tell an author what they wrote. */
+export function failRange(option: { kind: string; vigour: number }): {
+  near: number;
+  bad: number;
+  ruin: number;
+} {
+  return {
+    near: failCost(option, "near"),
+    bad: failCost(option, "bad"),
+    ruin: failCost(option, "ruin"),
+  };
+}
+
+/**
+ * "wet", "wet and seen", "wet, seen and hurt". Printed in a sentence.
+ *
+ * Here rather than in the play screen because three screens join mark lists and
+ * two of them had their own copy of this, which is how "wet, seen" and "wet and
+ * seen" end up on the same page.
+ */
+export function listOf(words: readonly string[]): string {
+  if (words.length <= 1) return words[0] ?? "";
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+/**
+ * WHAT GOING BADLY WRONG ON THIS DOOR LEAVES ON YOU, in one line, or nothing.
+ *
+ * This is what replaced the target number on a door. Deliberately a stake and
+ * never a probability: it says what the catastrophe IS, and nothing at all about
+ * how likely you are to meet it, so it cannot be sorted into an order the way
+ * three target numbers could. Built from the door's own authored marks rather
+ * than from a table of phrasings here, so an authored dungeon's own words work
+ * without this file ever having heard of them.
+ */
+export function stakeLine(ruinSets: readonly string[] | undefined): string {
+  if (!ruinSets || ruinSets.length === 0)
+    // NOT null, and not an empty line. The stake is the thing that replaced the
+    // target number as what tells three doors apart, so a door with nothing to
+    // say has to say that: rendering nothing left a hole beside two siblings
+    // carrying a sentence, which reads as a bug rather than as "this one is
+    // survivable". A door whose worst case follows you nowhere is real
+    // information and the player should have it.
+    return "Go badly wrong here and it still follows you no further than this floor.";
+  return `Go badly wrong here and you come away ${listOf(ruinSets)}.`;
 }
 
 export const DAILY_GAMES = ["longway", "deeprun", "ledger", "muster"] as const;
@@ -273,7 +370,7 @@ export function dailyCacheControl(archive: boolean, from: number = Date.now()): 
  * became two. Two is still one too many, so the rule lives with the other rules
  * and this is the door the dailies come in by.
  */
-export { clears } from "@/lib/game/rules";
+export { clears };
 
 /**
  * The lowest face that clears `tn` with `bonus` on it, for a die nobody has

@@ -421,7 +421,7 @@ function SignatureCall({
     (kind === "stealDeed" || kind === "takeScarFor") ? !targetId : kind === "secondApproach" ? !doorId : false;
 
   return (
-    <Sheet title={calling.signature.label} subtitle="Your Signature, once a night">
+    <Sheet title={calling.signature.label} subtitle="Your Signature: the one special move you get each night">
       <p className="text-sm text-paper-ink">{detail}</p>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         {body}

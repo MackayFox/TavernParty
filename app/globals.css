@@ -33,6 +33,7 @@
   --color-paper-ink: var(--tp-paper-ink);
   --color-paper-ink-mid: var(--tp-paper-ink-mid);
   --color-paper-field: var(--tp-paper-field);
+  --color-paper-danger: var(--tp-paper-danger);
 
   --radius-sm: var(--tp-radius-sm);
   --radius-md: var(--tp-radius-md);
@@ -67,116 +68,151 @@ body {
   border-radius: 2px;
 }
 
-.font-display {
-  font-family: var(--tp-font-display);
-  letter-spacing: var(--tp-tracking-display);
-  line-height: var(--tp-leading-display);
-}
-
-/* All-caps eyebrow labels: mono, wide-tracked, quiet. */
-.label-caps {
-  font-family: var(--tp-font-mono);
-  font-size: var(--tp-text-xs);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: var(--tp-tracking-label);
-  color: var(--tp-text-mid);
-}
-
-/* Every ability score, die face, hit point and room code. */
-.num {
-  font-family: var(--tp-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
-/* Encounter prose. The product is reading, so it gets measure and air. */
-.prose-read {
-  max-width: 34em;
-  font-size: var(--tp-text-lg);
-  line-height: var(--tp-leading-body);
-  color: var(--tp-text-hi);
-  text-wrap: pretty;
-}
-
 /* ---------------------------------------------------------------
+   EVERYTHING BELOW IS IN @layer components, AND THAT IS LOAD-BEARING.
+
+   `@import "tailwindcss"` declares the layer order theme, base, components,
+   utilities. A rule written outside every layer beats a rule inside one, whatever
+   the source order and whatever the specificity. These classes were unlayered, so
+   for the life of the project they silently beat every Tailwind utility that
+   touched the same property, and the failure was invisible: the class list said
+   one thing and the screen did another.
+
+   What it was actually costing, found by a review of this file:
+
+     .label-caps mr-2 text-accent   the Rule eyebrow was grey, not gold, in five
+                                    places that had asked for gold
+     .prose-read text-text-mid      about fifty pages across the marketing site
+                                    asked for dimmer body copy and got full
+                                    strength
+     .font-display leading-tight    every display heading ignored its own leading
+     .sheet-label text-paper-danger the Vigour warning could not be made red, so
+                                    the Deep Run hand-rolled the class four times
+                                    to get round it
+
+   Inside the components layer a utility wins, which is what every one of those
+   call sites was written expecting.
+
+   THE REDUCED MOTION BLOCK AT THE BOTTOM STAYS UNLAYERED ON PURPOSE. It has to
+   beat everything, including a utility, because somebody who asked for less
+   movement outranks anybody's styling.
+   --------------------------------------------------------------- */
+@layer components {
+  .font-display {
+    font-family: var(--tp-font-display);
+    letter-spacing: var(--tp-tracking-display);
+    line-height: var(--tp-leading-display);
+  }
+
+  /* All-caps eyebrow labels: mono, wide-tracked, quiet. */
+  .label-caps {
+    font-family: var(--tp-font-mono);
+    font-size: var(--tp-text-xs);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: var(--tp-tracking-label);
+    color: var(--tp-text-mid);
+  }
+
+  /* Every ability score, die face, hit point and room code. */
+  .num {
+    font-family: var(--tp-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+
+  /* Encounter prose. The product is reading, so it gets measure and air. */
+  .prose-read {
+    max-width: 34em;
+    font-size: var(--tp-text-lg);
+    line-height: var(--tp-leading-body);
+    color: var(--tp-text-hi);
+    text-wrap: pretty;
+  }
+
+  /* ---------------------------------------------------------------
    THE CHARACTER SHEET — the signature surface.
    Parchment on a dark table. Anything about *you* goes here: your
    character, your wounds, your loot, your epitaph. It is the only
    light surface in the system, so it always means "this is yours".
    --------------------------------------------------------------- */
-.sheet {
-  background: var(--tp-paper);
-  color: var(--tp-paper-ink);
-  border-radius: var(--tp-radius-paper);
-  box-shadow: var(--tp-shadow-paper);
-  position: relative;
-  /* Laid-paper tooth, and a faint warm bloom where the candle falls. */
-  background-image:
-    radial-gradient(120% 90% at 22% 8%, rgba(255, 246, 214, 0.55), transparent 60%),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(34, 26, 16, 0.022) 0px,
-      rgba(34, 26, 16, 0.022) 1px,
-      transparent 1px,
-      transparent 5px
-    );
-}
+  .sheet {
+    background: var(--tp-paper);
+    color: var(--tp-paper-ink);
+    border-radius: var(--tp-radius-paper);
+    box-shadow: var(--tp-shadow-paper);
+    position: relative;
+    /* Laid-paper tooth, and a faint warm bloom where the candle falls. */
+    background-image:
+      radial-gradient(
+        120% 90% at 22% 8%,
+        rgba(255, 246, 214, 0.55),
+        transparent 60%
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        rgba(34, 26, 16, 0.022) 0px,
+        rgba(34, 26, 16, 0.022) 1px,
+        transparent 1px,
+        transparent 5px
+      );
+  }
 
-/* A hand-ruled box on the sheet: ability scores, slots, the loot line.
+  /* A hand-ruled box on the sheet: ability scores, slots, the loot line.
    Deliberately fainter than --tp-paper-field. A box you read is a ruled square
    on the paper; a box you type into has to look like a well you can put ink in.
    Do not merge the two, the difference is what tells you which is which. */
-.sheet-box {
-  border: 1px solid var(--tp-paper-rule);
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.22);
-}
+  .sheet-box {
+    border: 1px solid var(--tp-paper-rule);
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.22);
+  }
 
-.sheet-label {
-  font-family: var(--tp-font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: var(--tp-tracking-label);
-  color: var(--tp-paper-ink-mid);
-}
+  .sheet-label {
+    font-family: var(--tp-font-mono);
+    font-size: 0.625rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: var(--tp-tracking-label);
+    color: var(--tp-paper-ink-mid);
+  }
 
-/* ---------------------------------------------------------------
+  /* ---------------------------------------------------------------
    THE DIE. One shared visual for every roll in the product.
    --------------------------------------------------------------- */
-.die {
-  font-family: var(--tp-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  display: grid;
-  place-items: center;
-  background: var(--tp-bg-2);
-  border: 2px solid var(--tp-border-strong);
-  border-radius: var(--tp-radius-sm);
-  color: var(--tp-text-hi);
-}
+  .die {
+    font-family: var(--tp-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    background: var(--tp-bg-2);
+    border: 2px solid var(--tp-border-strong);
+    border-radius: var(--tp-radius-sm);
+    color: var(--tp-text-hi);
+  }
 
-.die-crit {
-  border-color: var(--tp-accent);
-  color: var(--tp-accent);
-  box-shadow: var(--tp-glow-accent);
-}
+  .die-crit {
+    border-color: var(--tp-accent);
+    color: var(--tp-accent);
+    box-shadow: var(--tp-glow-accent);
+  }
 
-.die-fail {
-  border-color: var(--tp-danger);
-  color: var(--tp-danger);
-}
+  .die-fail {
+    border-color: var(--tp-danger);
+    color: var(--tp-danger);
+  }
 
-/*
+  /*
  * The verdict printed under the die. On the dark table it keeps its own colour,
  * but the ledger also prints a die onto the character sheet, and gold on
  * parchment measures 1.40:1 — the word was there and unreadable. On paper it
  * takes the paper's ink, and which verdict it was is carried by the word itself
  * and by the die's own border, neither of which needs the hue.
  */
-.sheet .die-verdict {
-  color: var(--tp-paper-ink);
+  .sheet .die-verdict {
+    color: var(--tp-paper-ink);
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -205,6 +241,45 @@ body {
   }
 }
 
+/* A floor arriving. The descent replaces scenes rather than scrolling to
+   them, so a scene has to announce itself by moving in from below. */
+@keyframes tp-descend {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The candle at the floor you are standing on, on the depth rail. */
+@keyframes tp-candle {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--tp-accent),
+      0 0 10px rgba(232, 181, 74, 0.28);
+  }
+  50% {
+    box-shadow: var(--tp-glow-accent);
+  }
+}
+
+/* You got hit. One wash of the wound in from the edges, then gone. */
+@keyframes tp-hurt {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @keyframes tp-sheet-drop {
   0% {
     opacity: 0;
@@ -216,26 +291,104 @@ body {
   }
 }
 
-/* A die coming to rest. */
-.tp-anim-roll {
-  animation: tp-settle var(--tp-dur-roll) var(--tp-ease-settle) both;
-}
+@layer components {
+  /* A die coming to rest. */
+  .tp-anim-roll {
+    animation: tp-settle var(--tp-dur-roll) var(--tp-ease-settle) both;
+  }
 
-/* An encounter turning over. */
-.tp-anim-reveal {
-  animation: tp-reveal var(--tp-dur-reveal) var(--tp-ease-out) both;
-}
+  /* An encounter turning over. */
+  .tp-anim-reveal {
+    animation: tp-reveal var(--tp-dur-reveal) var(--tp-ease-out) both;
+  }
 
-/* The sheet landing on the table. */
-.tp-anim-sheet {
-  animation: tp-sheet-drop var(--tp-dur-emphatic) var(--tp-ease-out) both;
-}
+  /* The sheet landing on the table. */
+  .tp-anim-sheet {
+    animation: tp-sheet-drop var(--tp-dur-emphatic) var(--tp-ease-out) both;
+  }
 
-.phase-in {
-  animation: tp-reveal var(--tp-dur-emphatic) var(--tp-ease-out) both;
-}
+  .phase-in {
+    animation: tp-reveal var(--tp-dur-emphatic) var(--tp-ease-out) both;
+  }
 
-/*
+  /* A floor of the descent arriving. Doors carry an inline animation-delay on
+   top of this, so the story lands first and the choices a beat later. */
+  .tp-anim-descend {
+    animation: tp-descend var(--tp-dur-reveal) var(--tp-ease-out) both;
+  }
+
+  /* Where you are standing, on the depth rail. */
+  .tp-anim-candle {
+    animation: tp-candle 2.4s ease-in-out infinite;
+  }
+
+  /*
+ * THE HIT. A red vignette across the whole viewport for a little over half a
+ * second, clear in the middle so the words you are reading stay readable.
+ * Decorative only: the Vigour cost is printed, spoken and drawn on the bar.
+ */
+  .tp-hurt {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at 50% 50%,
+      transparent 32%,
+      color-mix(in srgb, var(--tp-danger) 52%, transparent) 118%
+    );
+    animation: tp-hurt 620ms var(--tp-ease-out) both;
+  }
+
+  /*
+ * IT WENT VERY BADLY. The hit, deeper and held a beat longer, for a 1 on the die
+ * or a miss by a mile. A catastrophe and an ordinary setback used to produce the
+ * identical half-second of red, so the screen had no way of telling you that the
+ * thing that just happened was not the thing that usually happens.
+ */
+  .tp-ruin {
+    background: radial-gradient(
+      circle at 50% 50%,
+      transparent 12%,
+      color-mix(in srgb, var(--tp-danger) 78%, transparent) 105%
+    );
+    animation-duration: 900ms;
+  }
+
+  /*
+ * IT GAVE. The same wash as the hit, in the candle's colour instead of the
+ * wound's, so clearing a floor is an event on the screen and not only a word in
+ * a box. Failure was the only thing the whole viewport reacted to, which made
+ * success feel like the absence of something rather than a thing that happened.
+ */
+  .tp-lift {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at 50% 50%,
+      transparent 32%,
+      color-mix(in srgb, var(--tp-accent) 40%, transparent) 118%
+    );
+    animation: tp-hurt 620ms var(--tp-ease-out) both;
+  }
+
+  /*
+ * YOUR SHEET, PEEKING OVER THE TABLE EDGE.
+ *
+ * The same paper as `.sheet`, but lit from a strip along the bottom of the
+ * screen: the shadow is cast upward, onto the dark, and only the top two
+ * corners are cut. Declared after `.sheet` so it wins on source order.
+ */
+  .tp-strip {
+    border-radius: var(--tp-radius-paper) var(--tp-radius-paper) 0 0;
+    box-shadow:
+      0 -12px 40px rgba(0, 0, 0, 0.55),
+      0 -2px 0 var(--tp-paper-edge);
+  }
+
+  /*
  * The outcome dialog: what just happened, in front of you.
  *
  * A native <dialog> so focus containment, Escape and inertness of the page behind
@@ -243,34 +396,52 @@ body {
  * are only the parts the platform leaves to us: where it sits, how tall it may get
  * before it scrolls, and the fact that it arrives rather than appears.
  */
-.tp-dialog {
-  margin: auto;
-  max-height: min(84vh, 44rem);
-  overflow-y: auto;
-  animation: tp-reveal var(--tp-dur-reveal) var(--tp-ease-out) both;
-}
-.tp-dialog::backdrop {
-  animation: tp-fade var(--tp-dur-reveal) var(--tp-ease-out) both;
+  .tp-dialog {
+    margin: auto;
+    max-height: min(84vh, 44rem);
+    overflow-y: auto;
+    animation: tp-reveal var(--tp-dur-reveal) var(--tp-ease-out) both;
+  }
+  .tp-dialog::backdrop {
+    animation: tp-fade var(--tp-dur-reveal) var(--tp-ease-out) both;
+  }
+
+  @keyframes tp-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
-@keyframes tp-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
+/*
+ * UNLAYERED, AND IT MUST STAY UNLAYERED. Everything above is in
+ * @layer components so that a Tailwind utility can override it. This block is the
+ * one thing that must override the utilities as well, because a person who has
+ * asked their operating system for less movement outranks any styling decision
+ * made here. Unlayered beats layered, so this wins by construction.
+ */
 @media (prefers-reduced-motion: reduce) {
   /* Static fallbacks, not nothing: the sheet keeps its slight tilt so it still
      reads as paper that was put down rather than a rendered panel. */
   .tp-anim-roll,
   .tp-anim-reveal,
+  .tp-anim-descend,
+  .tp-anim-candle,
   .phase-in,
   .tp-dialog,
   .tp-dialog::backdrop {
     animation: none;
+  }
+  /* Not just a still frame: a hit flash that never fades would be a red
+     sheet left over the game forever. It is switched off, not frozen. */
+  .tp-hurt,
+  .tp-ruin,
+  .tp-lift {
+    animation: none;
+    opacity: 0;
   }
   .tp-anim-sheet {
     animation: none;

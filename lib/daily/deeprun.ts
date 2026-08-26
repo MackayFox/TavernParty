@@ -36,11 +36,12 @@ import { KIT } from "@/lib/content/kit";
 // of four copies and the dungeon starts resolving a roll its own way.
 import { DIE_SIDES, abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
-import { clears, dateSeed, failCost, mulberry32, seededShuffle } from "./core";
+import { clears, dateSeed, failCost, mulberry32, outcomeOf, seededShuffle, type Outcome } from "./core";
 
 // The failure gradient belongs to `core`, which is the one daily module a client
 // component may import, because the desk has to show an author what a door costs.
-export { FAILED_CHECK_EXTRA, failCost } from "./core";
+export { FAILED_CHECK_EXTRA, NEAR_BY, RUIN_BY, failCost, failRange, outcomeOf } from "./core";
+export type { Outcome } from "./core";
 import {
   DEEP_BOSSES,
   DEEP_ROOMS,
@@ -110,6 +111,8 @@ export type PuzzleOption = {
   needs: string[];
   forbids: string[];
   sets: string[];
+  /** What a ruin on this door leaves on you. Public, like every other mark rule. */
+  ruinSets: string[];
 };
 
 export type PuzzleRoom = {
@@ -153,23 +156,44 @@ export type Puzzle = {
 /**
  * THE PUZZLE AS A PLAYER IS ALLOWED TO SEE IT.
  *
- * One field comes out: which ability a door leans on. The screen stopped printing
- * it on purpose, because reading the room is the game and a player who can rank
- * three doors by their own modifier never reads a word. Hiding it in the component
+ * TWO fields come out now, and the second one is a reversal worth explaining
+ * rather than quietly making.
+ *
+ * The ability a door leans on went first, because reading the room is the game
+ * and a player who can rank three doors by their own modifier never reads a word.
+ *
+ * THE TARGET NUMBER NOW GOES TOO, and the argument that kept it was wrong in a
+ * way that only showed up once somebody counted. "It is a bet, not a riddle" is
+ * a good principle and it assumed the number sat on top of a real choice. It did
+ * not: every room in the pool prices all of its checks identically, so the target
+ * was the ONLY thing separating one door from another, and the fastest correct
+ * way to play was to read three numbers and take the smallest. Adam's question,
+ * verbatim: "eleven what? Do I just pick the lowest number?" Yes, he did, and so
+ * would anybody.
+ *
+ * What replaces it is not a difficulty word. That was tried, and on a floor whose
+ * doors want 11, 12 and 13 it printed the same word three times, which is noise
+ * dressed as signal. What replaces it is the STAKE: what going badly wrong on
+ * this particular door leaves on you, which is authored per door, is a fact about
+ * the fiction rather than the arithmetic, and tells you nothing whatsoever about
+ * whether YOU will make it. Risk you can picture, instead of a number you can
+ * sort.
+ *
+ * The number is not hidden, it is deferred: the reveal still prints "it wanted
+ * 14" against your total the moment the floor resolves, which is where it teaches
+ * you something instead of letting you skip the reading.
+ *
+ * Stripped HERE rather than in the component, because hiding a field in the UI
  * while leaving it in the JSON is not hiding it, it is hiding it from people who
- * do not open devtools, which is the same mistake the Reckless target number made
- * for months.
+ * do not open devtools.
  *
- * The target number STAYS. It is a fact about the room and this is a bet rather
- * than a riddle. What goes is the mapping from a door to one of your six numbers.
- *
- * The engine keeps the full `Puzzle`: `run` and the par search both need the
- * ability to resolve anything. This is the shape that crosses the wire, and it is
+ * The engine keeps the full `Puzzle`: `run` and the par search both need every
+ * field to resolve anything. This is the shape that crosses the wire, and it is
  * built at the route boundary for the same reason `viewFor` exists.
  */
 export type PublicPuzzle = Omit<Puzzle, "rooms"> & {
   rooms: (Omit<PuzzleRoom, "options"> & {
-    options: Omit<PuzzleOption, "ability">[];
+    options: Omit<PuzzleOption, "ability" | "tn">[];
   })[];
 };
 
@@ -178,7 +202,7 @@ export function publicPuzzle(puzzle: Puzzle): PublicPuzzle {
     ...puzzle,
     rooms: puzzle.rooms.map((room) => ({
       ...room,
-      options: room.options.map(({ ability: _ability, ...rest }) => rest),
+      options: room.options.map(({ ability: _ability, tn: _tn, ...rest }) => rest),
     })),
   };
 }
@@ -197,6 +221,11 @@ export type Line = {
   total: number;
   tn: number | null;
   cleared: boolean;
+  /**
+   * HOW it went, not only whether. "near" and "ruin" are the two the screen
+   * treats differently; "bad" is the ordinary miss and reads like the old one.
+   */
+  outcome: Outcome;
   vigourSpent: number;
   vigourAfter: number;
   /** One sentence. Never states the numbers; the mods do that. */
@@ -364,6 +393,30 @@ function cheapestSpend(puzzle: Puzzle, build: Build): number {
     let free = false;
     let toll = Infinity;
     for (const option of room.options) {
+      /**
+       * GATED DOORS DO NOT COUNT, and this is deliberately pessimistic.
+       *
+       * Whether a door gated on a mark is open depends on the path taken, and
+       * this function exists precisely because it does NOT search paths: it is in
+       * the hot path of every request for tonight's puzzle. So it prices the run
+       * a character could make while ignoring every door that might be shut to
+       * them, which can only ever understate what they can do.
+       *
+       * That is the safe direction. A day this passes really is winnable; a day
+       * it rejects might have been winnable by somebody who picked up a lamp on
+       * floor one, and gets re-drawn instead.
+       *
+       * The gate guarantees an ungated BRACE on every floor, which is what stops
+       * this running out of doors: a floor always has at least the slow certain
+       * way through. It does not guarantee an ungated check, and this does not
+       * need one. The house pool has one on every floor anyway, and
+       * `tests/unit/deeprun-marks.test.ts` holds it to that.
+       *
+       * Before marks were used by any room this loop was correct by accident.
+       * The moment content started gating doors it began counting doors nobody
+       * could open, which is a winnability guarantee about a different game.
+       */
+      if (option.needs.length > 0 || option.forbids.length > 0) continue;
       if (option.kind === "brace") {
         toll = Math.min(toll, option.vigour);
         continue;
@@ -373,11 +426,12 @@ function cheapestSpend(puzzle: Puzzle, build: Build): number {
       let total = die + abilityMod(who.scores[ability]);
       if (who.affinities.includes(ability)) total += 2;
       for (const b of who.bonuses) if (b.ability === ability) total += b.value;
-      if (clears(die, total, option.tn ?? 99)) {
+      const band = outcomeOf(die, total, option.tn ?? 99);
+      if (band === "cleared") {
         free = true;
         break;
       }
-      toll = Math.min(toll, failCost(option));
+      toll = Math.min(toll, failCost(option, band));
     }
     if (free) continue;
     // Nothing opens, so they pay. A floor with no way through at all ends the run.
@@ -611,6 +665,7 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
       needs: o.needs ?? [],
       forbids: o.forbids ?? [],
       sets: o.sets ?? [],
+      ruinSets: o.ruinSets ?? [],
     })),
   }));
 
@@ -819,10 +874,16 @@ export function run(
     if (line.cleared) {
       roomsCleared++;
       if (room.boss) bossBeaten = true;
-      // Only a door that worked leaves anything on you.
+      // Only a door that worked leaves anything good on you.
       for (const m of option.sets) held.add(m);
+    } else if (line.outcome === "ruin") {
+      // ...and a door that went very badly leaves something else. This is the
+      // only way a mark arrives without being asked for, and it is the whole of
+      // "floor two comes back on floor five".
+      for (const m of option.ruinSets) held.add(m);
     }
-    line.gained = line.cleared ? [...option.sets] : [];
+    line.gained =
+      line.cleared ? [...option.sets] : line.outcome === "ruin" ? [...option.ruinSets] : [];
     line.marks = [...held];
     lines.push(line);
     // Out of Vigour is where the run stops, cleared room or not.
@@ -872,6 +933,7 @@ function resolveOption(
     total: 0,
     tn: option.tn,
     cleared,
+    outcome: cleared ? "cleared" : "bad",
     vigourSpent: 0,
     text: cleared ? def.win : def.lose,
 
@@ -950,15 +1012,23 @@ function resolveOption(
 
   const total = mods.reduce((t, m) => t + m.value, 0);
   const tn = option.tn ?? 99;
-  // Shared with the par search and with the "so a 12 or better" line the page
-  // prints before you choose. One predicate, three readers.
-  const cleared = clears(die, total, tn);
-  const spent = cleared ? 0 : failCost(option);
+  /**
+   * One predicate, three readers: here, the par search, and the winnability
+   * check. `outcomeOf` wraps `clears` rather than replacing it, so the die rule
+   * still lives in exactly one place.
+   */
+  const band = outcomeOf(die, total, tn);
+  const cleared = band === "cleared";
+  const spent = cleared ? 0 : failCost(option, band);
 
   return base(cleared, {
     roll: die,
     mods,
     total,
+    outcome: band,
+    // A ruin gets its own sentence when the door wrote one. Falling back to
+    // `lose` is what lets an authored dungeon never write one at all.
+    text: cleared ? def.win : band === "ruin" ? (def.ruin ?? def.lose) : def.lose,
     vigourSpent: spent,
     vigourAfter: ctx.vigour - spent,
   });

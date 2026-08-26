@@ -28,7 +28,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Die } from "@/components/ui";
-import { playCleared, playFailed, playRoll } from "./sfx";
+import { listOf, type Outcome } from "@/lib/daily/core";
+import { playCleared, playFailed, playHurt, playRoll } from "./sfx";
 
 export type RevealLine = {
   roomIndex: number;
@@ -39,6 +40,13 @@ export type RevealLine = {
   total: number;
   tn: number | null;
   cleared: boolean;
+  /**
+   * HOW badly, not merely whether. A near miss and a catastrophe used to render
+   * as the identical sentence, the identical colour and the identical bill,
+   * which is the whole of "is it just the same loss however spectacularly I
+   * fail?". They are three different events now and the screen says so.
+   */
+  outcome: Outcome;
   vigourSpent: number;
   vigourAfter: number;
   text: string;
@@ -163,7 +171,7 @@ export function Reveal({
   }, [at, beats]);
 
   // The two sounds that matter, each fired once, on the beat it belongs to.
-  const played = useRef({ roll: false, outcome: false });
+  const played = useRef({ roll: false, outcome: false, hurt: false });
   const shown = beats.slice(0, at);
   const showDie = line.roll > 0 && (shown.includes("die") || at >= beats.length);
   /**
@@ -179,6 +187,19 @@ export function Reveal({
   }));
   const showNeeded = line.tn !== null && (shown.includes("needed") || at >= beats.length);
   const showOutcome = shown.includes("outcome") || at >= beats.length;
+  const ruined = line.outcome === "ruin";
+  /**
+   * The word, and it is the plain one. The flavour goes in the prose below; the
+   * thing in the box has to be readable at a glance by somebody who is six
+   * floors down and tired.
+   */
+  const verdict = line.cleared
+    ? "The floor is cleared"
+    : ruined
+      ? "It goes badly wrong"
+      : line.outcome === "near"
+        ? "It does not open, and only just"
+        : "It does not open";
   const showProse = shown.includes("prose") || at >= beats.length;
   const done = at >= beats.length;
 
@@ -192,7 +213,16 @@ export function Reveal({
       if (line.cleared) playCleared();
       else playFailed();
     }
-  }, [shown, showOutcome, done, line.roll, line.cleared]);
+    /*
+     * The hit is its own sound, on its own condition. A brace always works and
+     * always costs, so "it gave" and "it hurt" are not the same event and one
+     * must not stand in for the other.
+     */
+    if (showOutcome && line.vigourSpent > 0 && !played.current.hurt) {
+      played.current.hurt = true;
+      playHurt();
+    }
+  }, [shown, showOutcome, done, line.roll, line.cleared, line.vigourSpent]);
 
   return (
     <dialog
@@ -262,7 +292,9 @@ export function Reveal({
             className={`tp-anim-reveal font-display rounded-md border px-3 py-2 text-center text-xl uppercase ${
               line.cleared
                 ? "border-accent bg-accent-dim text-text-hi"
-                : "border-danger bg-danger/10 text-text-hi"
+                : ruined
+                  ? "border-danger bg-danger/25 text-text-hi"
+                  : "border-danger bg-danger/10 text-text-hi"
             }`}
           >
             {/*
@@ -272,15 +304,15 @@ export function Reveal({
               English went to the screen reader. That is the inversion the
               codebase calls out in its own comments, and it was doing it here.
             */}
-            <span aria-hidden>{line.cleared ? "✓ " : "✕ "}</span>
-            {line.cleared ? "The floor is cleared" : "It does not open"}
+            <span aria-hidden>{line.cleared ? "✓ " : ruined ? "✕✕ " : "✕ "}</span>
+            {verdict}
           </p>
         )}
 
         {/* The one thing a screen reader must be told without being made to hunt. */}
         <p aria-live="polite" className="sr-only">
           {showOutcome
-            ? `${line.cleared ? "Cleared" : "Not cleared"}. ${
+            ? `${line.cleared ? "Cleared" : ruined ? "Not cleared, and it went badly" : "Not cleared"}. ${
                 line.vigourSpent > 0 ? `${line.vigourSpent} Vigour, ${line.vigourAfter} left. ` : ""
               }${showProse ? line.text : ""}`
             : ""}
@@ -298,11 +330,40 @@ export function Reveal({
 
         {showProse && <p className="prose-read tp-anim-reveal">{line.text}</p>}
 
+        {/*
+          A MARK YOU WON AND A MARK YOU TOOK ARE NOT THE SAME EVENT.
+          Both printed the same diamond in the same colour, separated only by a
+          trailing clause, which is a glyph doing the wrong job in both
+          directions. The whole point of a ruin's marks is that floor two shuts a
+          door on floor five, so the moment one lands it has to read as damage.
+        */}
         {showProse && (line.gained?.length ?? 0) > 0 && (
-          <p className="tp-anim-reveal text-sm text-text-hi">
-            <span aria-hidden>◆ </span>
-            You come away {(line.gained ?? []).join(" and ")}.
+          <p
+            className={`tp-anim-reveal text-sm ${line.cleared ? "text-text-hi" : "text-danger"}`}
+          >
+            <span aria-hidden>{line.cleared ? "◆ " : "✷ "}</span>
+            You come away {listOf(line.gained ?? [])}
+            {line.cleared ? "." : ", and it is still true on the next floor."}
           </p>
+        )}
+
+        {/*
+          THE HIT, ACROSS THE WHOLE SCREEN.
+          A red vignette for half a second when Vigour goes, clear through the
+          middle so the line you are reading stays readable. Decoration on top of
+          the number, the sentence and the live region, never instead of them,
+          and not rendered at all for somebody who asked for less movement.
+        */}
+        {showOutcome && line.vigourSpent > 0 && !reduced && (
+          <span aria-hidden className={`tp-hurt${ruined ? " tp-ruin" : ""}`} />
+        )}
+        {/*
+          A floor that gave and cost nothing gets the candle's wash instead. Only
+          one of the two ever renders: a brace clears AND costs, and being told
+          "you got hurt" is the more useful half of that.
+        */}
+        {showOutcome && line.cleared && line.vigourSpent === 0 && !reduced && (
+          <span aria-hidden className="tp-lift" />
         )}
 
         <footer className="mt-1 flex items-center justify-between gap-3 border-t border-border-dim pt-3">

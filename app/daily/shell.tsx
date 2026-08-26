@@ -53,12 +53,36 @@ export function DailyHeader({
   game,
   date,
   archive,
+  slim = false,
 }: {
   game: DailyGame;
   date: string | null;
   archive: boolean;
+  /**
+   * ONE LINE INSTEAD OF FOUR, for a screen that is the game rather than the
+   * page about the game. The Deep Run's descent owns the whole viewport, and a
+   * glyph, a date, a 36px title and a blurb at the top of it are furniture the
+   * player read once on the way in. The h1 stays in the DOM either way, so the
+   * page still has a heading for a crawler and for anybody reading it rather
+   * than looking at it.
+   */
+  slim?: boolean;
 }) {
   const meta = DAILY_META[game];
+  if (slim) {
+    return (
+      <header className="flex min-w-0 items-baseline gap-3">
+        <h1 className="font-display truncate text-sm uppercase tracking-[0.14em] text-text-hi">
+          <span aria-hidden>{meta.glyph} </span>
+          {meta.name}
+        </h1>
+        <p className="label-caps truncate">
+          {date ? prettyDate(date) : "Tonight"}
+          {archive ? " · practice" : ""}
+        </p>
+      </header>
+    );
+  }
   return (
     <header>
       <p className="label-caps">

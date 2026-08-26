@@ -26,6 +26,7 @@ const line = (over: Partial<RevealLine> = {}): RevealLine => ({
   total: 16,
   tn: 12,
   cleared: true,
+  outcome: "cleared",
   vigourSpent: 0,
   vigourAfter: 9,
   text: "It gives.",

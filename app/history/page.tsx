@@ -50,7 +50,7 @@ export default async function HistoryPage() {
               one.
             </li>
             <li>
-              <strong>Your runner.</strong> The name you gave them, the Blood they were dealt,
+              <strong>Your runner.</strong> The name you gave them, the Blood they were dealt, which is where they are from,
               what they did before this, their last sixty nights and their last forty scars.
               They are at the top of{" "}
               <Link href="/daily/deeprun" className="underline">

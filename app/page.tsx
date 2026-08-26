@@ -172,7 +172,7 @@ export default function HomePage() {
             </div>
             <dl className="mt-4 flex flex-col gap-3 border-t border-paper-rule pt-3">
               {[
-                ["Signature, once a night", DEMO_CALLING.signature.label],
+                ["Signature: one special move", DEMO_CALLING.signature.label],
                 ["Kit", DEMO_KIT.name],
                 ["Hook", DEMO_HOOK.name],
               ].map(([label, value]) => (

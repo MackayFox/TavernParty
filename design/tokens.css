@@ -98,6 +98,11 @@
      sheet look ruled rather than pasted on. This is the token the campaign
      builder's eleven bg-white/40 fields were reaching for. */
   --tp-paper-field: rgba(255, 255, 255, 0.42);
+  /* The wound, in ink. --tp-danger is a candle-lit red for the dark table and
+     measures 2.2:1 on parchment, so a Vigour bar running out on the sheet was
+     a colour nobody could read. This is the same signal written with a pen.
+     6.0:1 on paper. */
+  --tp-paper-danger: #8f2f22;
 
   /* ---------- Party colours ----------
      index = hash(playerId) % 8. Every one is light enough to carry

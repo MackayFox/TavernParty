@@ -316,7 +316,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
                   </dd>
                 </div>
                 <div>
-                  <dt className="sheet-label">Hook</dt>
+                  <dt className="sheet-label">Hook: your backstory</dt>
                   <dd>
                     {data.who.hookName}. {data.who.hookBlurb}
                   </dd>

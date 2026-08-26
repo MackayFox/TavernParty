@@ -29,7 +29,7 @@
  */
 import { abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
-import { clears } from "./core";
+import { outcomeOf } from "./core";
 import {
   BOOST,
   BOSS_BEATEN,
@@ -59,6 +59,34 @@ import type { KnackKind } from "./deeprun-data";
  */
 type Move = { step: Step; cleared: boolean; vigour: number; sets: readonly string[] };
 
+/**
+ * One door's whole answer, priced.
+ *
+ * The failure gradient costs the search NOTHING, which is worth stating plainly
+ * because it is the reason grading was affordable at all: the die is thrown
+ * before anybody chooses, so `total - tn` is a constant per (door, character),
+ * and the band is therefore as knowable up front as `cleared` always was. No new
+ * dimension, no wider memo table, and the solve stays exact rather than sampled.
+ *
+ * What DOES ride along is `ruinSets`: a ruin leaves marks, marks are read by
+ * later doors, and the search already carries the held set for that reason.
+ */
+function priced(
+  option: PuzzleOption,
+  face: number,
+  total: number,
+  step: Step
+): Move {
+  const band = outcomeOf(face, total, option.tn ?? 99);
+  const cleared = band === "cleared";
+  return {
+    step,
+    cleared,
+    vigour: cleared ? 0 : -failCost(option, band),
+    sets: cleared ? option.sets : band === "ruin" ? option.ruinSets : [],
+  };
+}
+
 function movesFor(
   puzzle: Puzzle,
   build: Build,
@@ -87,17 +115,10 @@ function movesFor(
         sets: option.sets,
       };
     const ability = option.ability ?? "grit";
-    const total = die + bonusFor(ability);
-    const cleared = clears(die, total, option.tn ?? 99);
-    return {
-      step: { optionId: option.id },
-      cleared,
-      // Failing costs more than bracing on purpose. See FAILED_CHECK_EXTRA: if
-      // this line and the runner ever disagree, par describes a different game to
-      // the one being played.
-      vigour: cleared ? 0 : -failCost(option),
-      sets: option.sets,
-    };
+    // Failing costs more than bracing on purpose, and failing badly costs more
+    // again. See `outcomeOf`: if this line and the runner ever disagree, par
+    // describes a different game to the one being played.
+    return priced(option, die, die + bonusFor(ability), { optionId: option.id });
   };
 
   for (const option of room.options) {
@@ -131,21 +152,17 @@ function knackMove(
       // Not cleared. That is the trade, and it is why the Knife is a gamble
       // rather than a strictly better Warden. Nothing is picked up either,
       // because you were never in the room.
-      return { step, cleared: false, vigour: 0, sets };
+      return { step, cleared: false, vigour: 0, sets: [] };
     case "boost": {
       if (option.kind !== "check") return null;
       const ability = option.ability ?? "grit";
-      const total = die + bonusFor(ability) + BOOST;
-      const cleared = clears(die, total, option.tn ?? 99);
-      return { step, cleared, vigour: cleared ? 0 : -failCost(option), sets };
+      return priced(option, die, die + bonusFor(ability) + BOOST, step);
     }
     case "rethrow": {
       if (option.kind !== "check") return null;
       const again = secondDie(puzzle.seed, roomIndex);
       const ability = option.ability ?? "grit";
-      const total = again + bonusFor(ability);
-      const cleared = clears(again, total, option.tn ?? 99);
-      return { step, cleared, vigour: cleared ? 0 : -failCost(option), sets };
+      return priced(option, again, again + bonusFor(ability), step);
     }
   }
 }
@@ -157,24 +174,46 @@ function knackMove(
  * state: nothing else from the path can change what happens next.
  *
  * MARKS ARE WHY THE FOURTH TERM EXISTS, and they are the only thing that has ever
- * widened this table. Two economies keep it honest:
+ * widened this table. Three economies keep it honest:
  *
  *   * Only marks that some door READS go in the key. A mark nothing tests is
  *     flavour, and flavour does not branch a search. Most dungeons read none, and
  *     then the key is what it always was plus one empty string.
+ *   * Only marks some door BELOW YOU still reads go in the key. Carrying "wet"
+ *     into the last floor is not a distinct state if nothing down there asks
+ *     about water, so those states collapse into one. The saving is largest
+ *     exactly where the table is widest, because the deep floors are the ones you
+ *     arrive at holding the most. This was added when the house pool started
+ *     using marks and a cold solve went from about a third of a second to nearly
+ *     two, which was enough to time two unrelated tests out.
  *   * A mark is never taken back, so the state is monotone: what is reachable at
- *     floor n is only ever a superset of what you had at floor n-1. The table is
- *     bounded by 2^(marks read), and in practice by nothing like it.
+ *     floor n is only ever a superset of what you had at floor n-1.
  *
  * The gate caps how many distinct marks a dungeon may read for exactly this
  * reason. That cap is the difference between a table and a tree.
  */
 export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: Step[] } {
   const memo = new Map<string, { score: number; steps: Step[] }>();
-  const read = marksRead(puzzle.rooms);
 
-  /** Only the part of what you are carrying that any door can test. */
-  const stateOf = (held: ReadonlySet<string>): string => {
+  /**
+   * What still matters, floor by floor: the marks read by this room or any room
+   * under it, built once from the bottom up.
+   *
+   * Sound because a mark can only ever change what happens through `openTo`, and
+   * `openTo` is only ever asked about doors on this floor or below. Two runs
+   * holding different marks that nothing below tests will play the rest of the
+   * dungeon identically, so they are the same state and must share a memo entry.
+   */
+  const readBelow: Set<string>[] = new Array(puzzle.rooms.length + 1);
+  readBelow[puzzle.rooms.length] = new Set();
+  for (let i = puzzle.rooms.length - 1; i >= 0; i--) {
+    const here = marksRead([puzzle.rooms[i]]);
+    readBelow[i] = here.size === 0 ? readBelow[i + 1] : new Set([...readBelow[i + 1], ...here]);
+  }
+
+  /** Only the part of what you are carrying that a door from here down can test. */
+  const stateOf = (held: ReadonlySet<string>, roomIndex: number): string => {
+    const read = readBelow[Math.min(roomIndex, puzzle.rooms.length)];
     if (read.size === 0 || held.size === 0) return "";
     const relevant: string[] = [];
     for (const m of read) if (held.has(m)) relevant.push(m);
@@ -191,7 +230,7 @@ export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: S
     if (roomIndex >= puzzle.rooms.length)
       return { score: OUT_ALIVE + vigour * VIGOUR_VALUE, steps: [] };
 
-    const key = `${roomIndex}:${vigour}:${knack ? 1 : 0}:${stateOf(held)}`;
+    const key = `${roomIndex}:${vigour}:${knack ? 1 : 0}:${stateOf(held, roomIndex)}`;
     const hit = memo.get(key);
     if (hit) return hit;
 
@@ -202,9 +241,14 @@ export function bestFor(puzzle: Puzzle, build: Build): { score: number; steps: S
     for (const move of movesFor(puzzle, build, roomIndex, knack, held)) {
       const gain = move.cleared ? ROOM_CLEARED + (boss ? BOSS_BEATEN : 0) : 0;
       const after = vigour + move.vigour;
-      // The runner's rule: only a door that worked leaves anything on you.
-      const carrying =
-        move.cleared && move.sets.length > 0 ? new Set([...held, ...move.sets]) : held;
+      /**
+       * What the line leaves on you. `priced` has already decided WHICH marks
+       * apply: a win leaves `sets`, a ruin leaves `ruinSets`, and everything in
+       * between leaves nothing. Gating this on `move.cleared` again, as it used
+       * to, would silently drop every ruin mark and let par plan a line the
+       * runner would not let anybody play.
+       */
+      const carrying = move.sets.length > 0 ? new Set([...held, ...move.sets]) : held;
       const rest =
         after <= 0
           ? { score: 0, steps: [] }
@@ -250,7 +294,7 @@ function mechanicalKey(puzzle: Puzzle): string {
             .map(
               (o) =>
                 `${o.id}/${o.kind}/${o.ability ?? "-"}/${o.tn ?? "-"}/${o.vigour}` +
-                `/${o.needs.join("&")}/${o.forbids.join("&")}/${o.sets.join("&")}`
+                `/${o.needs.join("&")}/${o.forbids.join("&")}/${o.sets.join("&")}/${o.ruinSets.join("&")}`
             )
             .join("+")
       )
@@ -311,6 +355,15 @@ export function parFor(puzzle: Puzzle): {
   }
 
   const answer = { par, best };
+  /*
+   * ponytail: a cold solve is 0.4s to 1.7s per day, up from roughly a third of
+   * that before any room used marks, because the memo key gained a subset of the
+   * four marks doors test. It is paid once per dungeon and only on the finish
+   * path, never on the way in, so it is a one-off on the first person to come
+   * back up that day. If a fifth mark is ever wanted, prune the key to marks that
+   * some door BELOW the current floor still tests, which collapses most of the
+   * subsets on the deep floors where the table is widest.
+   */
   // ponytail: a draft solves once per edit, so the key space is now unbounded
   // rather than one entry per day. Drop the lot when it gets silly; a real LRU
   // when a cold solve on a busy instance shows up in a trace.

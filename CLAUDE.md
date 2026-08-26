@@ -57,6 +57,13 @@ things that need a paid plan or a login and cannot be done from here.
   parody. **No em-dashes in player-facing copy.** Vocabulary: Calling, Blood, Kit,
   Hook, Act, Approach, Reckless, Scar, Renown, Dread, Mark, Laurel, the Hoard, the
   Ballad, the house array.
+- **Gloss the vocabulary at first use.** The words above stay, but a player who
+  has never played this kind of game must never meet a bare one. "Signature: one
+  special move, once a night", "Hook: your backstory", "Vigour (health)". The
+  flavour word first, the plain words after it, and only where somebody meets the
+  term in play rather than on a page written to explain it. Adam, on watching
+  people bounce off it: "my non-D&D friends are just like what the hell is
+  'signature once a night', 'hook', 'a calling', 'a Blood'."
 - **We copy the system and invent the words.** Game mechanics are not
   copyrightable in the US or the UK, so the d20, the six abilities and the rest
   are free. We ship none of anybody else's text: never the D&D marks, never

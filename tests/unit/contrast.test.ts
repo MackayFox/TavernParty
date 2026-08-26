@@ -94,6 +94,14 @@ describe("the character sheet", () => {
     expect(ratio, `paper-ink-mid on paper is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("writes the wound in an ink you can read on parchment", () => {
+    // --tp-danger is tuned for the dark table and is unreadable here. The sheet
+    // needs its own red or the Vigour bar running out is a colour and nothing
+    // else, which is the failure this whole file exists to catch.
+    const ratio = contrast(token("paper-danger"), token("paper"));
+    expect(ratio, `paper-danger on paper is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+  });
+
   it("rules its boxes visibly enough to see, as a component boundary", () => {
     const ratio = contrast(token("paper-rule"), token("paper"));
     expect(ratio, `paper-rule on paper is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(1.4);

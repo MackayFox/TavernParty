@@ -6,6 +6,21 @@
  * Two screens: build somebody, then take them down. The build is on paper
  * because it is yours; every room is on the dark because it is not.
  *
+ * ONE STAGE, ONE STRIP, ONE RAIL. At any moment the descent answers exactly one
+ * question, which is "what is happening, and what can I do about it?". Everything
+ * else is either ambient or one tap away:
+ *
+ *   the stage  the floor you are on, and the doors out of it. It owns the whole
+ *              viewport, so scenes REPLACE each other rather than being appended
+ *              to a page that then has to be scrolled to. There is no scrolling
+ *              to hunt, because there is no page to hunt through.
+ *   the strip  your character, on paper, along the bottom edge of the table.
+ *   the rail   how far down you are, as a column of nodes rather than a list.
+ *
+ * The daily furniture (the glyph, the date, the 36px title, the blurb, the rule
+ * line) exists on the build screen and on the score screen and nowhere in
+ * between: during the descent it is one quiet line at the top.
+ *
  * No import of `lib/daily/deeprun` anywhere in here. That module computes par,
  * which is the answer. `lib/game/rules` is imported for the ability labels and
  * the modifier curve, which is a table of six words and a divide by two, and
@@ -20,27 +35,35 @@ import {
   Announcer,
   Button,
   Card,
-  Die,
   ErrorNote,
   Pill,
   Sheet,
-  SheetBox,
   Spinner,
 } from "@/components/ui";
 import { postJson } from "@/components/client";
-import { Adventurer, Behind, type Sheet as CharacterSheet } from "@/components/daily/Adventurer";
+import {
+  AdventurerStrip,
+  DepthRail,
+  FullSheet,
+  Ledger,
+  type Sheet as CharacterSheet,
+} from "@/components/daily/Adventurer";
 import { Reveal } from "@/components/daily/Reveal";
 import { playOut, setSoundOn, soundOn } from "@/components/daily/sfx";
 import { Runner } from "@/components/daily/Runner";
 import { useLanded } from "@/components/daily/landed";
-import { oneLine, readHero, recordNight, type Hero } from "@/lib/daily/hero";
-import { ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
-import { FAILED_CHECK_EXTRA } from "@/lib/daily/core";
+import { readHero, recordNight, type Hero } from "@/lib/daily/hero";
+import { ABILITY_BLURB, ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
+import { failRange, listOf, stakeLine, type Outcome } from "@/lib/daily/core";
 import type { Ability } from "@/lib/game/types";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 
 const GAME = "deeprun" as const;
+
+/** How long the doors wait after the scene lands, and the gap between them. */
+const DOORS_AFTER_MS = 480;
+const DOOR_STAGGER_MS = 130;
 
 type CallingCard = {
   id: string;
@@ -54,8 +77,6 @@ type Option = {
   id: string;
   label: string;
   kind: "check" | "brace";
-  ability: Ability | null;
-  tn: number | null;
   vigour: number;
   promise: string;
   /**
@@ -66,6 +87,12 @@ type Option = {
   needs?: string[];
   forbids?: string[];
   sets?: string[];
+  /**
+   * What a catastrophe on this door leaves on you. Public for exactly the reason
+   * `needs` and `forbids` are: a door that shuts on "hurt" three floors down is
+   * only a fair rule if you could see what might make you hurt up here.
+   */
+  ruinSets?: string[];
 };
 type Room = { id: string; index: number; title: string; setup: string; boss: boolean; options: Option[] };
 
@@ -100,6 +127,8 @@ type Line = {
   total: number;
   tn: number | null;
   cleared: boolean;
+  /** How badly, not merely whether. Arrives with the resolved floor. */
+  outcome: Outcome;
   vigourSpent: number;
   vigourAfter: number;
   text: string;
@@ -125,18 +154,6 @@ type RunReply = {
 };
 
 type Step = { optionId: string; knack?: boolean };
-
-/** "an 8", "an 11", "a 12". Printed in a sentence, so it has to read like one. */
-function article(n: number | null): string {
-  if (n === null) return "a";
-  return n === 8 || n === 11 || n === 18 ? "an" : "a";
-}
-
-/** "wet", "wet and seen", "wet, seen and lit". Printed, so it has to read. */
-function list(words: readonly string[]): string {
-  if (words.length <= 1) return words[0] ?? "";
-  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
-}
 
 /** Everything about a run in progress: the character, and how far down they are. */
 type Saved = {
@@ -281,6 +298,18 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   const [seen, setSeen] = useState<number>(saved?.reply?.lines.length ?? 0);
   const [sound, setSound] = useState(true);
   /**
+   * THE ONE TRICK IS ARMED, NOT MULTIPLIED.
+   *
+   * It used to render as a boxed button with its own paragraph under every
+   * eligible door, so a floor with three doors carried three copies of an
+   * explanation about a thing you only get once. Now it is one toggle on the
+   * "what do you do?" row: arm it, and it goes on whichever door you take next.
+   * The wire is unchanged, `choose(option, knack)` either way.
+   */
+  const [armed, setArmed] = useState(false);
+  /** The paper overlay: your whole sheet, and everything behind you. */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  /**
    * The runner: one character, kept between nights.
    *
    * Read after mount, never during render, because localStorage does not exist on
@@ -289,16 +318,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    */
   const [hero, setHero] = useState<Hero | null>(null);
   useEffect(() => setHero(readHero()), []);
-  /**
-   * Going down replaces the whole screen, so take the player with you.
-   *
-   * The build block is `{!down && ...}`, so pressing the button unmounts the
-   * button, and focus fell to the body with nothing announced. The same hook the
-   * other three dailies use for the same problem.
-   */
-  const descent = useLanded<HTMLDivElement>(down ? "down" : null);
-  // Read after mount: localStorage does not exist while this renders on the
-  // server, and disagreeing with the server's HTML throws the tree away.
+  // Read after mount, for the same reason.
   useEffect(() => setSound(soundOn()), []);
   const [reply, setReply] = useState<RunReply | null>(saved?.reply ?? null);
   const [streak, setStreak] = useState<number | null>(null);
@@ -313,6 +333,32 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    * beat that earns it.
    */
   const finished = !!reply?.finished && !!reply && seen >= reply.lines.length;
+  /** The stage is up: the descent owns the viewport and the page does not exist. */
+  const descending = down && !finished;
+
+  /**
+   * Take the player to the floor, every floor, not just the first.
+   *
+   * Keyed on `seen` rather than on `down`, because the scene is replaced on every
+   * press-on and the heading of the new one is where somebody on a keyboard has
+   * to end up. The `Announcer` line below covers the same move for a screen
+   * reader.
+   */
+  const scene = useLanded<HTMLHeadingElement>(descending ? seen : null);
+
+  /**
+   * The stage is `position: fixed`, so the document behind it is still scrollable
+   * and a phone will happily rubber-band the game off the top of itself. Lock it
+   * while the stage is up, and put back exactly what was there before.
+   */
+  useEffect(() => {
+    if (!descending) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [descending]);
 
   // Written on every change rather than at the end, because the end is exactly
   // what a lost run never reaches. The initial state is the stored state, so the
@@ -458,6 +504,9 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
       });
       setSteps(next);
       setReply(result);
+      // Whether it was used or not, the door has been taken. Leaving it armed
+      // would silently spend it on the next floor as well.
+      setArmed(false);
       /*
        * Deliberately NOT announcing here any more, and deliberately not scrolling.
        * The reveal opens on the new line, it is a modal, so focus moves into it and
@@ -496,6 +545,19 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   const holding = new Set(carrying);
 
   /**
+   * Whether this door could carry the one trick.
+   *
+   * Unchanged from when it decided which doors got their own knack button, and
+   * still per door rather than per floor: some knacks apply to anything, most
+   * only to a check. Arming is a single control, but a brace on a floor where the
+   * knack only works on checks must not quietly eat it.
+   */
+  function knackTakes(option: Option): boolean {
+    if (knackSpent || !calling) return false;
+    return ["pass", "mend", "slip"].includes(calling.knack.kind) || option.kind === "check";
+  }
+
+  /**
    * Your character, as one object, built in one place.
    *
    * The per-ability sum is here and NOT on the doors, and that distinction is the
@@ -529,366 +591,484 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
       }
     : null;
 
+  /** Whether any door on this floor could take the trick, so the toggle is honest. */
+  const knackUseful = !!room && !knackSpent && room.options.some(knackTakes);
+
+  /**
+   * WHAT A BAD FLOOR COSTS, SAID ONCE.
+   *
+   * Measured across the whole dataset on 2026-08-25: all 32 rooms price every one
+   * of their doors identically, so "costs 3 Vigour if it goes wrong" was printed
+   * two or three times a floor to say a thing that was true of the floor. Three
+   * copies of a constant read as three different numbers you are supposed to be
+   * weighing, which is most of why the doors looked like arithmetic.
+   *
+   * Null when a floor really does price its doors differently, which the daily
+   * never does but an authored dungeon is free to: then the price goes back on
+   * each door, because there it is genuinely part of the choice.
+   */
+  const floorCost: { bad: number; ruin: number } | null = (() => {
+    const checks = room?.options.filter((o) => o.kind === "check") ?? [];
+    if (checks.length === 0) return null;
+    const bands = checks.map((o) => failRange(o));
+    const bad = new Set(bands.map((b) => b.bad));
+    const ruin = new Set(bands.map((b) => b.ruin));
+    return bad.size === 1 && ruin.size === 1
+      ? { bad: [...bad][0], ruin: [...ruin][0] }
+      : null;
+  })();
+
   return (
-    /*
-     * Wide enough for the room and your sheet side by side once the descent
-     * starts. The build screen keeps its own narrower column below, because a
-     * form spread over 72rem is harder to read, not easier.
-     */
-    <section className={`mx-auto w-full py-8 ${down ? "max-w-5xl" : "max-w-2xl"}`}>
-      {!dungeon && <DailyHeader game={GAME} date={data.date} archive={data.archive} />}
-      <RuleLine game={GAME} />
-
-      {/* ---------------------------------------------------------- the build */}
-      {!down && (
-        <div className="mt-6 space-y-4">
+    <>
+      {/* ---------------------------------------------------------- the stage */}
+      {descending && sheet && room && (
+        <div className="fixed inset-0 z-40 grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-bg-0">
           {/*
-            WHO IS GOING DOWN, AND HOW LONG THEY HAVE BEEN DOING THIS.
-
-            The complaint this answers: "I am making a few choices from a very
-            limited selection, then throwing the character away within minutes."
-            The choices are the same, because a shared par depends on them being
-            the same. What changes is that the character is no longer thrown away:
-            it has a name, an ancestry, a past, and a list of everything that has
-            happened to it.
+            The header, reduced to the one line that says where you are. The full
+            one is on the build screen and on the score screen; between them it is
+            furniture over the top of the game.
           */}
-          <Runner hero={hero} onChange={setHero} />
-          <Card>
-            <p className="label-caps">One. Who is going down</p>
-            <ul className="mt-3 space-y-2">
-              {data.callings.map((c) => {
-                const chosen = c.id === callingId;
-                return (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      aria-pressed={chosen}
-                      onClick={() => setCallingId(c.id)}
-                      className={`w-full rounded-md border px-3 py-3 text-left ${
-                        chosen ? "border-accent bg-bg-2" : "border-border-dim bg-bg-2"
-                      }`}
-                    >
-                      <span className="font-display flex items-center gap-2 text-text-hi">
-                        {/* Not colour alone: the tick says it too. */}
-                        <span aria-hidden>{chosen ? "✓" : "○"}</span>
-                        {c.name}
-                      </span>
-                      <span className="mt-1 block text-sm text-text-mid">{c.blurb}</span>
-                      <span className="mt-1 block text-xs text-text-low">
-                        Trained in {ABILITY_LABEL[c.affinities[0]]} and{" "}
-                        {ABILITY_LABEL[c.affinities[1]]}
-                      </span>
-                      <span className="mt-2 block text-sm text-accent">
-                        {c.knack.label}: {c.knack.text}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
+          <header className="flex items-center justify-between gap-3 border-b border-border-dim px-3 py-2">
+            {dungeon ? (
+              <p className="font-display truncate text-sm uppercase tracking-[0.14em] text-text-hi">
+                {data.label}
+              </p>
+            ) : (
+              <DailyHeader game={GAME} date={data.date} archive={data.archive} slim />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !sound;
+                setSound(next);
+                setSoundOn(next);
+              }}
+              aria-pressed={sound}
+              className="min-h-11 shrink-0 rounded-md border border-border-dim px-3 text-sm text-text-mid hover:border-border-strong hover:text-text-hi"
+            >
+              <span aria-hidden>{sound ? "\u{1F50A} " : "\u{1F507} "}</span>
+              Sound {sound ? "on" : "off"}
+            </button>
+          </header>
 
-          <Sheet title="Two. The numbers" subtitle="The same six for everybody tonight">
-            <p className="text-sm text-paper-ink">
-              Take one from the pile and put it on an ability. Every room asks for one ability or
-              another, and you do not know which ones yet.
-            </p>
-            <ul className="mt-3 flex flex-wrap gap-2" aria-label="Numbers not yet placed">
-              {tray.map((i) => (
-                <li key={i}>
-                  <button
-                    type="button"
-                    aria-pressed={held === i}
-                    onClick={() => setHeld(held === i ? null : i)}
-                    className={`sheet-box num min-h-11 min-w-11 px-3 text-lg ${
-                      held === i ? "outline outline-2 outline-paper-ink" : ""
-                    }`}
-                  >
-                    {data.array[i]}
-                  </button>
-                </li>
-              ))}
-              {tray.length === 0 && <li className="sheet-label">All placed.</li>}
-            </ul>
+          <div className="relative min-h-0">
+            <DepthRail
+              floors={data.rooms.length}
+              lines={behind}
+              current={seen}
+              onOpen={() => setSheetOpen(true)}
+            />
 
-            <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {data.abilities.map((ability, i) => {
-                const slot = slots[i];
-                const value = slot === null ? null : data.array[slot];
-                return (
-                  <li key={ability}>
-                    <button
-                      type="button"
-                      onClick={() => (slot === null ? place(i) : setHeld(slot))}
-                      aria-label={
-                        value === null
-                          ? `${ABILITY_LABEL[ability]}, empty`
-                          : `${ABILITY_LABEL[ability]}, ${value}, worth ${abilityMod(value) >= 0 ? "+" : ""}${abilityMod(value)}`
-                      }
-                      className={`sheet-box flex min-h-20 w-full flex-col items-center justify-center px-2 py-2 ${
-                        slot === null ? "border-dashed" : ""
-                      }`}
+            {/*
+              The stage column. The frame does not scroll; this does, and only
+              when a floor is longer than the screen. A short floor sits in the
+              middle of the viewport instead of jammed under the header.
+            */}
+            <div className="absolute inset-0 flex flex-col overflow-y-auto py-5 pl-11 pr-3 sm:pl-14 sm:pr-6">
+              <div className="mx-auto my-auto w-full max-w-[39rem]">
+                <ErrorNote message={error} />
+
+                {/*
+                  Keyed on the floor, so every scene is a fresh mount and every
+                  scene arrives: the story first, the doors a beat behind it.
+                */}
+                <article key={seen}>
+                  <div className="tp-anim-descend">
+                    <header className="flex flex-wrap items-center gap-2">
+                      <span className="label-caps">
+                        Floor {room.index + 1} of {data.rooms.length}
+                      </span>
+                      {room.boss && <Pill tone="danger">The bottom</Pill>}
+                      {carrying.map((m) => (
+                        <Pill key={m} tone="accent">
+                          {m}
+                        </Pill>
+                      ))}
+                    </header>
+                    <h2
+                      ref={scene}
+                      className="font-display mt-2 text-[1.85rem] leading-tight text-text-hi"
                     >
-                      <span className="sheet-label">{ABILITY_LABEL[ability]}</span>
-                      <span className="num text-2xl leading-none text-paper-ink">
-                        {value ?? "·"}
-                      </span>
-                      <span className="sheet-label">
-                        {value === null
-                          ? "empty"
-                          : `${abilityMod(value) >= 0 ? "+" : ""}${abilityMod(value)}`}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={autoPlace} disabled={!calling}>
-                Spread it the safe way
-              </Button>
-              <span className="sheet-label self-center max-w-sm">
-                Grit is the only number that pays twice: it buys Vigour before you go down, and
-                Vigour is points if you come back up. Anything above what a door needs is wasted,
-                and you cannot see what a door needs.
-              </span>
+                      {room.title}
+                    </h2>
+                    <p className="prose-read mt-3">{room.setup}</p>
+                    {carrying.length > 0 && (
+                      <p className="mt-2 max-w-[34em] text-sm text-text-low">
+                        You are {listOf(carrying)}, and some doors care about that.
+                      </p>
+                    )}
+                    {/*
+                      THE RULES, ON THE FIRST FLOOR AND NOWHERE ELSE. By floor two
+                      the player has watched a reveal, which teaches the same thing
+                      better than a paragraph does. Leaving it on every floor is
+                      three lines of furniture between the story and the choice,
+                      six times a night.
+                    */}
+                    {seen === 0 && (
+                      <>
+                        <p className="mt-3 max-w-[34em] text-sm text-text-low">
+                          Vigour is your health. Every floor takes some, whether the door gives or
+                          not, and at nothing you do not come back up. You cannot see what a room
+                          rolled, or which of your abilities a door leans on, until you commit.
+                        </p>
+                        <DieRule />
+                      </>
+                    )}
+                  </div>
+
+                  {/* ------------------------------------------ what do you do */}
+                  <div className="tp-anim-descend mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border-dim pt-3">
+                    <span className="label-caps text-accent">What do you do?</span>
+                    {calling && knackSpent && (
+                      <span className="label-caps">One trick: spent</span>
+                    )}
+                    {calling && knackUseful && (
+                      <button
+                        type="button"
+                        aria-pressed={armed}
+                        onClick={() => setArmed((on) => !on)}
+                        className={`min-h-11 rounded-full border px-3 ${
+                          armed
+                            ? "border-accent bg-accent-dim"
+                            : "border-border-dim hover:border-accent/60"
+                        }`}
+                      >
+                        <span className={`label-caps ${armed ? "text-accent" : "text-text-mid"}`}>
+                          {/* Not colour alone: the tick says it too. */}
+                          <span aria-hidden>{armed ? "✓ " : "○ "}</span>
+                          {armed
+                            ? `Armed: ${calling.knack.label}`
+                            : `One trick in hand: ${calling.knack.label}`}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  {calling && knackUseful && (
+                    <p className="tp-anim-descend mt-1 max-w-[34em] text-xs text-text-low">
+                      {calling.knack.text} It goes on whichever door you take next.
+                    </p>
+                  )}
+                  {floorCost !== null && (
+                    <p className="tp-anim-descend mt-1 max-w-[34em] text-xs text-text-low">
+                      Whichever you try, getting it wrong costs about {floorCost.bad} Vigour and
+                      leaves the floor uncleared. Getting it badly wrong costs {floorCost.ruin}.
+                    </p>
+                  )}
+
+                  {/* ------------------------------------------------ the doors */}
+                  <ul className="mt-4 flex flex-col gap-3">
+                    {room.options.map((option, i) => {
+                      // Which of this door's demands are not met. Named rather than
+                      // implied: a door that is simply greyed out is a bug as far as
+                      // the player is concerned.
+                      const wants = (option.needs ?? []).filter((m) => !holding.has(m));
+                      const refuses = (option.forbids ?? []).filter((m) => holding.has(m));
+                      const shut = wants.length > 0 || refuses.length > 0;
+                      const lit = armed && !shut && knackTakes(option);
+                      return (
+                        <li key={option.id}>
+                          {/*
+                            A DOOR IS ONE BUTTON.
+
+                            It used to be a card containing a label, a promise, a
+                            meta line and then a full-size button repeating the
+                            label, which is the same control drawn twice and about
+                            twice the height it needed. The card is the control now.
+                          */}
+                          <button
+                            type="button"
+                            disabled={busy || shut}
+                            onClick={() => void choose(option, lit)}
+                            style={{
+                              animationDelay: `${DOORS_AFTER_MS + i * DOOR_STAGGER_MS}ms`,
+                            }}
+                            className={`tp-anim-descend w-full rounded-md border bg-bg-1 p-4 text-left transition-all duration-[120ms] ease-out hover:-translate-y-px hover:border-accent hover:bg-bg-2 disabled:translate-y-0 disabled:opacity-60 disabled:hover:border-border-dim disabled:hover:bg-bg-1 ${
+                              lit ? "border-accent ring-1 ring-accent/40" : "border-border-dim"
+                            }`}
+                          >
+                            <span className="font-display block text-lg leading-snug text-text-hi">
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block text-sm text-text-mid">
+                              {option.promise}
+                            </span>
+                            {shut && (
+                              <span className="mt-1 block text-sm text-text-hi">
+                                <span aria-hidden>&#9866; </span>
+                                {wants.length > 0 && `Not for you without ${listOf(wants)}.`}
+                                {wants.length > 0 && refuses.length > 0 && " "}
+                                {refuses.length > 0 && `Not while you are ${listOf(refuses)}.`}
+                              </span>
+                            )}
+                            {/*
+                              A CHECK CANNOT PROMISE AN OUTCOME. This line rendered
+                              for any door with `sets`, so the first door of the
+                              house dungeon read "Works, and you come away carrying
+                              the lantern" directly above "costs 3 if it goes
+                              wrong". A brace does always work; a check does not.
+                            */}
+                            {!shut && (option.sets ?? []).length > 0 && (
+                              <span className="mt-1 block text-sm text-text-low">
+                                {option.kind === "brace"
+                                  ? `You come away ${listOf(option.sets ?? [])}.`
+                                  : `Get through it and you come away ${listOf(option.sets ?? [])}.`}
+                              </span>
+                            )}
+                            {/*
+                              WHAT A DOOR TELLS YOU BEFORE YOU TAKE IT, and what it
+                              does not.
+
+                              It used to print the ability, your modifier and the
+                              face you needed, which meant the fastest way to play
+                              well was to ignore every word of the writing and take
+                              the biggest number. At a table you say what you are
+                              going to do and the person running it tells you what
+                              to roll: the fiction comes first and the stat is a
+                              consequence of it.
+
+                              The cut is YOUR MODIFIER, not the room's number. What
+                              the room wants is a fact about the room and stays
+                              public: this is a bet, not a riddle. The whole sum
+                              arrives in the reveal the moment the floor resolves,
+                              which is where it teaches you what you should have
+                              read.
+                            */}
+                            {/*
+                              WHAT A DOOR TELLS YOU, AND WHAT IT NO LONGER DOES.
+
+                              It used to print the number the room wanted, and
+                              since every check on a floor costs the same, that
+                              number was the only thing telling three doors apart.
+                              So the whole game was: read three numbers, take the
+                              smallest, never read a word. Adam asked "eleven
+                              what?" and the honest answer was "the thing you are
+                              actually playing".
+
+                              What is here instead is the STAKE, authored per
+                              door: what a catastrophe on THIS door leaves on you.
+                              It cannot be sorted, because it says nothing about
+                              whether you will make it. The number is not hidden,
+                              it is deferred: the reveal prints "it wanted 14"
+                              against your total the moment the floor resolves,
+                              which is where it teaches instead of shortcuts.
+                            */}
+                            <span className="mt-2 block text-xs text-text-low">
+                              {option.kind === "brace"
+                                ? `Slow, certain, and it costs you ${option.vigour} Vigour either way.`
+                                : stakeLine(option.ruinSets)}
+                              {lit && calling && ` The ${calling.knack.label} is armed.`}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </article>
+              </div>
             </div>
-          </Sheet>
+          </div>
 
-          <Card>
-            <p className="label-caps">Three. Two things to take</p>
-            <ul className="mt-3 space-y-2">
-              {data.kit.map((k) => {
-                const taken = kitIds.includes(k.id);
-                const full = kitIds.length >= 2 && !taken;
-                return (
-                  <li key={k.id}>
-                    <button
-                      type="button"
-                      aria-pressed={taken}
-                      disabled={full}
-                      onClick={() =>
-                        setKitIds((current) =>
-                          current.includes(k.id)
-                            ? current.filter((x) => x !== k.id)
-                            : [...current, k.id]
-                        )
-                      }
-                      className={`w-full rounded-md border px-3 py-3 text-left disabled:opacity-50 ${
-                        taken ? "border-accent bg-bg-2" : "border-border-dim bg-bg-2"
-                      }`}
-                    >
-                      <span className="font-display flex items-center gap-2 text-text-hi">
-                        <span aria-hidden>{taken ? "✓" : "○"}</span>
-                        {k.name}
-                        {k.ability && (
-                          <Pill>
-                            {k.value >= 0 ? "+" : ""}
-                            {k.value} {ABILITY_LABEL[k.ability]}
-                          </Pill>
-                        )}
-                      </span>
-                      <span className="mt-1 block text-sm text-text-mid">{k.blurb}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-
-          <Button
-            size="lg"
-            disabled={!buildReady}
-            onClick={() => {
-              setDown(true);
-              setAnnounce(`Floor 1 of ${data.rooms.length}. ${data.rooms[0]?.title ?? ""}`);
-            }}
-          >
-            {buildReady
-              ? "Go down"
-              : !calling
-                ? "Pick who is going down"
-                : placed < data.abilities.length
-                  ? `Place ${data.abilities.length - placed} more`
-                  : "Take two things with you"}
-          </Button>
+          {/* ------------------------------------------------------- this is you */}
+          <AdventurerStrip sheet={sheet} onOpen={() => setSheetOpen(true)} />
         </div>
       )}
 
-      {/* --------------------------------------------------------- the crawl */}
-      {down && (
-        <div className="mt-6" ref={descent}>
-          {/*
-            THREE ZONES, and the layout is the thing that says which is which.
-            Adam: "there is no clear focus on this is your character, this is what
-            is happening right now, this is what has happened."
+      {/* ------------------------------------------- the build and the score */}
+      {!descending && (
+        <section className="mx-auto w-full max-w-2xl py-8">
+          {!dungeon && <DailyHeader game={GAME} date={data.date} archive={data.archive} />}
+          <RuleLine game={GAME} />
 
-            On a wide screen: the room and its doors on the left, your sheet and
-            what is behind you in a sticky column on the right, so all of it fits
-            one screen and your abilities never scroll away. On a narrow screen:
-            three facts in a strip above the room, the room, then the sheet under
-            it, because a phone has no column to spare and a sticky panel on a
-            phone is a thing covering the game.
-          */}
-          <ErrorNote message={error} />
+          {!down && (
+            <div className="mt-6 space-y-4">
+              {/*
+                WHO IS GOING DOWN, AND HOW LONG THEY HAVE BEEN DOING THIS.
 
-          {sheet && (
-            <div className="mb-3 lg:hidden">
-              <Adventurer sheet={sheet} compact />
+                The complaint this answers: "I am making a few choices from a very
+                limited selection, then throwing the character away within minutes."
+                The choices are the same, because a shared par depends on them being
+                the same. What changes is that the character is no longer thrown away:
+                it has a name, an ancestry, a past, and a list of everything that has
+                happened to it.
+              */}
+              <Runner hero={hero} onChange={setHero} />
+              <Card>
+                <p className="label-caps">One. Who is going down</p>
+                <ul className="mt-3 space-y-2">
+                  {data.callings.map((c) => {
+                    const chosen = c.id === callingId;
+                    return (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          aria-pressed={chosen}
+                          onClick={() => setCallingId(c.id)}
+                          className={`w-full rounded-md border px-3 py-3 text-left ${
+                            chosen ? "border-accent bg-bg-2" : "border-border-dim bg-bg-2"
+                          }`}
+                        >
+                          <span className="font-display flex items-center gap-2 text-text-hi">
+                            {/* Not colour alone: the tick says it too. */}
+                            <span aria-hidden>{chosen ? "✓" : "○"}</span>
+                            {c.name}
+                          </span>
+                          <span className="mt-1 block text-sm text-text-mid">{c.blurb}</span>
+                          <span className="mt-1 block text-xs text-text-low">
+                            Trained in {ABILITY_LABEL[c.affinities[0]]} and{" "}
+                            {ABILITY_LABEL[c.affinities[1]]}
+                          </span>
+                          <span className="mt-2 block text-sm text-accent">
+                            {c.knack.label}: {c.knack.text}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+
+              <Sheet title="Two. The numbers" subtitle="The same six for everybody tonight">
+                <p className="text-sm text-paper-ink">
+                  Take one from the pile and put it on an ability. Every room asks for one ability or
+                  another, and you do not know which ones yet.
+                </p>
+                <ul className="mt-3 flex flex-wrap gap-2" aria-label="Numbers not yet placed">
+                  {tray.map((i) => (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        aria-pressed={held === i}
+                        onClick={() => setHeld(held === i ? null : i)}
+                        className={`sheet-box num min-h-11 min-w-11 px-3 text-lg ${
+                          held === i ? "outline outline-2 outline-paper-ink" : ""
+                        }`}
+                      >
+                        {data.array[i]}
+                      </button>
+                    </li>
+                  ))}
+                  {tray.length === 0 && <li className="sheet-label">All placed.</li>}
+                </ul>
+
+                <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {data.abilities.map((ability, i) => {
+                    const slot = slots[i];
+                    const value = slot === null ? null : data.array[slot];
+                    return (
+                      <li key={ability}>
+                        <button
+                          type="button"
+                          onClick={() => (slot === null ? place(i) : setHeld(slot))}
+                          aria-label={
+                            value === null
+                              ? `${ABILITY_LABEL[ability]}, empty. ${ABILITY_BLURB[ability]}`
+                              : `${ABILITY_LABEL[ability]}, ${value}, worth ${abilityMod(value) >= 0 ? "+" : ""}${abilityMod(value)}. ${ABILITY_BLURB[ability]}`
+                          }
+                          className={`sheet-box flex min-h-20 w-full flex-col items-center justify-center px-2 py-2 ${
+                            slot === null ? "border-dashed" : ""
+                          }`}
+                        >
+                          <span className="sheet-label">{ABILITY_LABEL[ability]}</span>
+                          <span className="num text-2xl leading-none text-paper-ink">
+                            {value ?? "·"}
+                          </span>
+                          <span className="sheet-label">
+                            {value === null
+                              ? "empty"
+                              : `${abilityMod(value) >= 0 ? "+" : ""}${abilityMod(value)}`}
+                          </span>
+                          {/*
+                            WHAT THE WORD MEANS, WHERE THE WORD IS.
+                            Six invented ability names with nothing but a number
+                            under them assume the reader has met this kind of game
+                            before. The line already exists in `rules.ts` and the
+                            multiplayer build screen already prints it; the Deep
+                            Run was the one place asking people to choose on six
+                            words it had never explained.
+                          */}
+                          <span aria-hidden className="sheet-label mt-1 block normal-case tracking-normal">
+                            {ABILITY_BLURB[ability]}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={autoPlace} disabled={!calling}>
+                    Spread it the safe way
+                  </Button>
+                  <span className="sheet-label self-center max-w-sm">
+                    Grit is the only number that pays twice: it buys Vigour before you go down, and
+                    Vigour is points if you come back up. Anything above what a door needs is wasted,
+                    and you cannot see what a door needs.
+                  </span>
+                </div>
+              </Sheet>
+
+              <Card>
+                <p className="label-caps">Three. Two things to take</p>
+                <ul className="mt-3 space-y-2">
+                  {data.kit.map((k) => {
+                    const taken = kitIds.includes(k.id);
+                    const full = kitIds.length >= 2 && !taken;
+                    return (
+                      <li key={k.id}>
+                        <button
+                          type="button"
+                          aria-pressed={taken}
+                          disabled={full}
+                          onClick={() =>
+                            setKitIds((current) =>
+                              current.includes(k.id)
+                                ? current.filter((x) => x !== k.id)
+                                : [...current, k.id]
+                            )
+                          }
+                          className={`w-full rounded-md border px-3 py-3 text-left disabled:opacity-50 ${
+                            taken ? "border-accent bg-bg-2" : "border-border-dim bg-bg-2"
+                          }`}
+                        >
+                          <span className="font-display flex items-center gap-2 text-text-hi">
+                            <span aria-hidden>{taken ? "✓" : "○"}</span>
+                            {k.name}
+                            {k.ability && (
+                              <Pill>
+                                {k.value >= 0 ? "+" : ""}
+                                {k.value} {ABILITY_LABEL[k.ability]}
+                              </Pill>
+                            )}
+                          </span>
+                          <span className="mt-1 block text-sm text-text-mid">{k.blurb}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+
+              <Button
+                size="lg"
+                disabled={!buildReady}
+                onClick={() => {
+                  setDown(true);
+                  setAnnounce(`Floor 1 of ${data.rooms.length}. ${data.rooms[0]?.title ?? ""}`);
+                }}
+              >
+                {buildReady
+                  ? "Go down"
+                  : !calling
+                    ? "Pick who is going down"
+                    : placed < data.abilities.length
+                      ? `Place ${data.abilities.length - placed} more`
+                      : "Take two things with you"}
+              </Button>
             </div>
           )}
 
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
-            <div className="min-w-0 space-y-4">
-
-          {!finished && room && (
-            <article className="tp-anim-reveal rounded-lg border border-border-strong bg-bg-1 p-4">
-              <header className="flex flex-wrap items-center gap-2">
-                <span className="label-caps">Floor {room.index + 1}</span>
-                {room.boss && <Pill tone="danger">The bottom</Pill>}
-                {carrying.map((m) => (
-                  <Pill key={m} tone="accent">
-                    {m}
-                  </Pill>
-                ))}
-              </header>
-              <h2 className="font-display mt-1 text-xl text-text-hi">{room.title}</h2>
-              <p className="prose-read mt-2">{room.setup}</p>
-              {carrying.length > 0 && (
-                <p className="mt-1 text-sm text-text-mid">
-                  You are {list(carrying)}, and some doors care about that.
-                </p>
-              )}
-              <p className="mt-3 text-sm text-text-low">
-                You do not know what this room rolled, and nobody does until somebody opens it.
-                Nor which of your abilities a door leans on: that is in the writing, and it is
-                the whole of the game. The sums arrive with the outcome.
-              </p>
-              <DieRule />
-
-              <ul className="mt-3 space-y-3">
-                {room.options.map((option) => {
-                  // Which of this door's demands are not met. Named rather than
-                  // implied: a door that is simply greyed out is a bug as far as
-                  // the player is concerned.
-                  const wants = (option.needs ?? []).filter((m) => !holding.has(m));
-                  const refuses = (option.forbids ?? []).filter((m) => holding.has(m));
-                  const shut = wants.length > 0 || refuses.length > 0;
-                  const canKnack =
-                    !knackSpent &&
-                    !!calling &&
-                    (["pass", "mend", "slip"].includes(calling.knack.kind) ||
-                      option.kind === "check");
-                  return (
-                    <li
-                      key={option.id}
-                      className="rounded-md border border-border-dim bg-bg-2 p-3"
-                    >
-                      <p className="font-display text-text-hi">{option.label}</p>
-                      <p className="mt-1 text-sm text-text-mid">{option.promise}</p>
-                      {shut && (
-                        <p className="mt-1 text-sm text-text-hi">
-                          <span aria-hidden>&#9866; </span>
-                          {wants.length > 0 && `Not for you without ${list(wants)}.`}
-                          {wants.length > 0 && refuses.length > 0 && " "}
-                          {refuses.length > 0 && `Not while you are ${list(refuses)}.`}
-                        </p>
-                      )}
-                      {/*
-                        A CHECK CANNOT PROMISE AN OUTCOME. This line rendered for
-                        any door with `sets`, so the first door of the house
-                        dungeon read "Works, and you come away carrying the
-                        lantern" directly above "costs 3 if it goes wrong". A
-                        brace does always work; a check does not, and it is the
-                        only door copy that says what will happen.
-                      */}
-                      {!shut && (option.sets ?? []).length > 0 && (
-                        <p className="mt-1 text-sm text-text-low">
-                          {option.kind === "brace"
-                            ? `You come away ${list(option.sets ?? [])}.`
-                            : `Get through it and you come away ${list(option.sets ?? [])}.`}
-                        </p>
-                      )}
-{/*
-                        WHAT A DOOR TELLS YOU BEFORE YOU TAKE IT, and what it does
-                        not.
-
-                        It used to print the ability, your modifier and the face
-                        you needed on every door, which meant the fastest way to
-                        play well was to ignore every word of the writing and take
-                        the biggest number. In a game about a dungeon that is the
-                        wrong incentive: at a table you say what you are going to
-                        do and the person running it tells you what to roll, so
-                        the fiction comes first and the stat is a consequence of
-                        it.
-
-                        The cut is YOUR MODIFIER, not the room's number. What the
-                        room wants is a fact about the room and stays public, the
-                        way it always has been: this is a bet, not a riddle. What
-                        goes is which ability it leans on and what you happen to
-                        bring to it, because that pair is what let you rank three
-                        doors without reading a word.
-
-                        A first attempt printed a difficulty word instead of the
-                        target. It was worse: on a floor whose doors want 11, 12
-                        and 13 it said "Looks fair" three times, which is noise
-                        dressed as signal. The number discriminates and still
-                        tells you nothing about whether the door is yours.
-
-                        The whole sum arrives in the ledger the moment the floor
-                        resolves, which is where it teaches you what you should
-                        have read.
-                      */}
-                      <p className="num mt-1 text-sm text-text-low">
-                        {option.kind === "brace"
-                          ? `Always works, and clears the floor. Costs ${option.vigour} Vigour, every time.`
-                          : `The room wants ${article(option.tn)} ${option.tn} · costs ${option.vigour + FAILED_CHECK_EXTRA} Vigour if it goes wrong, and you do not clear the floor`}
-                      </p>
-                      <div className="mt-3 flex flex-col gap-2">
-                        <Button
-                          size="lg"
-                          disabled={busy || shut}
-                          onClick={() => void choose(option, false)}
-                        >
-                          {option.label}
-                        </Button>
-                        {/*
-                          THE KNACK BUTTON USED TO SAY ONLY THE KNACK'S NAME.
-                          "Price the door", on its own, next to a door, with no
-                          indication of what it did, whether it was free, or that
-                          there was only ever one of them. Adam asked what it was
-                          supposed to mean and he was right to.
-
-                          It now says what it is, what it does and that it is the
-                          only one you get. The explanation sits under the button
-                          rather than in a tooltip, because a tooltip is not a
-                          thing a thumb can hover over.
-                        */}
-                        {canKnack && (
-                          <div className="rounded-md border border-accent/40 bg-accent-dim/40 p-2">
-                            <Button
-                              variant="secondary"
-                              className="w-full"
-                              disabled={busy || shut}
-                              onClick={() => void choose(option, true)}
-                            >
-                              Use your one trick: {calling!.knack.label}
-                            </Button>
-                            <p className="mt-1 text-xs text-text-mid">
-                              {calling!.knack.text} Once tonight, and you have not used it.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </article>
-          )}
-
+          {/* --------------------------------------------------- how it went */}
           {finished && reply && (
-            <>
+            <div className="mt-6 space-y-4">
               <Card>
                 <p className="label-caps">
                   {reply.out ? "Out" : `Stopped on floor ${reply.depth}`}
@@ -919,6 +1099,12 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                 </dl>
               </Card>
 
+              {/* The night you actually had, floor by floor, and it is yours, so
+                  it comes back up out of the overlay and onto paper. */}
+              <Sheet title="Behind you" subtitle="Every floor, and what it cost" className="max-w-none">
+                <Ledger lines={behind} par={reply.par ?? null} />
+              </Sheet>
+
               {/* The other two dailies show you the night you could have had.
                   This one knew it and was keeping it to itself. */}
               {reply.bestRun && reply.score < (reply.par ?? 0) && (
@@ -937,8 +1123,8 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                   </p>
                   <ol className="mt-2 space-y-1 text-sm text-text-mid">
                     {reply.bestRun.steps.map((step, i) => {
-                      const room = data.rooms[i];
-                      const option = room?.options.find((o) => o.id === step.optionId);
+                      const best = data.rooms[i];
+                      const option = best?.options.find((o) => o.id === step.optionId);
                       return (
                         <li key={`${step.optionId}-${i}`}>
                           <span className="num text-text-low">Floor {i + 1}. </span>
@@ -957,39 +1143,9 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
 
               {reply.share && <ShareCard text={reply.share} />}
               {!dungeon && <NextUp game={GAME} archive={reply.archive} streak={streak} />}
-            </>
-          )}
             </div>
-
-            {/* ------------------------------------------------- this is you */}
-            <aside className="min-w-0 space-y-3 lg:sticky lg:top-4">
-              {sheet && (
-                <div className="hidden lg:block">
-                  <Adventurer sheet={sheet} />
-                </div>
-              )}
-              <Behind lines={behind} par={reply?.par ?? null} />
-              {sheet && (
-                <div className="lg:hidden">
-                  <Adventurer sheet={sheet} />
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !sound;
-                  setSound(next);
-                  setSoundOn(next);
-                }}
-                aria-pressed={sound}
-                className="min-h-11 w-full rounded-lg border border-border-dim px-3 text-sm text-text-mid hover:text-text-hi"
-              >
-                <span aria-hidden>{sound ? "🔊 " : "🔇 "}</span>
-                Sound {sound ? "on" : "off"}
-              </button>
-            </aside>
-          </div>
-        </div>
+          )}
+        </section>
       )}
 
       {/*
@@ -1028,7 +1184,17 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
         />
       )}
 
+      {/* Everything that is yours, and everything you have done, on one sheet. */}
+      {sheetOpen && sheet && (
+        <FullSheet
+          sheet={sheet}
+          lines={behind}
+          par={reply?.par ?? null}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
+
       <Announcer message={announce} />
-    </section>
+    </>
   );
 }

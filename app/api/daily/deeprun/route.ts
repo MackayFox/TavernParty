@@ -73,9 +73,10 @@ export async function GET(req: Request) {
   // authored one never changes at all, because its dice are pinned to its code.
   return NextResponse.json(
     {
-      // Redacted: which ability each door tests does not cross the wire. See
-      // publicPuzzle. The target number does, because that is a fact about the
-      // room and this is a bet rather than a riddle.
+      // Redacted: neither the ability a door tests nor the number it wants
+      // crosses the wire. See `publicPuzzle` for why the target number stopped
+      // being public, which is a reversal rather than an oversight. The reveal
+      // still prints it the instant a floor resolves.
       ...publicPuzzle(source.puzzle),
       archive: source.archive,
       dungeon: source.row ? doorFor(source.row) : null,

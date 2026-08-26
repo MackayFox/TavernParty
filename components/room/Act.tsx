@@ -358,7 +358,7 @@ export function Act({ view, post, busy }: PhaseProps) {
       {calling && !me?.usedSignature && !act.boosted.includes(view.me.id) &&
         (calling.signature.kind === "addFive" || calling.signature.kind === "revealReckless") && (
           <section className="rounded-lg border border-accent/60 bg-bg-1 p-4">
-            <p className="label-caps">Your Signature, once a night</p>
+            <p className="label-caps">Your Signature: one special move, once a night</p>
             <h3 className="font-display mt-1 text-lg text-accent">{calling.signature.label}</h3>
             <p className="mt-1 text-sm text-text-hi">
               {calling.signature.kind === "addFive"

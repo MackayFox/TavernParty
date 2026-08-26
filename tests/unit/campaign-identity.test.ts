@@ -58,7 +58,14 @@ describe("an authored dungeon is the same object as the daily", () => {
       expect(b.par, date).toBe(a.par);
       expect(b.best?.steps, date).toEqual(a.best?.steps);
     }
-  });
+    /*
+     * Six cold enumerations, and a cold solve costs between a third of a second
+     * and about two once marks widened the memo key. That is comfortably inside
+     * five seconds on an idle machine and not inside it when the whole suite is
+     * running, which is the definition of a test that fails for no reason. Same
+     * treatment, and same reasoning, as the sample check in daily-winnable.
+     */
+  }, 60_000);
 
   it("plays a run to the same line, the same score and the same prose", () => {
     for (const date of DATES) {

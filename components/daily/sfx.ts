@@ -129,3 +129,16 @@ export function playOut(): void {
     tone(now + 0.26, 659, 320, "triangle", 0.06);
   });
 }
+
+/**
+ * Something took a piece out of you. Two low sine notes, felt more than heard.
+ *
+ * Separate from `playFailed` because Vigour goes whether or not the door gave:
+ * a brace always works and always costs, and that is still a hit.
+ */
+export function playHurt(): void {
+  play((_audio, now) => {
+    tone(now, 92, 220, "sine", 0.09);
+    tone(now + 0.03, 62, 320, "sine", 0.07);
+  });
+}

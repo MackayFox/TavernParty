@@ -284,7 +284,7 @@ describe("a deep run survives a reload", () => {
         setup: "",
         boss: false,
         options: [
-          { id: "r1-climb", label: "Climb", kind: "check", ability: "brawn", tn: 14, vigour: 2, promise: "" },
+          { id: "r1-climb", label: "Climb", kind: "check", vigour: 2, promise: "" },
         ],
       },
       {
@@ -294,7 +294,7 @@ describe("a deep run survives a reload", () => {
         setup: "",
         boss: true,
         options: [
-          { id: "r2-wade", label: "Wade", kind: "brace", ability: null, tn: null, vigour: 3, promise: "" },
+          { id: "r2-wade", label: "Wade", kind: "brace", vigour: 3, promise: "" },
         ],
       },
     ],
