@@ -76,10 +76,17 @@ export function DailyHeader({
           <span aria-hidden>{meta.glyph} </span>
           {meta.name}
         </h1>
-        <p className="label-caps truncate">
+        {/* The date is the first thing to go when the header has three controls
+            and 390px to put them in. It is on the build screen and the score
+            screen in full, and it is still read out here. */}
+        <p className="label-caps hidden truncate sm:block">
           {date ? prettyDate(date) : "Tonight"}
           {archive ? " · practice" : ""}
         </p>
+        <span className="sr-only">
+          {date ? prettyDate(date) : "Tonight"}
+          {archive ? ", practice" : ""}
+        </span>
       </header>
     );
   }

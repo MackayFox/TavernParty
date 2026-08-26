@@ -8,7 +8,7 @@
  * only and reached through `app/api/daily/*`.
  */
 
-import { CRIT, FUMBLE, clears } from "@/lib/game/rules";
+import { CRIT, FUMBLE, abilityMod, clears } from "@/lib/game/rules";
 
 /**
  * WHAT A FAILED CHECK COSTS OVER AND ABOVE THE DOOR'S PRICE.
@@ -136,6 +136,24 @@ export function stakeLine(ruinSets: readonly string[] | undefined): string {
     // information and the player should have it.
     return "Go badly wrong here and it still follows you no further than this floor.";
   return `Go badly wrong here and you come away ${listOf(ruinSets)}.`;
+}
+
+/**
+ * WHAT A CHARACTER WALKS IN WITH: the dungeon's base, plus what Grit buys.
+ *
+ * Here, in the one daily module a client component may import, because three
+ * things need it and one of them is the sheet on screen. The sheet was printing
+ * "12 of 9": a Houndmaster with Grit seventeen starts on twelve, and the bar was
+ * measuring twelve against the dungeon's base of nine, so it read as impossible
+ * and drew past its own end. The engine had the right answer in
+ * `startingVigour` and the screen had no way to ask.
+ *
+ * Grit is the only ability that pays before the first door, and this is where it
+ * pays. `deeprun.ts` calls this too, so the number on the paper and the number
+ * the server plays with cannot drift.
+ */
+export function startingVigourFrom(base: number, gritScore: number): number {
+  return base + Math.max(0, abilityMod(gritScore));
 }
 
 export const DAILY_GAMES = ["longway", "deeprun", "ledger", "muster"] as const;

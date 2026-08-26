@@ -36,7 +36,16 @@ import { KIT } from "@/lib/content/kit";
 // of four copies and the dungeon starts resolving a roll its own way.
 import { DIE_SIDES, abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
-import { clears, dateSeed, failCost, mulberry32, outcomeOf, seededShuffle, type Outcome } from "./core";
+import {
+  clears,
+  dateSeed,
+  failCost,
+  mulberry32,
+  outcomeOf,
+  seededShuffle,
+  startingVigourFrom,
+  type Outcome,
+} from "./core";
 
 // The failure gradient belongs to `core`, which is the one daily module a client
 // component may import, because the desk has to show an author what a door costs.
@@ -803,7 +812,9 @@ export function marksRead(rooms: readonly { options: readonly { needs?: string[]
  * par stops describing the game anybody is playing.
  */
 export function startingVigour(who: Character, base = BASE_VIGOUR): number {
-  return base + Math.max(0, abilityMod(who.scores.grit));
+  // The arithmetic lives in `core` so the sheet on screen can ask the same
+  // question. It used to be here alone, and the screen guessed.
+  return startingVigourFrom(base, who.scores.grit);
 }
 
 // ---------------------------------------------------------------------------

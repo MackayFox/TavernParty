@@ -15,3 +15,6 @@ SETUP.txt
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# Screenshots from scripts/shots.mjs. Evidence for a human, not source.
+shots/

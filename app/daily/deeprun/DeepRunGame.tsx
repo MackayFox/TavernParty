@@ -30,6 +30,7 @@
  * choice posts the whole run so far and the server replays it, so the dungeon
  * arrives a room at a time with nothing kept in a session anywhere.
  */
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   Announcer,
@@ -54,7 +55,13 @@ import { Runner } from "@/components/daily/Runner";
 import { useLanded } from "@/components/daily/landed";
 import { readHero, recordNight, type Hero } from "@/lib/daily/hero";
 import { ABILITY_BLURB, ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
-import { failRange, listOf, stakeLine, type Outcome } from "@/lib/daily/core";
+import {
+  failRange,
+  listOf,
+  stakeLine,
+  startingVigourFrom,
+  type Outcome,
+} from "@/lib/daily/core";
 import type { Ability } from "@/lib/game/types";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
@@ -565,6 +572,13 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    * not. `bonusFor` used to compute the same thing per door, which is what let
    * somebody play the game without reading a word of it.
    */
+  /** The placed Grit, which is the only score that matters before floor one. */
+  const gritScore = (() => {
+    const at = data.abilities.indexOf("grit");
+    const slot = at >= 0 ? slots[at] : null;
+    return slot === null || slot === undefined ? 10 : data.array[slot];
+  })();
+
   const sheet: CharacterSheet | null = calling
     ? {
         callingName: calling.name,
@@ -583,8 +597,14 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
           .map((k) => ({ name: k.name, ability: k.ability, value: k.value })),
         knack: { label: calling.knack.label, text: calling.knack.text },
         knackSpent,
-        vigour: vigour ?? data.baseVigour,
-        baseVigour: data.baseVigour,
+        /*
+         * What THIS character started on, not what the dungeon starts anybody
+         * on. Grit buys Vigour before the first door, so a Houndmaster with
+         * seventeen Grit begins on twelve of a base of nine, and the strip was
+         * printing "12 of 9" with a bar drawn past its own end.
+         */
+        vigour: vigour ?? startingVigourFrom(data.baseVigour, gritScore),
+        baseVigour: startingVigourFrom(data.baseVigour, gritScore),
         floor: Math.min(seen + 1, data.rooms.length),
         floors: data.rooms.length,
         carrying,
@@ -628,14 +648,33 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
             one is on the build screen and on the score screen; between them it is
             furniture over the top of the game.
           */}
-          <header className="flex items-center justify-between gap-3 border-b border-border-dim px-3 py-2">
-            {dungeon ? (
-              <p className="font-display truncate text-sm uppercase tracking-[0.14em] text-text-hi">
-                {data.label}
-              </p>
-            ) : (
-              <DailyHeader game={GAME} date={data.date} archive={data.archive} slim />
-            )}
+          <header className="flex items-center gap-2 border-b border-border-dim px-2 py-2 sm:gap-3 sm:px-3">
+            {/*
+              THE WAY OUT, and it has to be here because there is nowhere else.
+              The stage is `fixed inset-0`, which is what makes the descent own
+              the viewport, and the side effect is that it covers the site nav
+              completely: once you were down here the only way back to the rest
+              of the site was the browser's own back button. Leaving is safe and
+              costs nothing, because the run is written to this browser on every
+              change and picked back up exactly where it was.
+            */}
+            <Link
+              href="/"
+              aria-label="Leave the descent and go back to Tavern Party. Your run is kept."
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md px-2 text-sm text-text-mid hover:bg-bg-2 hover:text-text-hi"
+            >
+              <span aria-hidden className="text-base">&#8592;</span>
+              <span className="hidden sm:inline">Out</span>
+            </Link>
+            <div className="min-w-0 flex-1">
+              {dungeon ? (
+                <p className="font-display truncate text-sm uppercase tracking-[0.14em] text-text-hi">
+                  {data.label}
+                </p>
+              ) : (
+                <DailyHeader game={GAME} date={data.date} archive={data.archive} slim />
+              )}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -644,10 +683,14 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                 setSoundOn(next);
               }}
               aria-pressed={sound}
-              className="min-h-11 shrink-0 rounded-md border border-border-dim px-3 text-sm text-text-mid hover:border-border-strong hover:text-text-hi"
+              className="min-h-11 shrink-0 rounded-md border border-border-dim px-2 text-sm text-text-mid hover:border-border-strong hover:text-text-hi sm:px-3"
             >
-              <span aria-hidden>{sound ? "\u{1F50A} " : "\u{1F507} "}</span>
-              Sound {sound ? "on" : "off"}
+              <span aria-hidden>{sound ? "\u{1F50A}" : "\u{1F507}"}</span>
+              {/* The word is the label on a wide screen and the glyph carries it
+                  on a phone, where the header has three things in 390px. The
+                  accessible name says it in full either way. */}
+              <span className="ml-1 hidden sm:inline">Sound {sound ? "on" : "off"}</span>
+              <span className="sr-only">Sound is {sound ? "on" : "off"}</span>
             </button>
           </header>
 
@@ -743,15 +786,23 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                       </button>
                     )}
                   </div>
-                  {calling && knackUseful && (
-                    <p className="tp-anim-descend mt-1 max-w-[34em] text-xs text-text-low">
-                      {calling.knack.text} It goes on whichever door you take next.
-                    </p>
-                  )}
+                  {/*
+                    ONE LINE OF CHROME BETWEEN THE QUESTION AND THE DOORS.
+                    There were three: what the trick does, what a miss costs, and
+                    what a disaster costs. On a phone that put the first door
+                    below the fold on every floor, which is the exact problem this
+                    screen was rebuilt to solve. The trick explains itself only
+                    once it is armed, when knowing matters; the prices merge.
+                  */}
                   {floorCost !== null && (
                     <p className="tp-anim-descend mt-1 max-w-[34em] text-xs text-text-low">
-                      Whichever you try, getting it wrong costs about {floorCost.bad} Vigour and
-                      leaves the floor uncleared. Getting it badly wrong costs {floorCost.ruin}.
+                      Getting it wrong here costs {floorCost.bad} Vigour, or {floorCost.ruin} if it
+                      goes badly, and leaves the floor uncleared.
+                    </p>
+                  )}
+                  {calling && armed && (
+                    <p className="tp-anim-descend mt-1 max-w-[34em] text-xs text-accent">
+                      {calling.knack.text}
                     </p>
                   )}
 

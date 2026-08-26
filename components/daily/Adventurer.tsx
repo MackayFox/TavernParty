@@ -56,6 +56,8 @@ export type LedgerLine = {
 type Total = {
   ability: Ability;
   label: string;
+  /** The ability score itself. The number you rolled and placed. */
+  score: number;
   /** The number you actually bring: the modifier, training and kit. */
   total: number;
   trained: boolean;
@@ -78,6 +80,7 @@ function totals(sheet: Sheet): Total[] {
     return {
       ability,
       label: ABILITY_LABEL[ability],
+      score,
       total: abilityMod(score) + (trained ? 2 : 0) + fromKit,
       trained,
       from: [
@@ -190,8 +193,19 @@ export function AdventurerStrip({ sheet, onOpen }: { sheet: Sheet; onOpen: () =>
               {t.trained && <span className="mr-0.5">&#10022;</span>}
               {t.label}
             </span>
+            {/*
+              BOTH NUMBERS, because they answer different questions and the
+              strip was only answering one. The score is the thing you placed
+              during the build and the thing you would call your Brawn; the
+              total is what actually goes on the die. Printing only the total
+              made the sheet the one surface in the product that would not tell
+              you your own character's numbers.
+            */}
             <span aria-hidden className="num block text-sm leading-tight text-paper-ink">
               {signed(t.total)}
+            </span>
+            <span aria-hidden className="num block text-[9px] leading-tight text-paper-ink-mid">
+              {t.score}
             </span>
           </li>
         ))}
@@ -379,32 +393,72 @@ export function FullSheet({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement | null>(null);
+  /**
+   * `onClose` behind a ref so the effect below can be mount-only.
+   *
+   * The parent passes a fresh arrow every render, so depending on it would make
+   * the effect re-run constantly, and this effect calls `showModal`.
+   */
+  const closer = useRef(onClose);
+  closer.current = onClose;
 
+  /**
+   * ESCAPE IS `cancel`, NEVER `close`, AND THAT DISTINCTION IS THE WHOLE BUG.
+   *
+   * The dialog has to tell React when the platform dismisses it, because Escape
+   * closes a native dialog on its own and the overlay would otherwise stay
+   * mounted as a sheet nobody could see or reopen.
+   *
+   * Listening for `close` looked like the way to hear that. It is not, because
+   * `close` ALSO fires when we close it ourselves in cleanup, and it fires
+   * ASYNCHRONOUSLY: the spec queues it as a task rather than dispatching it then
+   * and there. React mounts effects, and in development mounts them a second
+   * time to flush out exactly this class of thing, so the real sequence was
+   * open, cleanup, close(), open again, and only THEN the queued close event
+   * from the first teardown landing on the freshly attached listener. It called
+   * onClose, `sheetOpen` went back to false in the same tick it went true, and
+   * from the outside the button simply did nothing. Removing the listener before
+   * closing does not help, because the event outlives the swap.
+   *
+   * `cancel` fires only when the USER dismisses it and never for a programmatic
+   * close, which is the exact question being asked. It is also what
+   * `Reveal.tsx` has always used, which is why the reveal never had this bug and
+   * this did.
+   */
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const dismissed = () => closer.current();
+    el.addEventListener("cancel", dismissed);
     if (!el.open) el.showModal();
     return () => {
+      el.removeEventListener("cancel", dismissed);
       if (el.open) el.close();
     };
   }, []);
-
-  // Escape closes a native dialog by itself. This is how React finds out, so the
-  // overlay actually unmounts rather than becoming a dialog nobody can reopen.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.addEventListener("close", onClose);
-    return () => el.removeEventListener("close", onClose);
-  }, [onClose]);
 
   return (
     <dialog
       ref={ref}
       aria-labelledby="sheet-title"
-      className="tp-dialog sheet w-[min(40rem,calc(100vw-2rem))] p-6 backdrop:bg-scrim"
+      /*
+       * Clicking the dark outside it closes it, which is the gesture everybody
+       * tries first on a phone. The handler is on the dialog itself and fires
+       * only when the target IS the dialog, which for a native <dialog> means
+       * the backdrop rather than anything inside it.
+       */
+      onClick={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
+      className="tp-dialog sheet w-[min(40rem,calc(100vw-2rem))] p-4 backdrop:bg-scrim sm:p-6"
     >
-      <header className="flex flex-wrap items-baseline justify-between gap-3 border-b border-paper-rule pb-3">
+      {/*
+        The close control is sticky, because this panel scrolls and on a small
+        screen the button had gone off the top by the time you reached the
+        ledger. A modal you have to scroll back up to leave is a modal people
+        describe as not working.
+      */}
+      <header className="sticky -top-4 z-10 -mx-4 flex flex-wrap items-baseline justify-between gap-3 border-b border-paper-rule bg-paper px-4 pb-3 pt-1 sm:-top-6 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
           <p className="sheet-label">
             Your sheet &middot; Floor {sheet.floor} of {sheet.floors}
@@ -431,31 +485,45 @@ export function FullSheet({
         whether the door gives or not, and at nothing you do not come back up.
       </p>
 
-      <ul className="mt-4 grid grid-cols-3 gap-2">
+      {/*
+        ROWS, NOT A THREE COLUMN GRID.
+
+        Each of these cells carries a label, two numbers, what the total is made
+        of, and a sentence explaining what the ability means. In three columns on
+        a phone that is about a hundred pixels of width per cell for a sentence,
+        which is where the full sheet fell apart: the text wrapped to a column
+        one or two words wide and the six cells grew to different heights.
+
+        A row gets the whole width and reads at any size, and it puts the numbers
+        in a column you can scan down, which is what a character sheet is for.
+      */}
+      <ul className="mt-4 divide-y divide-paper-rule/60 border-y border-paper-rule/60">
         {totals(sheet).map((t) => (
           <li
             key={t.ability}
-            className="sheet-box px-2 py-2 text-center"
-            aria-label={`${t.label}: ${t.from}, so you bring ${signed(t.total)}`}
+            className="flex items-baseline gap-3 py-2"
+            aria-label={`${t.label}: ${t.from}, so you bring ${signed(t.total)}. ${ABILITY_BLURB[t.ability]}`}
           >
-            <span aria-hidden className="sheet-label block">
+            <span aria-hidden className="sheet-label w-16 shrink-0">
               {t.trained && <span className="mr-0.5">&#10022;</span>}
               {t.label}
             </span>
-            <span aria-hidden className="num block text-xl leading-tight text-paper-ink">
+            <span aria-hidden className="num w-8 shrink-0 text-right text-lg text-paper-ink">
+              {t.score}
+            </span>
+            <span aria-hidden className="num w-10 shrink-0 text-right text-lg text-paper-ink">
               {signed(t.total)}
             </span>
-            <span aria-hidden className="sheet-label block">
-              {t.from}
-            </span>
-            {/* Six invented words, glossed where somebody stuck mid-floor will
-                actually go looking. The lines already live in `rules.ts`. */}
-            <span aria-hidden className="sheet-label mt-1 block normal-case tracking-normal">
+            <span aria-hidden className="min-w-0 flex-1 text-sm leading-snug text-paper-ink-mid">
               {ABILITY_BLURB[t.ability]}
+              {t.from.includes(",") ? ` (${t.from})` : ""}
             </span>
           </li>
         ))}
       </ul>
+      <p aria-hidden className="sheet-label mt-1">
+        Score, then what you bring to a roll. &#10022; means trained.
+      </p>
 
       {sheet.kit.length > 0 && (
         <>
