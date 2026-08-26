@@ -12,11 +12,11 @@
  * contributions, in the order they should be read out, and never a bare total.
  */
 import { useEffect, useRef, useState } from "react";
-import { Announcer, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@/components/ui";
+import { Announcer, Card, Die, ErrorNote, Pill, Spinner } from "@/components/ui";
 import { postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
-import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
-import { TAG_MEANING, isTag } from "@/lib/content/tags";
+import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
+import { NightSheet, NightStrip, tagMeaning, type ActLine, type Standing } from "./Character";
 import { reachNote } from "@/lib/daily/core";
 import { readProgress, writeProgress } from "@/lib/daily/local";
 import {
@@ -33,15 +33,6 @@ import type { Ability } from "@/lib/game/types";
 
 const GAME = "longway" as const;
 const FLINCH = "flinch";
-
-/**
- * Say what a tag means rather than printing the slug, the way Act does on the
- * dark and the Callings page does in the rules. The tags decide what Marks you
- * and which scene doubles your costs, so an Act headed "CLERGY · OATH" with no
- * gloss anywhere hid the two rules the player is being asked to plan around.
- * Falls back to the slug because these arrive as plain strings from the route.
- */
-const tagMeaning = (tag: string): string => (isTag(tag) ? TAG_MEANING[tag] : tag);
 
 type Door = {
   id: string;
@@ -136,6 +127,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
   const [announce, setAnnounce] = useState("");
   const [streak, setStreak] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -268,6 +260,27 @@ export function LongwayGame({ date }: { date?: string | null }) {
     return mult;
   }
 
+  /**
+   * The character, and where the night has got to, in the shape the parchment
+   * wants. Every one of these is the server's answer or a count of it; nothing
+   * here decides anything.
+   */
+  // Annotated, so a field that stops matching is caught here rather than at the
+  // one call site that happens to read it.
+  const standing: Standing = {
+    renown: reply?.renown ?? 0,
+    dread: reply?.dread ?? 0,
+    tokens,
+    faces: data?.acts.map((a) => a.face) ?? [],
+    spent: acted,
+  };
+  const behind: ActLine[] = (reply?.ledgers ?? []).map((l) => ({
+    index: l.index,
+    doorLabel: l.doorLabel,
+    outcome: l.doorId === FLINCH ? "flinched" : l.success ? "worked" : "failed",
+    renownDelta: l.renownDelta,
+  }));
+
   return (
     <section className="mx-auto w-full max-w-2xl py-6">
       <DailyHeader game={GAME} date={data?.date ?? null} archive={!!data?.archive} />
@@ -281,97 +294,6 @@ export function LongwayGame({ date }: { date?: string | null }) {
         </Card>
       ) : data ? (
         <>
-          <div className="mt-4">
-            <Sheet title={data.who.callingName} subtitle={`Character sheet · ${data.date}`}>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                {(Object.keys(data.who.scores) as Ability[]).map((ability) => {
-                  const trained = data.who.affinities.includes(ability);
-                  // Reach with no die and nothing spent is exactly the modifier.
-                  const mod = reachOf(0, ability, 0);
-                  return (
-                    <div key={ability} className="sheet-box flex flex-col items-center px-1 py-2">
-                      <span className="sheet-label">{ABILITY_LABEL[ability]}</span>
-                      <span className="num text-xl leading-none text-paper-ink">
-                        {data.who.scores[ability]}
-                      </span>
-                      {/* "trained", not "tr". Nothing on the sheet said what the
-                          abbreviation was short for, and it is the one word that
-                          explains why two of the six numbers are worth more than
-                          they look. Muster spells it out in the same place. */}
-                      <span className="sheet-label text-center">
-                        {mod >= 0 ? "+" : ""}
-                        {mod}
-                        {trained ? " trained" : ""}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <dl className="mt-4 space-y-2 text-paper-ink">
-                <div>
-                  <dt className="sheet-label">Carrying</dt>
-                  <dd>
-                    {data.who.kitName}. {data.who.kitBlurb}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="sheet-label">Hook: your backstory</dt>
-                  <dd>
-                    {data.who.hookName}. {data.who.hookBlurb}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="sheet-label">Failing, on a {data.who.failingTag} scene</dt>
-                  {/* The meaning first, then the Calling's own line, which is the
-                      order the Callings page uses. Knowing which of tonight's
-                      five Acts is the bad one is the whole plan, and it cannot
-                      depend on having read the rules page for the slug. */}
-                  <dd>
-                    {tagMeaning(data.who.failingTag)}. {data.who.failingText}
-                  </dd>
-                </div>
-              </dl>
-            </Sheet>
-          </div>
-
-          <Card className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <span className="text-sm text-text-mid">
-              Renown <span className="num text-lg text-text-hi">{reply?.renown ?? 0}</span>
-            </span>
-            <span className="text-sm text-text-mid">
-              Dread <span className="num text-lg text-text-hi">{reply?.dread ?? 0}</span>
-            </span>
-            <span className="text-sm text-text-mid">
-              Hook tokens <span className="num text-lg text-text-hi">{tokens}</span>
-            </span>
-            <span className="text-sm text-text-mid">
-              Act <span className="num text-lg text-text-hi">{Math.min(acted + 1, data.acts.length)}</span>{" "}
-              of {data.acts.length}
-            </span>
-            {(reply?.dread ?? 0) >= DREAD_DOUBLE_AT ? (
-              <Pill tone="danger">
-                Dread at {DREAD_DOUBLE_AT}: every cost doubled, bar the Reckless door
-              </Pill>
-            ) : null}
-          </Card>
-
-          {/* The dice, all five, up front. Knowing them is the game. */}
-          <Card className="mt-4">
-            <p className="label-caps">Tonight&apos;s five, already thrown</p>
-            <ul className="mt-3 flex flex-wrap gap-3">
-              {data.acts.map((a, i) => (
-                <li key={a.index} className="flex flex-col items-center gap-1">
-                  <Die face={a.face} size={44} />
-                  <span className="label-caps text-[10px]">
-                    {i < acted ? "spent" : i === acted ? "this act" : `act ${a.index}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <DieRule />
-          </Card>
-
           {showLatest && latest ? (
             <Card className="tp-anim-reveal mt-4" ref={landed}>
               <p className="label-caps">Act {latest.index}</p>
@@ -588,6 +510,35 @@ export function LongwayGame({ date }: { date?: string | null }) {
               {reply.share ? <ShareCard text={reply.share} /> : null}
               <NextUp game={GAME} archive={!!reply.archive} streak={streak} />
             </div>
+          ) : null}
+
+          {/*
+            THIS IS YOU, and it stays on screen.
+
+            `sticky bottom-0` rather than `fixed`, which is the one place this
+            differs from the descent and it differs for a reason: the descent owns
+            the whole viewport, so its strip has to be pinned to it. This page is
+            an ordinary page with the site's nav above it, and a fixed bar would
+            need the section padded by a height nobody can know in advance. Sticky
+            takes its own room at the end of the flow, rides the bottom of the
+            window the whole way down, and settles when the page runs out.
+
+            Gone once the night is closed: the score screen is the character's
+            obituary and it prints everything the strip was holding.
+          */}
+          {!done ? (
+            <div className="sticky bottom-0 z-30 mt-4">
+              <NightStrip who={data.who} standing={standing} onOpen={() => setSheetOpen(true)} />
+            </div>
+          ) : null}
+
+          {sheetOpen ? (
+            <NightSheet
+              who={data.who}
+              standing={standing}
+              lines={behind}
+              onClose={() => setSheetOpen(false)}
+            />
           ) : null}
         </>
       ) : null}

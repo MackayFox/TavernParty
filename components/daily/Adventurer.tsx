@@ -23,18 +23,28 @@
  * is not a leak; showing that the third door is a Brawn door would be.
  */
 import { useEffect, useRef } from "react";
-import { ABILITY_BLURB, ABILITY_LABEL, abilityMod } from "@/lib/game/rules";
+import { ABILITY_BLURB, ABILITY_LABEL, AFFINITY_BONUS, abilityMod } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
 
-export type Sheet = {
+/**
+ * WHAT A CHARACTER BRINGS TO A ROLL, in the least a screen can know about one.
+ *
+ * Split out of `Sheet` so The Long Way Down can borrow the arithmetic and the
+ * ability rows without pretending to have Vigour, floors or a knack. Everything
+ * both games agree on is here; everything only the descent has stays below.
+ */
+export type Brings = {
   callingName: string;
-  callingBlurb: string;
   /** Ability order as the payload gives it, so this never assumes one. */
   abilities: readonly Ability[];
   /** Final score per ability, after the array, affinities and kit. */
   scores: Record<Ability, number>;
-  affinities: Ability[];
+  affinities: readonly Ability[];
   kit: { name: string; ability: Ability | null; value: number }[];
+};
+
+export type Sheet = Brings & {
+  callingBlurb: string;
   knack: { label: string; text: string } | null;
   knackSpent: boolean;
   vigour: number;
@@ -53,7 +63,7 @@ export type LedgerLine = {
   vigourSpent: number;
 };
 
-type Total = {
+export type Total = {
   ability: Ability;
   label: string;
   /** The ability score itself. The number you rolled and placed. */
@@ -71,17 +81,19 @@ type Total = {
  * It lived twice before, in the strip and in the panel, which is two chances to
  * disagree about a number the player is choosing doors on.
  */
-function totals(sheet: Sheet): Total[] {
-  return sheet.abilities.map((ability) => {
-    const score = sheet.scores[ability] ?? 0;
-    const trained = sheet.affinities.includes(ability);
-    const kit = sheet.kit.filter((k) => k.ability === ability);
+export function totals(who: Brings): Total[] {
+  return who.abilities.map((ability) => {
+    const score = who.scores[ability] ?? 0;
+    const trained = who.affinities.includes(ability);
+    const kit = who.kit.filter((k) => k.ability === ability);
     const fromKit = kit.reduce((t, k) => t + k.value, 0);
     return {
       ability,
       label: ABILITY_LABEL[ability],
       score,
-      total: abilityMod(score) + (trained ? 2 : 0) + fromKit,
+      // AFFINITY_BONUS rather than a 2 written here: training is a tuning knob
+      // and this is the second place that would have had to be found.
+      total: abilityMod(score) + (trained ? AFFINITY_BONUS : 0) + fromKit,
       trained,
       from: [
         String(score),
@@ -94,7 +106,7 @@ function totals(sheet: Sheet): Total[] {
   });
 }
 
-function signed(n: number): string {
+export function signed(n: number): string {
   return `${n >= 0 ? "+" : ""}${n}`;
 }
 
@@ -393,16 +405,17 @@ export function Ledger({ lines, par }: { lines: LedgerLine[]; par: number | null
  * and all correct. Every hand-rolled overlay gets at least one of those wrong,
  * usually the focus trap.
  */
-export function FullSheet({
-  sheet,
-  lines,
-  par,
+export function SheetDialog({
+  label,
+  title,
   onClose,
+  children,
 }: {
-  sheet: Sheet;
-  lines: LedgerLine[];
-  par: number | null;
+  /** The small line above the name: "Your sheet · Floor 3 of 6". */
+  label: string;
+  title: string;
   onClose: () => void;
+  children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement | null>(null);
   /**
@@ -472,11 +485,9 @@ export function FullSheet({
       */}
       <header className="sticky -top-4 z-10 -mx-4 flex flex-wrap items-baseline justify-between gap-3 border-b border-paper-rule bg-paper px-4 pb-3 pt-1 sm:-top-6 sm:-mx-6 sm:px-6">
         <div className="min-w-0">
-          <p className="sheet-label">
-            Your sheet &middot; Floor {sheet.floor} of {sheet.floors}
-          </p>
+          <p className="sheet-label">{label}</p>
           <h2 id="sheet-title" className="font-display text-2xl text-paper-ink">
-            {sheet.callingName}
+            {title}
           </h2>
         </div>
         <button
@@ -489,28 +500,30 @@ export function FullSheet({
         </button>
       </header>
 
-      <p className="mt-3 text-paper-ink">{sheet.callingBlurb}</p>
+      {children}
+    </dialog>
+  );
+}
 
-      <p className="sheet-label mt-4">Vigour, which is your health</p>
-      <p className="text-paper-ink">
-        <span className="num">{sheet.vigour}</span> of {sheet.baseVigour}. Every floor takes some,
-        whether the door gives or not, and at nothing you do not come back up.
-      </p>
-
-      {/*
-        ROWS, NOT A THREE COLUMN GRID.
-
-        Each of these cells carries a label, two numbers, what the total is made
-        of, and a sentence explaining what the ability means. In three columns on
-        a phone that is about a hundred pixels of width per cell for a sentence,
-        which is where the full sheet fell apart: the text wrapped to a column
-        one or two words wide and the six cells grew to different heights.
-
-        A row gets the whole width and reads at any size, and it puts the numbers
-        in a column you can scan down, which is what a character sheet is for.
-      */}
+/**
+ * THE SIX ROWS, with what each ability is for.
+ *
+ * ROWS, NOT A THREE COLUMN GRID.
+ *
+ * Each of these cells carries a label, two numbers, what the total is made of,
+ * and a sentence explaining what the ability means. In three columns on a phone
+ * that is about a hundred pixels of width per cell for a sentence, which is
+ * where the full sheet fell apart: the text wrapped to a column one or two words
+ * wide and the six cells grew to different heights.
+ *
+ * A row gets the whole width and reads at any size, and it puts the numbers in a
+ * column you can scan down, which is what a character sheet is for.
+ */
+export function AbilityRows({ who }: { who: Brings }) {
+  return (
+    <>
       <ul className="mt-4 divide-y divide-paper-rule/60 border-y border-paper-rule/60">
-        {totals(sheet).map((t) => (
+        {totals(who).map((t) => (
           <li
             key={t.ability}
             className="flex items-baseline gap-3 py-2"
@@ -536,6 +549,39 @@ export function FullSheet({
       <p aria-hidden className="sheet-label mt-1">
         Score, then what you bring to a roll. &#10022; means trained.
       </p>
+    </>
+  );
+}
+
+/**
+ * EVERYTHING THAT IS YOURS, AND EVERYTHING YOU HAVE DONE, in one overlay.
+ */
+export function FullSheet({
+  sheet,
+  lines,
+  par,
+  onClose,
+}: {
+  sheet: Sheet;
+  lines: LedgerLine[];
+  par: number | null;
+  onClose: () => void;
+}) {
+  return (
+    <SheetDialog
+      label={`Your sheet · Floor ${sheet.floor} of ${sheet.floors}`}
+      title={sheet.callingName}
+      onClose={onClose}
+    >
+      <p className="mt-3 text-paper-ink">{sheet.callingBlurb}</p>
+
+      <p className="sheet-label mt-4">Vigour, which is your health</p>
+      <p className="text-paper-ink">
+        <span className="num">{sheet.vigour}</span> of {sheet.baseVigour}. Every floor takes some,
+        whether the door gives or not, and at nothing you do not come back up.
+      </p>
+
+      <AbilityRows who={sheet} />
 
       {sheet.kit.length > 0 && (
         <>
@@ -580,6 +626,6 @@ export function FullSheet({
       <div className="mt-1">
         <Ledger lines={lines} par={par} />
       </div>
-    </dialog>
+    </SheetDialog>
   );
 }

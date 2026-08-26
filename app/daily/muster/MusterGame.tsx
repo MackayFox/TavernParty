@@ -214,7 +214,7 @@ export function MusterGame({ date }: { date?: string | null }) {
   }
 
   return (
-    <section className="mx-auto w-full max-w-2xl py-6">
+    <section className="mx-auto w-full max-w-2xl py-6 lg:max-w-5xl">
       <DailyHeader game={GAME} date={data?.date ?? null} archive={!!data?.archive} />
       <RuleLine game={GAME} />
       <ErrorNote message={error} />
@@ -226,6 +226,31 @@ export function MusterGame({ date }: { date?: string | null }) {
         </Card>
       ) : data ? (
         <>
+          {/*
+            Two columns from `lg` up, the shape the Ledger already uses. Tonight's
+            doors stay on screen while you place the numbers against them, because
+            Muster is one decision made six times and it was being made by
+            scrolling up to read a target number and back down to change a select.
+            The phone keeps the single column: the doors first, then the build.
+
+            The left column scrolls inside itself when it is taller than the
+            window. A sticky panel taller than the viewport pins its top and hides
+            its own bottom for good, which is worse than not sticking at all.
+          */}
+          <div className="lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-6">
+            {/*
+              A REGION, AND FOCUSABLE, because it scrolls.
+              Once the doors are taller than the window this clips, and a panel
+              that scrolls with nothing focusable inside it is unreachable from a
+              keyboard: tab order steps straight over it into the build. The role
+              and the name are what make the tabstop mean something when it lands.
+            */}
+            <div
+              role="region"
+              aria-label="Tonight's work"
+              tabIndex={0}
+              className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto"
+            >
           <Card className="mt-4">
             <p className="label-caps">Tonight&apos;s work</p>
             <h2 className="font-display text-2xl font-bold text-text-hi">{data.encounter}</h2>
@@ -284,11 +309,14 @@ export function MusterGame({ date }: { date?: string | null }) {
             ) : null}
             <DieRule />
           </Card>
+            </div>
 
+            <div>
           <div className="mt-4">
             <Sheet
               title={calling?.name ?? "Unmustered"}
               subtitle={`Character sheet · ${data.date}`}
+              className="max-w-none"
             >
               <p className="text-paper-ink">{calling?.blurb}</p>
 
@@ -392,6 +420,8 @@ export function MusterGame({ date }: { date?: string | null }) {
           >
             {locked ? "Mustered" : busy ? "Setting off" : "Face the night"}
           </Button>
+            </div>
+          </div>
 
           {result ? (
             <div className="mt-6 space-y-4" ref={landed}>
