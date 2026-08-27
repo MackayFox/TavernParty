@@ -100,7 +100,34 @@ type Option = {
    */
   ruinSets?: string[];
 };
-type Room = { id: string; index: number; title: string; setup: string; boss: boolean; options: Option[] };
+type Aside = { when?: string[]; unless?: string[]; text: string };
+type Room = {
+  id: string;
+  index: number;
+  title: string;
+  setup: string;
+  asides: Aside[];
+  boss: boolean;
+  options: Option[];
+};
+
+/**
+ * Which of a room's asides apply to somebody carrying `held`.
+ *
+ * Filtered here rather than on the server because a mark is already public to
+ * the player holding it - the strip prints what you are carrying - and an aside
+ * is prose rather than an answer. Nothing to redact, and the rooms are sent once
+ * at the start of the run.
+ */
+function asidesFor(room: Room, held: readonly string[]): string[] {
+  const have = new Set(held);
+  return room.asides
+    .filter(
+      (a) =>
+        (a.when ?? []).every((m) => have.has(m)) && !(a.unless ?? []).some((m) => have.has(m))
+    )
+    .map((a) => a.text);
+}
 
 type Payload = {
   date: string;
@@ -119,6 +146,8 @@ type Payload = {
   callings: CallingCard[];
   kit: KitCard[];
   rooms: Room[];
+  /** Why you came down, and what it means if you get back up. */
+  premise: { hook: string; paid: string };
   baseVigour: number;
   maxScore: number;
 };
@@ -765,6 +794,20 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                       {room.title}
                     </h2>
                     <p className="prose-read mt-3">{room.setup}</p>
+                    {/*
+                      WHAT THE ROOM MAKES OF WHAT YOU BROUGHT IT.
+                      These are the descent's connective tissue: the same room
+                      reads differently soaked, or bleeding, or already heard,
+                      and this is where floor two is allowed to be visible on
+                      floor five. Same prose treatment as the setup, because it
+                      is the setup - just the part that could not be written
+                      until it knew who turned up.
+                    */}
+                    {asidesFor(room, carrying).map((text) => (
+                      <p key={text} className="prose-read mt-2 text-text-mid">
+                        {text}
+                      </p>
+                    ))}
                     {carrying.length > 0 && (
                       <p className="mt-2 max-w-[34em] text-sm text-text-low">
                         You are {listOf(carrying)}, and some doors care about that.
@@ -1128,6 +1171,20 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                 </ul>
               </Card>
 
+              {/*
+                WHY YOU ARE HERE, and it goes last, immediately above the button
+                that takes you down. A run used to open on a Calling and a
+                button: you went down because the button said so, and the bottom
+                was therefore only where the floors stopped. The rooms are dealt
+                blind from three bands and can never refer to each other, so the
+                frame has to come from outside them, and this is the one thing
+                about the night no shuffle can contradict.
+              */}
+              <Card>
+                <p className="label-caps">Why you are going down</p>
+                <p className="prose-read mt-2 text-text-hi">{data.premise.hook}</p>
+              </Card>
+
               <Button
                 size="lg"
                 disabled={!buildReady}
@@ -1161,6 +1218,11 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                       : "Out, and it is still down there."
                     : "You did not come back up."}
                 </h2>
+                {/* The reason, paid. Only on a run somebody walked out of:
+                    nothing is owed to a person still down there. */}
+                {reply.out && (
+                  <p className="prose-read mt-3 text-text-mid">{data.premise.paid}</p>
+                )}
                 <dl className="mt-3 space-y-1 text-sm">
                   <div className="flex justify-between">
                     <dt className="text-text-mid">Floors cleared</dt>

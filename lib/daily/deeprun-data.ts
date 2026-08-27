@@ -185,6 +185,31 @@ export const MARKS = {
 
 export type Mark = (typeof MARKS)[keyof typeof MARKS];
 
+/**
+ * A line the room only says if you arrive carrying something.
+ *
+ * THE REASON THE DESCENT READ AS A LIST. `setup` is one fixed string, so a room
+ * read identically whether it was your first floor or your sixth and whether you
+ * turned up dry and unnoticed or soaked, bleeding and already heard. The marks
+ * were doing real work underneath - thirty-seven doors are shut by them - but
+ * nothing on screen ever said so, so the only way the past showed up was an
+ * option quietly missing, with no explanation. Adam, on his third run: "there's
+ * no connection to the floor before, it's like 6 unconnected random events."
+ *
+ * FREE, IN THE ONLY SENSE THAT MATTERS HERE. `marksRead` keys the solver's memo
+ * on the marks that some DOOR tests, and the table is 2^that - which is why the
+ * house pool is capped at four marks. An aside is prose: it gates nothing, it
+ * never enters `marksRead`, and it costs the par search exactly nothing. So the
+ * connective tissue can be as thick as the writing allows.
+ */
+export type Aside = {
+  /** Shown only if every one of these is held. */
+  when?: string[];
+  /** Hidden if any one of these is held. */
+  unless?: string[];
+  text: string;
+};
+
 export type RoomDef = {
   id: string;
   /** 1 shallow, 2 middling, 3 deep. */
@@ -192,6 +217,14 @@ export type RoomDef = {
   boss?: boolean;
   title: string;
   setup: string;
+  /**
+   * What the room adds when it can see what happened upstairs.
+   *
+   * Written to be true of the room rather than of the mark: a wet floor is a
+   * different problem in The Long Dark than it is in The Works, and an aside
+   * that would fit any room is not worth having.
+   */
+  asides?: Aside[];
   options: OptionDef[];
 };
 
@@ -232,6 +265,18 @@ const BAND_1: RoomDef[] = [
     title: "The Screech",
     setup:
       "You are a dozen steps in when something screams and comes at you down the passage on all fours, faster than a thing that shape should move. It has its hands out in front of it and the hands are wrong. The walls are scored either side at hip height, a long way back up the passage, as though it has run this same line for years.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "It does not slow down when it sees you, and it does not look surprised. Whatever passed the word down passed it this far.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "You are dripping, and every drop is loud in a stone passage. It knew your distance before it started running.",
+      },
+    ],
     options: [
       {
         id: "meet",
@@ -294,6 +339,18 @@ const BAND_1: RoomDef[] = [
     title: "The Barred Door",
     setup:
       "The stair ends at a door barred from your side, which is the wrong side for a bar. The oak is scarred around the bracket and whoever set it meant it to stay set. There are scratches beneath the door, not on the inside of it but on the floor: something has been dragged across the stone recently. From the other side, nothing, which is not the same as nobody.",
+    asides: [
+      {
+        when: ["hurt"],
+        text:
+          "The bar is oak and it is going to want both arms, and one of yours is not answering properly.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "By your own light the scarring round the bracket reads clearly. It was done from this side, repeatedly, by somebody in a hurry.",
+      },
+    ],
     options: [
       {
         id: "read",
@@ -339,6 +396,18 @@ const BAND_1: RoomDef[] = [
     title: "Ankle Deep, Then Not",
     setup:
       "The floor slopes and the water is at your ankles at the top and your thighs at the bottom, and it is moving, which means it is going somewhere. The somewhere is a grating you cannot see the far side of. A rope is tied off at the top of the slope and runs down into the water, taut and steady, and nobody is holding the other end of it.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "You are already soaked to the chest, so the water has nothing left to take from you but warmth.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "Keep the flame high. The water is going somewhere and you would rather see where before you are in it.",
+      },
+    ],
     options: [
       {
         id: "wade",
@@ -387,6 +456,18 @@ const BAND_1: RoomDef[] = [
     title: "The Man on the Stair",
     setup:
       "A man is sitting on the third step with a lantern and a ledger, and he does not get up when he sees you. He asks, quite politely, what you are taking out. The ledger is open at a page of names all written in the same hand, and the lantern is trimmed and brimming, which is a great deal of oil for one man on one stair.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "He looks at your light before he looks at you, and writes something down.",
+      },
+      {
+        when: ["seen"],
+        text:
+          "He does not ask your name. He turns the ledger round so you can see it is already there.",
+      },
+    ],
     options: [
       {
         id: "talk",
@@ -434,6 +515,18 @@ const BAND_1: RoomDef[] = [
     title: "The Nest in the Vault",
     setup:
       "The vault has been somebody's larder for a long time and the somebody keeps to the ceiling. There is a way through and the way through is over a floor of dry husks and small bones that will not be quiet under any weight at all. A coat is folded square by the near door with the boots set on top, laces tucked in, as though whoever took them off meant to come back.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "You will cross that floor dripping, and the ceiling has spent years listening to a floor that is usually dry.",
+      },
+      {
+        when: ["seen"],
+        text:
+          "Something on the ceiling is already awake and has been since before you opened the door.",
+      },
+    ],
     options: [
       {
         id: "quiet",
@@ -480,6 +573,18 @@ const BAND_1: RoomDef[] = [
     title: "The Toll",
     setup:
       "Somebody has put a table across the passage. Behind it sits a man in a coat too good for the job, with a ledger, a lamp and a strongbox, and he asks for the fee as though there has always been a fee. The strongbox is bolted through to the floor and the lid has been forced once already, from the outside, and mended since by somebody in a hurry.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "His lamp and yours together show the table properly: the strongbox is bolted down and the coat is newer than the job.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "He prices you a second time when he sees how you are standing, and the second price is worse.",
+      },
+    ],
     options: [
       {
         id: "argue",
@@ -540,6 +645,18 @@ const BAND_1: RoomDef[] = [
     title: "The Wet Stair",
     setup:
       "The stair goes down under moving water and does not stop where you can see. Something upstream has been opened and nobody came back to close it. A boot stands on one of the upper treads with its laces still tied, filled and steady, and the water goes round it rather than shifting it. There is a bracket on the left wall at hand height and no handrail in it.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "There is nothing here to keep dry. That is one decision already made for you.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "Your flame is the only thing on this stair that water can end outright, and the stair goes down under it.",
+      },
+    ],
     options: [
       {
         id: "feel",
@@ -601,6 +718,18 @@ const BAND_1: RoomDef[] = [
     title: "The Queue",
     setup:
       "They stand single file along the passage wall, facing front, not talking. Nobody at the head of the line is doing anything and nobody in the line seems to mind. Each of them holds a numbered wooden tile, the numbers do not run in any order you can see, and the man nearest you has held his long enough to wear the paint off the edges. The passage past them is entirely clear.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "The head of the line turns to look at you. Nobody else in it moves at all.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "You are the only sound in the passage, and the sound is water leaving you a drop at a time.",
+      },
+    ],
     options: [
       {
         id: "ask",
@@ -660,6 +789,18 @@ const BAND_1: RoomDef[] = [
     title: "The Inventory",
     setup:
       "Racks and racks of other people's gear, sorted, labelled and dusted. Somebody has been bringing it all down here and writing it up in a good clear hand: a name, a date and a floor on every label. The dates at this end are recent and the ink on them still has a shine. There is a lamp burning on a hook at the end of the aisle with nobody anywhere near it.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "There is a gap on the nearest rack at about your size, with a label already written and the date left blank.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "The labels are legible by your own light: a name, a date, and a floor, on every single one.",
+      },
+    ],
     options: [
       {
         id: "shelf",
@@ -721,6 +862,18 @@ const BAND_1: RoomDef[] = [
     title: "The Squeeze",
     setup:
       "The passage closes down to a gap the width of a shoulder and the draught coming through it is warm. Nothing down here is warm, so the gap is either the way out or the reason nobody uses it. The rock at the edges is polished smooth at chest height and rough everywhere else, which means a great many people have gone through it, and all of them going the same way.",
+    asides: [
+      {
+        when: ["hurt"],
+        text:
+          "A shoulder-width gap is a different proposition with a shoulder that does not want to go first.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "Wet cloth in a warm gap. You will go in stiff and come out steaming, if you come out.",
+      },
+    ],
     options: [
       {
         id: "through",
@@ -780,6 +933,18 @@ const BAND_1: RoomDef[] = [
     title: "The Clerk",
     setup:
       "There is a desk in the passage with a man asleep at it, and the passage runs straight past him. A bell, a form on a spike, a sign saying all visitors must be recorded. The spike is thick with forms, and the top one is signed in a shaky hand and countersigned in a steady one. An inkwell sits at his elbow, a cloth under his wrist, and no lamp anywhere.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "The form on the spike is filled in already, in a hand not yours, down as far as the time you arrived.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "The sign is readable now. It has been amended twice, both times to add a condition.",
+      },
+    ],
     options: [
       {
         id: "past",
@@ -847,6 +1012,18 @@ const BAND_2: RoomDef[] = [
     title: "The Choir",
     setup:
       "Eleven of them stand in the long room singing the same note, and they have held it long enough to wear hollows in the floor where they stand. They stop when the door opens. None of them turns round. There is a twelfth hollow at the end of the line, worn just as deep, with nobody standing in it.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "They break the note as you come in, all eleven at once, and take a breath they do not need.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "Water off you hits the hollows in the floor and the room gives every drop back doubled.",
+      },
+    ],
     options: [
       {
         id: "join",
@@ -907,6 +1084,18 @@ const BAND_2: RoomDef[] = [
     title: "The Weighing Room",
     setup:
       "Brass scales the size of a cart, and a door plainly held shut by whatever sits on the light pan. The heavy pan holds what other people have already tried: a pair of boots, a helm with the strap cut, a bag of nails, and a wedding ring, which nobody parts with unless a door has had them a very long time.",
+    asides: [
+      {
+        when: ["hurt"],
+        text:
+          "Whatever you put on that pan you will have to lift, and lifting is the thing you are currently worst at.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "You can read what is already on the heavy pan. Most of it was somebody's kit and some of it was not kit.",
+      },
+    ],
     options: [
       {
         id: "sum",
@@ -952,6 +1141,18 @@ const BAND_2: RoomDef[] = [
     title: "The Long Dark",
     setup:
       "Two hundred feet of corridor with nothing in it. There is a scorched line at shoulder height on the near wall, and any flame carried past it burns down to a blue thumbnail and stays that way until the far end. Somebody has chalked a tally on the near side of the line. Somebody has chalked a shorter tally on the far side.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "The scorched line is at the height of the flame you are carrying. Two hundred feet of corridor, and something has measured it.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "Two hundred feet of nothing, soaked through, and the draught down here comes the whole way with you.",
+      },
+    ],
     options: [
       {
         id: "count",
@@ -1012,6 +1213,18 @@ const BAND_2: RoomDef[] = [
     title: "The Handhold",
     setup:
       "The floor has gone. Nine iron rungs cross the gap in the wall, and the shaft beneath them goes down further than a dropped coin will report on. The rungs are worn bright on the undersides as well as the tops, which is not how a person holds a rung.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "Nine iron rungs, and your hands are wet. Iron is generous about most things and not about that.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "Nine rungs is eighteen holds, and you have one arm you would trust with your weight.",
+      },
+    ],
     options: [
       {
         id: "fast",
@@ -1058,6 +1271,18 @@ const BAND_2: RoomDef[] = [
     title: "The Small Market",
     setup:
       "Six stalls under the vault, lit and staffed and doing brisk trade, several floors below where anybody trades. The bread is fresh. One stallholder waves you over by name, and the woman at the next stall along is wearing a good coat that you last saw on somebody who came down here in the spring and did not come back up.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "You are lit, so they have seen you coming. Two of the stalls stop trading and wait.",
+      },
+      {
+        when: ["seen"],
+        text:
+          "The stallholder who waved is not waving at you. He is waving to somebody behind you that you cannot see.",
+      },
+    ],
     options: [
       {
         id: "trade",
@@ -1103,6 +1328,18 @@ const BAND_2: RoomDef[] = [
     title: "The Audit",
     setup:
       "Three of them at a long table with your kit laid out on it, itemised, in the order you packed it. None of them is armed and none of them will move until you sit down. There is a fourth chair pushed in at the end of the table, with a mug in front of it, full, and gone cold a long time ago.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "They have laid your kit out in your own lamplight, which saves them a lamp and tells you how long they have known.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "One of them writes down how you are standing before she writes down anything you are carrying.",
+      },
+    ],
     options: [
       {
         id: "account",
@@ -1162,6 +1399,18 @@ const BAND_2: RoomDef[] = [
     title: "The Restructure",
     setup:
       "The passage you came down is not the passage behind you. The floor has been reorganised while you were standing in it, and a long way off you can hear more of it being reorganised. There is a chalk arrow on the wall at knee height, pointing at nothing, and a second arrow under it crossed out. Somebody has been through here more than once, and did not agree with themselves the second time.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "The floor was reorganised while you stood in it, and it was reorganised around where you were standing.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "By your own light you can watch the far end of it still settling, which is worse than arriving after.",
+      },
+    ],
     options: [
       {
         id: "map",
@@ -1222,6 +1471,18 @@ const BAND_2: RoomDef[] = [
     title: "The Lantern Keeper",
     setup:
       "One lamp in the whole gallery, and a woman sitting under it with a book open on her knees. She has been down here long enough to have a chair, and long enough to have worn a shine into the stone where she puts her feet. She says the lamp is the last one and asks what you are going to do about it. There is a page torn out of the book.",
+    asides: [
+      {
+        unless: ["lit"],
+        text:
+          "Her lamp is the only light on this floor and she is under no obligation to share it.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "You have your own light, which changes the conversation. She marks her page and waits to hear what else you want.",
+      },
+    ],
     options: [
       {
         id: "share",
@@ -1282,6 +1543,18 @@ const BAND_2: RoomDef[] = [
     title: "The Works",
     setup:
       "Something enormous is running in the dark on the far side of the gallery, and it has been running so long the rock is polished where it turns. The walkway across goes over the middle of it. Halfway along, somebody has bolted a bench to the rail and left a tin cup standing on the bench, and the cup is upright and it is full.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "Wet hands and polished rock, on something that has not stopped turning in living memory.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "Whatever you do here wants timing and reach, and you have given away some of both.",
+      },
+    ],
     options: [
       {
         id: "time",
@@ -1343,6 +1616,18 @@ const BAND_2: RoomDef[] = [
     title: "The Quota",
     setup:
       "A door with a slot in it and a tally chalked beside the slot, and the tally is one short. Whoever is on the other side is not opening anything until the number is right. Under the slot the stone is worn smooth in a band about the width of a shoulder, and there is a bucket beside it with a lid on it, and nobody has lifted the lid in a long time.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "The tally is one short and the chalk is fresh. Somebody counted very recently, and counted you.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "You are, on the arithmetic available to whoever is behind that door, the missing one.",
+      },
+    ],
     options: [
       {
         id: "talk",
@@ -1403,6 +1688,18 @@ const BAND_2: RoomDef[] = [
     title: "The Long Gallery",
     setup:
       "A gallery of the people who came down before you, standing along both walls, dressed and posed and perfectly still. They all face the way you are going. The one at the end on the left is wearing your coat, down to the mend at the cuff you made yourself last winter, and there is an empty stand beside it with the dust already brushed off the top of it.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "They all face the way you are going, except the nearest three, who do not any more.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "Your light reaches their faces. They are all wearing the expression of somebody part-way through a decision.",
+      },
+    ],
     options: [
       {
         id: "walk",
@@ -1469,6 +1766,18 @@ const BAND_3: RoomDef[] = [
     title: "The Still Water",
     setup:
       "A pool the width of the room, with no current in it at all. Your reflection is doing what you are doing about a half-second late, and it is not out of breath, and its coat is dry. The only door out is past the middle. On the near lip there are boot prints going in, a good many of them, and none coming back.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "You are wet and so is the reflection, which is the first thing all day that has agreed with you.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "The reflection is standing straight. Whatever it is copying, it is not copying that.",
+      },
+    ],
     options: [
       {
         id: "ignore",
@@ -1517,6 +1826,18 @@ const BAND_3: RoomDef[] = [
     title: "The Reading Room",
     setup:
       "Somebody has been writing down everything that comes through this floor, and the stacks go up past where the light reaches. The newest page carries your description in a hand still wet enough to smudge, and it is accurate, including the thing that happened to you further up that nobody was there to see. There is no chair at the desk.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "The newest page is current to about a minute ago, and the hand does not shake.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "The stacks go up out of your light and keep going. Somebody has been very thorough for a very long time.",
+      },
+    ],
     options: [
       {
         id: "unwrite",
@@ -1562,6 +1883,18 @@ const BAND_3: RoomDef[] = [
     title: "The Ceiling Comes Down",
     setup:
       "The gallery ceiling is on four props and two of them are out, lying splintered where something put them there. At the far end the stone has already come down enough to rest on the tops of the two that are left, and it creaks when you breathe. The way through is under all of it. Halfway along, in the dust, there is a boot, still laced.",
+    asides: [
+      {
+        when: ["hurt"],
+        text:
+          "Two props out, and whatever you do about it is going to be done at a run you are not currently capable of.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "Wet boots, splintered props and a floor of loose stone. Pick where your feet go before you commit to going.",
+      },
+    ],
     options: [
       {
         id: "prop",
@@ -1607,6 +1940,18 @@ const BAND_3: RoomDef[] = [
     title: "The Gate That Asks",
     setup:
       "A door with no handle, and a voice behind it asking one question over and over in the tone of somebody with all night. It has all night. You were asked this exact question already tonight, further up, in the same words, by something with a face, and you gave it an answer then. The voice on this side of the wood is waiting to hear whether you give the same one.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "It stops asking when you arrive. It has the question answered and it wants to hear you say it.",
+      },
+      {
+        unless: ["seen"],
+        text:
+          "It asks again, in the same tone, to a passage it has no reason to think anybody is standing in.",
+      },
+    ],
     options: [
       {
         id: "answer",
@@ -1653,6 +1998,18 @@ const BAND_3: RoomDef[] = [
     title: "The Last Light",
     setup:
       "One lamp in this room, on a hook, and it is not yours. It burns an oil that smells like nothing you are carrying. The moment you cross the middle of the floor it will go out, and you know that the way you know the floor is stone. Everything else about the room is fine. On the far wall there is a second hook, and it is empty.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "You already have a light, so the hook is only a hook, and the room has to think of something else.",
+      },
+      {
+        unless: ["lit"],
+        text:
+          "It is the only light in the room and you have nothing of your own to leave in its place.",
+      },
+    ],
     options: [
       {
         id: "map",
@@ -1705,6 +2062,23 @@ const BOSSES: RoomDef[] = [
     title: "The Keeper of the Bottom Floor",
     setup:
       "It has been down here longer than the building has been up. It sits between you and the stair with its hands on its knees, patient as furniture. Beside it, chalk marks on the wall in pairs: strokes going down, strokes coming back, and the columns do not match. The going-down column is longer. It watches you find that, and waits.",
+    asides: [
+      {
+        when: ["hurt"],
+        text:
+          "It looks at the way you are holding yourself, and settles slightly, like something that has decided it can wait.",
+      },
+      {
+        when: ["seen"],
+        text:
+          "It was already looking at the door when you opened it.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "By your own light you can see what is beside it, and how long the pile has been accumulating.",
+      },
+    ],
     options: [
       {
         id: "fight",
@@ -1765,6 +2139,18 @@ const BOSSES: RoomDef[] = [
     title: "The Thing in the Well",
     setup:
       "The stair up runs round the inside of a well shaft, bolted to the wall, and the shaft is not empty, and it has the whole climb to reach you. You can see as far as the first turn and no further. At eye height somebody has scratched a word into the wet stone and got partway through the second letter before they stopped scratching.",
+    asides: [
+      {
+        when: ["wet"],
+        text:
+          "The climb is bolted iron and your hands are wet, and it has the whole shaft to come up.",
+      },
+      {
+        when: ["lit"],
+        text:
+          "Your light goes down the shaft a good way. You would rather it had not.",
+      },
+    ],
     options: [
       {
         id: "climb",
@@ -1826,6 +2212,18 @@ const BOSSES: RoomDef[] = [
     title: "The Court in Session",
     setup:
       "Nine of them behind a long table, and a chair on your side of it, and a clerk who asks you politely to sit. The door you came in by is not in the wall any more. The chair has been sat in a great deal: the arms are worn pale and the front legs are scuffed backwards, as though whoever sat there kept trying to stand up.",
+    asides: [
+      {
+        when: ["seen"],
+        text:
+          "There is a file open in front of the clerk and it is not thin.",
+      },
+      {
+        when: ["hurt"],
+        text:
+          "One of the nine writes for some time after looking at you, and does not look up again.",
+      },
+    ],
     options: [
       {
         id: "plead",
@@ -1886,6 +2284,18 @@ const BOSSES: RoomDef[] = [
     title: "What the Hoard Is Sitting On",
     setup:
       "There it is, all of it, heaped the size of a cart, and the heap breathes: slowly, with a long empty wait between one breath and the next, and it has not noticed you. Near your boot there is a print in the dust, pointing at the heap. It is the only print, and there is nothing at all leading away from it.",
+    asides: [
+      {
+        when: ["lit"],
+        text:
+          "Your light reaches the far side of the heap. The breathing is not coming from the middle of it.",
+      },
+      {
+        when: ["wet"],
+        text:
+          "Water off you goes into the heap and does not come back out, and the wait between breaths shortens.",
+      },
+    ],
     options: [
       {
         id: "lift",
@@ -1947,6 +2357,18 @@ const BOSSES: RoomDef[] = [
     title: "The Door You Came In By",
     setup:
       "You have come the whole way round, and here is the door you came in by, from the inside, and it is barred. On your side, which is the wrong side for a bar, and you did not bar it. The oak is scarred all round the bracket. On the floor beneath the door there are scratches, fresh ones, and they run in the direction of the room behind you.",
+    asides: [
+      {
+        when: ["hurt"],
+        text:
+          "Barred from the wrong side again, and the arm that failed you at the first door has not improved.",
+      },
+      {
+        when: ["seen"],
+        text:
+          "Something is coming up the passage behind you at a walk, in no particular hurry, because it knows about the bar.",
+      },
+    ],
     options: [
       {
         id: "unbar",
@@ -1998,6 +2420,60 @@ const BOSSES: RoomDef[] = [
         "You come out through the render into the yard with your knuckles opened and your ears ringing, and the door stays barred behind you, which is somebody else's problem now.",
       ),
     ],
+  },
+];
+
+/**
+ * WHY YOU CAME DOWN, and what it means if you get back up.
+ *
+ * The descent had no frame at all. You picked a Calling, pressed "Go down", met
+ * six rooms and stopped, and because the rooms are dealt blind from three bands
+ * none of them could refer to any of the others. Adam, on his third run: "there
+ * is no connection to the floor before, it does not feel like I am exploring a
+ * dungeon at all, it is like 6 unconnected random events are happening to me."
+ *
+ * The asides fixed the join between floors. This is the other half: a run needs
+ * a reason at the top and the reason needs paying at the bottom, or the bottom is
+ * just where the floors stopped.
+ *
+ * Written so `hook` never contradicts a dealt room. It says why YOU are here,
+ * which is the one thing about the night no shuffle can argue with, and `paid`
+ * only ever lands when somebody actually walked out.
+ */
+export type Premise = { hook: string; paid: string };
+
+export const PREMISES: readonly Premise[] = [
+  {
+    hook: "Your brother went down with a survey party in the spring and the party came back one short. Nobody at the top will say which one, which is its own answer.",
+    paid: "You did not find him. You found the survey, filed, complete, with the party listed at full strength, and now you know who is lying.",
+  },
+  {
+    hook: "The Hall paid you a third up front, which is more than the job is worth and much less than it will cost. The other two thirds are conditional on you coming back.",
+    paid: "You came back, so the rest is owed. Whether the Hall pays a person who has seen the bottom floor is a separate question, and one they will have thought about.",
+  },
+  {
+    hook: "It has been raining for eleven days and the lower town has started coming apart, and everybody agrees this is because something is blocked underneath.",
+    paid: "It was blocked. It is not now, and you are the reason, and the water you let past has gone somewhere you did not stay long enough to see.",
+  },
+  {
+    hook: "Somebody has been bringing gear down here for years and writing it up in a good clear hand. The hand belongs to a person, and the person has never been up.",
+    paid: "You have their ledger. Every page is dated, every entry is somebody, and the last entry was written this morning.",
+  },
+  {
+    hook: "A door at the bottom has been barred from the inside since before the building above it was finished, and the Hall would like to know by whom.",
+    paid: "You know by whom. You are not going to be able to prove it, and the people who sent you down are going to want proof.",
+  },
+  {
+    hook: "The take is meant to be split four ways. Two of the four did not turn up at the meeting point and the fourth has been talking to somebody else about the route.",
+    paid: "The whole take is yours because nobody else is coming up to argue about the split, and that is not the same as winning the argument.",
+  },
+  {
+    hook: "You have been down before. You did not get far, you did not tell anybody how badly, and something on the third floor has been expecting you since.",
+    paid: "It was still there. It recognised you, which is the part you will be thinking about for a while.",
+  },
+  {
+    hook: "There is a rent due at the end of the week and the sum is not a sum you can earn above ground in a week.",
+    paid: "The rent is paid, several times over, and the man who set it will want to know where it came from.",
   },
 ];
 

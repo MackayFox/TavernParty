@@ -282,6 +282,7 @@ describe("a deep run survives a reload", () => {
         index: 0,
         title: "The Stair",
         setup: "",
+        asides: [],
         boss: false,
         options: [
           { id: "r1-climb", label: "Climb", kind: "check", vigour: 2, promise: "" },
@@ -292,12 +293,14 @@ describe("a deep run survives a reload", () => {
         index: 1,
         title: "The Sump",
         setup: "",
+        asides: [],
         boss: true,
         options: [
           { id: "r2-wade", label: "Wade", kind: "brace", vigour: 3, promise: "" },
         ],
       },
     ],
+    premise: { hook: "h", paid: "p" },
     baseVigour: 9,
     maxScore: 40,
   });

@@ -56,6 +56,9 @@ import {
   DEEP_ROOMS,
   KNACK_BY_CALLING,
   KNACKS,
+  PREMISES,
+  type Aside,
+  type Premise,
   type KnackKind,
   type OptionDef,
   type RoomDef,
@@ -130,6 +133,15 @@ export type PuzzleRoom = {
   index: number;
   title: string;
   setup: string;
+  /**
+   * Lines the room only says if you arrive carrying something.
+   *
+   * Sent whole and filtered in the browser, which is safe because a mark is
+   * already public to the player who holds it - the descent prints "you are wet
+   * and seen" above the doors. These are flavour, never an answer, so there is
+   * nothing here to redact.
+   */
+  asides: Aside[];
   boss: boolean;
   options: PuzzleOption[];
 };
@@ -147,6 +159,14 @@ export type Puzzle = {
   }[];
   kit: { id: string; name: string; blurb: string; ability: Ability | null; value: number }[];
   rooms: PuzzleRoom[];
+  /**
+   * Why you came down tonight, and what it means if you get back up.
+   *
+   * Dealt from the date like everything else, so the whole world gets the same
+   * reason on the same night. It never refers to a room, because the rooms are
+   * dealt blind and no line of prose can safely assume one turned up.
+   */
+  premise: Premise;
   baseVigour: number;
   /**
    * What the dice are pinned to.
@@ -662,6 +682,7 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
     index: i,
     title: room.title,
     setup: room.setup,
+    asides: room.asides ?? [],
     boss: !!room.boss,
     options: room.options.map((o) => ({
       id: o.id,
@@ -702,6 +723,11 @@ export function puzzleFrom(design: Design, arraySeed = design.seed): Puzzle {
     callings,
     kit,
     rooms,
+    /*
+     * Off the seed rather than the date, so an authored dungeon gets one too and
+     * a re-drawn day keeps the reason it was shown with.
+     */
+    premise: PREMISES[Math.abs(dateSeed(`${design.seed}:premise`)) % PREMISES.length],
     baseVigour: design.baseVigour,
     maxScore: ceilingFor(design.rooms.length, design.baseVigour),
   };

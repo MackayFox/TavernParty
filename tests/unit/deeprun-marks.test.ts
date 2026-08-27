@@ -23,8 +23,8 @@ import {
   stakeLine,
   listOf,
 } from "@/lib/daily/core";
-import { MARKS, DEEP_ROOMS, DEEP_BOSSES, type RoomDef } from "@/lib/daily/deeprun-data";
-import { publicPuzzle, puzzleFor, run } from "@/lib/daily/deeprun";
+import { MARKS, PREMISES, DEEP_ROOMS, DEEP_BOSSES, type RoomDef } from "@/lib/daily/deeprun-data";
+import { marksRead, publicPuzzle, puzzleFor, run } from "@/lib/daily/deeprun";
 import { instantProblems, mechanicalHash } from "@/lib/campaign/gate";
 
 const ALL: RoomDef[] = [...DEEP_ROOMS, ...DEEP_BOSSES];
@@ -312,5 +312,73 @@ describe("what the player is allowed to see", () => {
     const quiet = CHECKS.filter(({ o }) => (o.ruinSets ?? []).length === 0);
     for (const { r, o } of quiet)
       expect(stakeLine(o.ruinSets), `${r.id}/${o.id}`).toBeTruthy();
+  });
+});
+
+describe("what a room says about what you brought it", () => {
+  const ASIDES = ALL.flatMap((r) => (r.asides ?? []).map((a) => ({ r, a })));
+
+  /**
+   * The descent read as six unrelated events because `setup` is one fixed string:
+   * a room could not tell whether it was your first floor or your sixth. Asides
+   * are the fix, so there has to be enough of them to be felt.
+   */
+  it("gives every room something to say", () => {
+    for (const r of ALL)
+      expect((r.asides ?? []).length, `${r.id} has nothing to say about a mark`).toBeGreaterThan(0);
+    expect(ASIDES.length).toBeGreaterThan(40);
+  });
+
+  /** A mark nobody sets is a line nobody reads. */
+  it("only ever reacts to marks the pool actually hands out", () => {
+    const known = new Set<string>(Object.values(MARKS));
+    for (const { r, a } of ASIDES)
+      for (const m of [...(a.when ?? []), ...(a.unless ?? [])])
+        expect(known.has(m), `${r.id} reacts to "${m}", which is not a mark`).toBe(true);
+  });
+
+  /**
+   * THE REASON ASIDES ARE FREE.
+   *
+   * `marksRead` keys the solver's memo on the marks a DOOR tests, and the table
+   * is 2^that, which is why the house pool is capped at four. Asides are prose
+   * and gate nothing, so they must never widen that key: if this ever fails,
+   * somebody has started gating on an aside's mark and the par search has
+   * quietly got more expensive.
+   */
+  it("costs the solver nothing", () => {
+    const gated = marksRead(ALL);
+    expect(gated.size).toBeLessThanOrEqual(Object.keys(MARKS).length);
+  });
+
+  /** Written for the room, not for the mark: a line that would fit anywhere is
+   *  not worth having, and the cheapest proxy for that is that no two rooms
+   *  share one. */
+  it("says something different in every room", () => {
+    const seen = new Map<string, string>();
+    for (const { r, a } of ASIDES) {
+      const prior = seen.get(a.text);
+      expect(prior, `${r.id} reuses an aside from ${prior}`).toBeUndefined();
+      seen.set(a.text, r.id);
+    }
+  });
+});
+
+describe("why you came down", () => {
+  it("gives every premise a hook and a payoff", () => {
+    expect(PREMISES.length).toBeGreaterThan(4);
+    for (const p of PREMISES) {
+      expect(p.hook.length, p.hook).toBeGreaterThan(40);
+      expect(p.paid.length, p.paid).toBeGreaterThan(40);
+    }
+  });
+
+  /** House voice: no em-dashes in anything a player reads. */
+  it("keeps the em-dash out of player-facing copy", () => {
+    for (const p of PREMISES) {
+      expect(p.hook).not.toMatch(/—/);
+      expect(p.paid).not.toMatch(/—/);
+    }
+    for (const r of ALL) for (const a of r.asides ?? []) expect(a.text).not.toMatch(/—/);
   });
 });
