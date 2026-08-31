@@ -9,10 +9,6 @@ import { CANONICAL_ORIGIN } from "../site";
  * Keep the descriptions honest and in the site's own words where it has them. A
  * row of near-identical keyword-stuffed blurbs pointing at each other is the
  * shape of a link scheme, and it reads like one to a person too.
- *
- * NOTE: the reciprocal rows in the other repos are a Friday job. Aux Wars and
- * Shareholder Party are live and were deliberately left untouched while this was
- * built. See FRIDAY.md.
  */
 export type NetworkSite = {
   id: string;
@@ -47,6 +43,13 @@ export const NETWORK: NetworkSite[] = [
     url: CANONICAL_ORIGIN,
     tagline: "Roll a character, survive five encounters, and only one of you gets the loot.",
     emoji: "🍺",
+  },
+  {
+    id: "puzzleparty",
+    name: "Puzzle Party",
+    url: "https://www.puzzleparty.co.uk",
+    tagline: "Daily puzzles, and a tournament two to twelve friends can join from one link.",
+    emoji: "🧩",
   },
   {
     id: "carball",
