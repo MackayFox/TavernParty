@@ -103,7 +103,7 @@ export function Footer() {
           affiliated with, endorsed by or based on any published tabletop roleplaying game, and it
           contains none of anybody else&apos;s text.
         </p>
-        <p>© {new Date().getFullYear()} Tavern Party · tavernparty.co.uk</p>
+        <p>© {new Date().getFullYear()} Tavern Party · tavernparty.com</p>
       </div>
     </footer>
   );

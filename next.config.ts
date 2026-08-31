@@ -13,8 +13,8 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        has: [{ type: "host", value: "www.tavernparty.co.uk" }],
-        destination: "https://tavernparty.co.uk/:path*",
+        has: [{ type: "host", value: "www.tavernparty.com" }],
+        destination: "https://tavernparty.com/:path*",
         permanent: true,
       },
     ];

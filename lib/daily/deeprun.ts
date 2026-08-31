@@ -1125,7 +1125,7 @@ export function shareText(
     glyphs,
     `${result.score} of a possible ${par}`,
     dungeon
-      ? `https://tavernparty.co.uk/d/${dungeon.code}`
-      : "https://tavernparty.co.uk/daily/deeprun",
+      ? `https://tavernparty.com/d/${dungeon.code}`
+      : "https://tavernparty.com/daily/deeprun",
   ].join("\n");
 }

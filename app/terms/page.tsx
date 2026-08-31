@@ -43,7 +43,7 @@ export default function TermsPage() {
           The short set of rules that is not the game
         </h1>
         <p className="prose-read text-text-mid">
-          Using tavernparty.co.uk means agreeing to these. They are written to be read, so
+          Using tavernparty.com means agreeing to these. They are written to be read, so
           they are short.
         </p>
       </header>

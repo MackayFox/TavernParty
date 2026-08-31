@@ -63,14 +63,14 @@ const good = {
 };
 
 const req = (url: string, body?: unknown) =>
-  new Request(`https://tavernparty.co.uk${url}`, {
+  new Request(`https://tavernparty.com${url}`, {
     method: body === undefined ? "GET" : "POST",
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
 const put = (url: string, body: unknown) =>
-  new Request(`https://tavernparty.co.uk${url}`, {
+  new Request(`https://tavernparty.com${url}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

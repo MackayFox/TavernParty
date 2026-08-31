@@ -16,7 +16,7 @@
 import Link from "next/link";
 import { JsonLd } from "@/components/JsonLd";
 
-const BASE = "https://tavernparty.co.uk";
+const BASE = "https://tavernparty.com";
 
 export type CharacterPage = {
   path: string;

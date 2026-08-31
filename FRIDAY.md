@@ -71,7 +71,7 @@ rename of four tables.
 ### Auth settings — the one thing that cannot be automated
 
 - [ ] **(you)** Authentication → URL Configuration. Set **Site URL** to
-      `https://tavernparty.co.uk` and add it plus `http://localhost:3000` to the
+      `https://tavernparty.com` and add it plus `http://localhost:3000` to the
       redirect allowlist.
 - [ ] **(you)** Decide whether "Confirm email" stays on. Either setting works:
       `/signup` tries to log you straight in and only shows the "check your email"
@@ -121,7 +121,7 @@ every game on the site.
 
 ## 4. Domain
 
-- [ ] **(you)** Buy `tavernparty.co.uk` if it is still free. Worth checking before
+- [ ] **(you)** Buy `tavernparty.com` if it is still free. Worth checking before
       any of the copy gets written around the name.
 - [ ] **(me)** Attach the apex and `www` to the project.
 - [ ] **(you)** Point DNS at Vercel. If the apex ends up `SERVFAIL`ing with correct

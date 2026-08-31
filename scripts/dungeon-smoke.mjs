@@ -288,7 +288,7 @@ async function main() {
   check("the share names the dungeon", share.includes("THE WEEPING STAIR"), share.slice(0, 60));
   check("the share links to the dungeon", share.includes(`/d/${code}`), share);
   check("the share does not link to the daily", !share.includes("/daily/deeprun"), share);
-  check("every url in it has a scheme", !/[^/]tavernparty\.co\.uk/.test(share.replace(/https:\/\//g, "https://")), share);
+  check("every url in it has a scheme", !/[^/]tavernparty\.com/.test(share.replace(/https:\/\//g, "https://")), share);
 
   // ---- the daily is untouched -------------------------------------------
   const daily = await bev.call("GET", "/api/daily/deeprun");

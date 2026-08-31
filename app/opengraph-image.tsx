@@ -40,7 +40,7 @@ export default async function Image() {
               textTransform: "uppercase",
             }}
           >
-            tavernparty.co.uk
+            tavernparty.com
           </div>
         </div>
 

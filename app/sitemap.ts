@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { CHARACTER_PAGES } from "@/app/characters/shared";
 import { DAILY_GAMES, DAILY_META } from "@/lib/daily/core";
 
-const BASE = "https://tavernparty.co.uk";
+const BASE = "https://tavernparty.com";
 
 /**
  * Every public page, and nothing else. A sitemap is a list of pages you want in

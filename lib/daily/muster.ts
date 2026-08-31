@@ -350,6 +350,6 @@ export function shareText(date: string, result: Result, par: number, encounter: 
     `MUSTER ${date}`,
     `${encounter}: ${result.cleared} of ${result.trials.length}, ${parPhrase(result.cleared, par)}`,
     grid,
-    "https://tavernparty.co.uk/daily/muster",
+    "https://tavernparty.com/daily/muster",
   ].join("\n");
 }

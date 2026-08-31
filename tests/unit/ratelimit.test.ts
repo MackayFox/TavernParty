@@ -28,7 +28,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 const { rateLimit } = await import("@/lib/ratelimit");
 
 const req = (ip = "1.2.3.4") =>
-  new Request("https://tavernparty.co.uk/api/tables", { headers: { "x-forwarded-for": ip } });
+  new Request("https://tavernparty.com/api/tables", { headers: { "x-forwarded-for": ip } });
 
 afterEach(() => {
   calls.length = 0;

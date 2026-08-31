@@ -513,7 +513,7 @@ describe("share text is shareable", () => {
     const fs = await import("node:fs");
     for (const f of ["deeprun", "ledger", "longway", "muster"]) {
       const text = fs.readFileSync(`lib/daily/${f}.ts`, "utf8");
-      const hosts = text.match(/["'][^"']*tavernparty\.co\.uk[^"']*["']/g) ?? [];
+      const hosts = text.match(/["'][^"']*tavernparty\.com[^"']*["']/g) ?? [];
       expect(hosts.length, f).toBeGreaterThan(0);
       for (const h of hosts) expect(h, `${f}: ${h}`).toContain("https://");
     }

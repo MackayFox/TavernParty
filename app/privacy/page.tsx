@@ -52,7 +52,7 @@ export default function PrivacyPage() {
           real database tables.
         </p>
         <p className="text-sm text-text-low">
-          This notice covers tavernparty.co.uk. It is operated from the United Kingdom, and
+          This notice covers tavernparty.com. It is operated from the United Kingdom, and
           English law applies to it.
         </p>
       </header>

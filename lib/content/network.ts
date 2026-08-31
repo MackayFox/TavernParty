@@ -43,7 +43,7 @@ export const NETWORK: NetworkSite[] = [
   {
     id: "tavernparty",
     name: "Tavern Party",
-    url: "https://tavernparty.co.uk",
+    url: "https://tavernparty.com",
     tagline: "Roll a character, survive five encounters, and only one of you gets the loot.",
     emoji: "🍺",
   },

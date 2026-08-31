@@ -26,7 +26,7 @@ import { CHARACTER_PAGES } from "@/app/characters/shared";
 import { DISALLOWED, isDisallowed } from "@/app/crawl";
 import sitemap from "@/app/sitemap";
 
-const BASE = "https://tavernparty.co.uk";
+const BASE = "https://tavernparty.com";
 
 /**
  * Route path to page module. Written out rather than globbed, because a glob

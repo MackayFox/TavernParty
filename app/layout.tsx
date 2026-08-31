@@ -39,7 +39,7 @@ const mono = IBM_Plex_Mono({
  * Naming it here would pin every page to the same picture forever.
  */
 export const metadata: Metadata = {
-  metadataBase: new URL("https://tavernparty.co.uk"),
+  metadataBase: new URL("https://tavernparty.com"),
   title: {
     default: "Tavern Party: Roll a Character, Survive the Night",
     template: "%s · Tavern Party",
@@ -59,6 +59,16 @@ export const metadata: Metadata = {
   // Everything else it needs it takes from the Open Graph tags above.
   twitter: { card: "summary_large_image" },
   robots: { index: true, follow: true },
+  /**
+   * AdSense verifies ownership by any one of three things: the ads.txt line,
+   * the loader script, or this meta tag. The tag is the only one that survives
+   * a crawler that does not run JavaScript and does not wait for a static file
+   * fetch, so all three are here rather than whichever one is fashionable.
+   * Same env var as the script, so an unconfigured environment emits nothing.
+   */
+  ...(process.env.NEXT_PUBLIC_ADSENSE_CLIENT
+    ? { other: { "google-adsense-account": process.env.NEXT_PUBLIC_ADSENSE_CLIENT } }
+    : {}),
 };
 
 export const viewport: Viewport = {

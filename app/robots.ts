@@ -10,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
       // have to nofollow them, and they should not be importing a route file.
       disallow: DISALLOWED,
     },
-    sitemap: "https://tavernparty.co.uk/sitemap.xml",
+    sitemap: "https://tavernparty.com/sitemap.xml",
   };
 }

@@ -9,6 +9,7 @@ next-env.d.ts
 !.env.example
 .remember/
 SETUP.txt
+SUPABASE.txt
 
 .vercel
 .env*

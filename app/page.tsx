@@ -542,7 +542,7 @@ export default function HomePage() {
           "@context": "https://schema.org",
           "@type": "VideoGame",
           name: "Tavern Party",
-          url: "https://tavernparty.co.uk",
+          url: "https://tavernparty.com",
           description:
             "A free fantasy roleplaying game in the browser. Roll a character, take on five encounters with friends, and find out which of you walks out with the loot.",
           genre: ["Role-playing game", "Party game", "Puzzle"],
