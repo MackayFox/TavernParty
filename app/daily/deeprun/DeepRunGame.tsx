@@ -398,6 +398,14 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
    * arrives with its own `tp-descend`, and animating a scroll through prose
    * nobody has read yet is motion for its own sake.
    */
+  /**
+   * Whether the doors have finished arriving. See the note on the door button.
+   *
+   * Keyed on the floor rather than on a boolean, so it re-arms every time a new
+   * scene lands rather than only once per run.
+   */
+  const [doorsReady, setDoorsReady] = useState(false);
+
   const stage = useRef<HTMLDivElement | null>(null);
   const scene = useRef<HTMLHeadingElement | null>(null);
   useEffect(() => {
@@ -414,6 +422,36 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
       heading.focus();
     }
   }, [descending, seen]);
+
+  /**
+   * Arm the doors once they have actually arrived.
+   *
+   * Re-runs per floor, so every scene re-arms rather than the first one arming
+   * for the whole run. Somebody who has asked for less movement gets no
+   * animation at all (see the `prefers-reduced-motion` block in globals.css), so
+   * for them the doors are visible on the first paint and waiting would be a
+   * delay with nothing behind it.
+   */
+  useEffect(() => {
+    if (!descending) return;
+    let reduced = false;
+    try {
+      reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+      reduced = false;
+    }
+    if (reduced) {
+      setDoorsReady(true);
+      return;
+    }
+    setDoorsReady(false);
+    const doors = data.rooms[seen]?.options.length ?? 3;
+    const id = window.setTimeout(
+      () => setDoorsReady(true),
+      DOORS_AFTER_MS + Math.max(0, doors - 1) * DOOR_STAGGER_MS
+    );
+    return () => window.clearTimeout(id);
+  }, [descending, seen, data.rooms]);
 
   /**
    * AND WHEN THE RUN ENDS, TAKE THEM TO THE SCORE.
@@ -921,9 +959,24 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                             label, which is the same control drawn twice and about
                             twice the height it needed. The card is the control now.
                           */}
+                          {/*
+                            NOT PRESSABLE WHILE IT IS INVISIBLE.
+
+                            The doors fade in on a stagger, and `tp-descend`
+                            starts at `opacity: 0` with `animation-fill-mode:
+                            both`, so for up to about 870ms after a floor lands
+                            each door existed, sat in the tab order and answered
+                            Enter while being completely unseeable. Focus moves
+                            to the scene heading immediately, so a fast keyboard
+                            player could tab straight into a control that was not
+                            there yet.
+
+                            Choosing a door is the one irreversible act in the
+                            game. Committing to an invisible one is a lost run.
+                          */}
                           <button
                             type="button"
-                            disabled={busy || shut}
+                            disabled={busy || shut || !doorsReady}
                             onClick={() => void choose(option, lit)}
                             style={{
                               animationDelay: `${DOORS_AFTER_MS + i * DOOR_STAGGER_MS}ms`,
