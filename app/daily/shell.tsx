@@ -116,11 +116,42 @@ export function DailyHeader({
 
 /** The rule, in one line, above the first input. Never more than one line. */
 export function RuleLine({ game }: { game: DailyGame }) {
+  const meta = DAILY_META[game];
   return (
-    <p className="mt-4 rounded-md border border-border-dim bg-bg-1 px-4 py-3 text-text-hi">
-      <span className="label-caps mr-2 text-accent">Rule</span>
-      {DAILY_META[game].rule}
-    </p>
+    <div className="mt-4 rounded-md border border-border-dim bg-bg-1 px-4 py-3">
+      <p className="text-text-hi">
+        <span className="label-caps mr-2 text-accent">Rule</span>
+        {meta.rule}
+      </p>
+      {/*
+       * THE WORDS, WHERE SOMEBODY MEETS THEM.
+       *
+       * A `<details>` rather than a paragraph, and closed by default, because
+       * the two audiences want opposite things: somebody who has played a
+       * tabletop game does not want six lines of "Renown is your score" above
+       * every puzzle, and somebody who has not is otherwise asked to make five
+       * irreversible decisions using words nobody has defined. Closed, it is one
+       * line; open, it is the whole vocabulary of this puzzle and nothing else.
+       *
+       * Native disclosure on purpose: keyboard and screen reader support for
+       * free, and it survives with JavaScript off.
+       */}
+      {meta.words.length > 0 ? (
+        <details className="mt-2 border-t border-border-dim pt-2">
+          <summary className="min-h-11 cursor-pointer list-none text-sm text-accent underline decoration-dotted underline-offset-4">
+            New to this? What the words mean
+          </summary>
+          <dl className="mt-2 space-y-1.5 text-sm">
+            {meta.words.map((w) => (
+              <div key={w.term}>
+                <dt className="inline font-semibold text-text-hi">{w.term}:</dt>{" "}
+                <dd className="inline text-text-mid">{w.gloss}.</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      ) : null}
+    </div>
   );
 }
 
@@ -221,8 +252,14 @@ export function NextUp({
         {archive ? (
           <p className="text-sm text-text-mid">A practice night. Your streak is untouched.</p>
         ) : (
-          <p className="text-sm text-text-mid">
-            Streak: <span className="num text-text-hi">{streak ?? 0}</span>{" "}
+          // Null means "not read out of storage yet", which is one paint on first
+          // load. It used to render as a hard 0, so the number that is the whole
+          // reason to come back said nought before it said the truth. A dash is
+          // honest for that frame; aria-live so the real number is announced when
+          // it lands rather than changing in silence.
+          <p className="text-sm text-text-mid" aria-live="polite">
+            Streak:{" "}
+            <span className="num text-text-hi">{streak === null ? "—" : streak}</span>{" "}
             {streak === 1 ? "day" : "days"}
           </p>
         )}

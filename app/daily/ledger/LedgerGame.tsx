@@ -31,7 +31,7 @@ import {
   finishDaily,
   getPuzzle,
 } from "../shell";
-import { readProgress, writeProgress } from "@/lib/daily/local";
+import { readProgress, useLocalStreak, writeProgress } from "@/lib/daily/local";
 
 const GAME = "ledger" as const;
 
@@ -103,7 +103,7 @@ export function LedgerGame({ date }: { date?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announce, setAnnounce] = useState("");
-  const [streak, setStreak] = useState<number | null>(null);
+  const [streak, setStreak] = useLocalStreak(GAME);
   const alive = useRef(true);
 
   useEffect(() => {

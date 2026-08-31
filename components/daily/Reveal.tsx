@@ -343,7 +343,11 @@ export function Reveal({
           >
             <span aria-hidden>{line.cleared ? "◆ " : "✷ "}</span>
             You come away {listOf(line.gained ?? [])}
-            {line.cleared ? "." : ", and it is still true on the next floor."}
+            {line.cleared
+              ? "."
+              : floor === floors
+                ? ", and you carry it out with you."
+                : ", and it is still true on the next floor."}
           </p>
         )}
 

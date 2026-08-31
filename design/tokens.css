@@ -103,6 +103,15 @@
      a colour nobody could read. This is the same signal written with a pen.
      6.0:1 on paper. */
   --tp-paper-danger: #8f2f22;
+  /* THE FOCUS RING, ON PAPER.
+     --tp-accent is the ring everywhere else and measures 10.2:1 on the dark
+     table, which is why nobody looked at it twice. On parchment it is gold on
+     cream: 1.40:1, against the 3:1 that WCAG asks of a focus indicator. It was
+     not a weak ring, it was an invisible one, and two of the four dailies are
+     played entirely on the sheet -- every select in Muster, every dropdown in
+     the Ledger -- so a keyboard player had no way of knowing which field they
+     were in. Written in the same ink as the sheet: 13.3:1 on paper. */
+  --tp-paper-focus: #221a10;
 
   /* ---------- Party colours ----------
      index = hash(playerId) % 8. Every one is light enough to carry

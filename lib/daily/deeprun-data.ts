@@ -64,8 +64,21 @@ export const KNACKS: Record<KnackKind, string> = {
   pass: "Once tonight, walk through a room without throwing anything. It counts as cleared.",
   mend: "Once tonight, clear a room without throwing anything, and get some of your wind back.",
   slip: "Once tonight, be somewhere else. The room does not happen to you. It also does not count as cleared, which is the trade.",
+  /**
+   * IT IS SPENT BEFORE THE DIE, NOT AFTER IT.
+   *
+   * This used to read "add five to a roll AFTER you have seen the die", with
+   * the AFTER capitalised, and it was the one promise a player would plan a
+   * whole run around. You arm it, then choose a door, and the die is only
+   * revealed once you have committed to both -- so somebody arming it on a
+   * hard door and rolling a natural 20 burned their only safety net for
+   * nothing, having been told in capitals that could not happen. Naming a die
+   * you have already seen would be a better move and a better game; it is also
+   * a change to how a knack resolves, which the par solver prices, so it is a
+   * design change rather than a copy fix. The copy now says what the game does.
+   */
   boost:
-    "Once tonight, add five to a roll AFTER you have seen the die. The only safety net down here.",
+    "Once tonight, name a door before you open it and add five to whatever the die gives you. The only safety net down here.",
   rethrow:
     "Once tonight, pick a die up and throw it again. You keep the second one, whatever it is.",
 };

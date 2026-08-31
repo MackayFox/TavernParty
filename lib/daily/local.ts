@@ -10,6 +10,7 @@
  *  - `done` records every completion including archive practice, because the
  *    calendar question is "have I played this day?", not "did it count?".
  */
+import { useEffect, useState } from "react";
 import { DAILY_GAMES, type DailyGame } from "./core";
 
 const DONE_KEY = "tp_daily_done";
@@ -140,6 +141,30 @@ export function localStats(game: DailyGame): { streak: number; played: number; b
     played: dates.length,
     best: Math.max(...Object.values(everything)),
   };
+}
+
+/**
+ * The streak, seeded from storage on mount instead of only after a win.
+ *
+ * All four dailies used to hold the streak in a bare `useState<number | null>`
+ * that nothing wrote to until the finish handler ran. Play a puzzle and it read
+ * "Streak: 1 day"; reload the page and the completed result came back out of
+ * localStorage without going through the finish handler, so the streak stayed
+ * null and the shell rendered `streak ?? 0` — "Streak: 0 days", next to your
+ * own finished game. Come back the next morning and the number protecting your
+ * habit said nought, which is the fastest way to stop having the habit.
+ *
+ * The read has to be in an effect and not in the initialiser: localStorage does
+ * not exist on the server, and seeding from it during render is a hydration
+ * mismatch. So it stays null for one paint, which is the state the shell was
+ * already written for.
+ */
+export function useLocalStreak(
+  game: DailyGame
+): [number | null, (n: number | null) => void] {
+  const [streak, setStreak] = useState<number | null>(null);
+  useEffect(() => setStreak(localStats(game).streak), [game]);
+  return [streak, setStreak];
 }
 
 export function readName(): string {

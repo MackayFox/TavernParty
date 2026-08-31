@@ -68,6 +68,14 @@ body {
   border-radius: 2px;
 }
 
+/* ...including on the one surface that is not dark.
+   The accent ring is 10.2:1 on the table and 1.40:1 on parchment, so on the
+   character sheet it was a focus indicator that could not be seen at all. Same
+   ring, written in the sheet's own ink. See --tp-paper-focus. */
+.sheet :focus-visible {
+  outline-color: var(--tp-paper-focus);
+}
+
 /* ---------------------------------------------------------------
    EVERYTHING BELOW IS IN @layer components, AND THAT IS LOAD-BEARING.
 

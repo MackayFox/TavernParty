@@ -16,7 +16,7 @@ import { postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { clears, reachNote } from "@/lib/daily/core";
-import { readProgress, writeProgress } from "@/lib/daily/local";
+import { readProgress, useLocalStreak, writeProgress } from "@/lib/daily/local";
 import { ABILITY_LABEL, AFFINITY_BONUS, abilityMod } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
 
@@ -54,7 +54,24 @@ type Result = {
   trials: TrialResult[];
   archive: boolean;
   par: number;
-  bestBuild: { placement: number[]; callingId: string; kitId: string };
+  /**
+   * NULL ON A MISS, AND THAT IS THE POINT.
+   *
+   * The route withholds the winning build unless you already matched par or you
+   * are playing an archive day, because handing it over on a miss turned the
+   * puzzle into "post anything, read the answer, post the answer". See the
+   * comment in `app/api/daily/muster/route.ts`.
+   *
+   * This was typed as non-null, which made two bugs at once and hid both from
+   * `tsc`. The result card dereferenced it on exactly the branch where the server
+   * nulls it, so every losing submission threw and the player got the error page
+   * instead of a score; and `usable` treated a null here as a corrupt save, so a
+   * losing result was thrown away on reload and the puzzle handed back as though
+   * it had never been played. Keep it nullable.
+   */
+  bestBuild: { placement: number[]; callingId: string; kitId: string } | null;
+  /** On a miss, the door you gave up. The honest half of "what went wrong". */
+  missed: string | null;
   share: string;
 };
 
@@ -67,7 +84,9 @@ type Saved = {
 
 function usable(value: Result | null | undefined, trials: number): Result | null {
   if (!value || !Array.isArray(value.trials) || value.trials.length !== trials) return null;
-  if (!value.bestBuild || !Array.isArray(value.bestBuild.placement)) return null;
+  // bestBuild is legitimately absent on a miss, so its absence proves nothing
+  // about the save. Only check its shape when there is one.
+  if (value.bestBuild && !Array.isArray(value.bestBuild.placement)) return null;
   if (typeof value.share !== "string" || typeof value.par !== "number") return null;
   return value;
 }
@@ -82,7 +101,7 @@ export function MusterGame({ date }: { date?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announce, setAnnounce] = useState("");
-  const [streak, setStreak] = useState<number | null>(null);
+  const [streak, setStreak] = useLocalStreak(GAME);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -335,11 +354,27 @@ export function MusterGame({ date }: { date?: string | null }) {
                         onChange={(e) => place(row, Number(e.target.value))}
                         aria-label={`Number for ${ABILITY_LABEL[ability]}`}
                       >
-                        {data.array.map((value, slot) => (
-                          <option key={slot} value={slot}>
-                            {value}
-                          </option>
-                        ))}
+                        {/* A HOUSE ARRAY CAN REPEAT A NUMBER, AND OFTEN DOES.
+                            Tonight's is 16, 16, 18, 14, 12, 11. Listed as bare
+                            values, two of these six options are the same word,
+                            so a screen reader hears "16, 16, 18, 14, 12, 11" with
+                            no way to tell which is which or which is already
+                            spoken for -- and the whole game is placing six
+                            numbers. Naming the ability a repeated number is
+                            currently sitting on makes each option unique and
+                            tells everybody something they wanted anyway. */}
+                        {data.array.map((value, slot) => {
+                          const owner = placement.indexOf(slot);
+                          const repeated =
+                            data.array.filter((v) => v === value).length > 1 && owner !== -1;
+                          return (
+                            <option key={slot} value={slot}>
+                              {repeated
+                                ? `${value} — on ${ABILITY_LABEL[data.abilities[owner]]}`
+                                : value}
+                            </option>
+                          );
+                        })}
                       </select>
                       <span className="sheet-label mt-1 block">
                         {mod >= 0 ? "+" : ""}
@@ -446,19 +481,41 @@ export function MusterGame({ date }: { date?: string | null }) {
                 </div>
               </Card>
 
-              {result.cleared < result.par ? (
+              {/* On a miss the winning build is deliberately withheld, so name the
+                  door that was given up instead. It says what went wrong without
+                  handing over tomorrow's answer, and the archive still shows the
+                  build in full, where knowing it is the whole exercise. */}
+              {result.cleared < result.par && result.missed ? (
+                <Card>
+                  <p className="label-caps">Where it went</p>
+                  <p className="mt-2 text-text-hi">
+                    {result.missed} was the one that got away. A different number on a
+                    different ability, or another piece of kit, and it opens.
+                  </p>
+                  <p className="mt-2 text-sm text-text-mid">
+                    The build that clears it is held back until you match par, or you can
+                    see it now on any night in the{" "}
+                    <a className="underline" href="/daily/archive">
+                      archive
+                    </a>
+                    .
+                  </p>
+                </Card>
+              ) : null}
+
+              {result.bestBuild ? (
                 <Card>
                   <p className="label-caps">What would have worked</p>
                   <p className="mt-2 text-text-hi">
-                    {data.callings.find((c) => c.id === result.bestBuild.callingId)?.name}, carrying{" "}
-                    {data.kit.find((k) => k.id === result.bestBuild.kitId)?.name}.
+                    {data.callings.find((c) => c.id === result.bestBuild!.callingId)?.name}, carrying{" "}
+                    {data.kit.find((k) => k.id === result.bestBuild!.kitId)?.name}.
                   </p>
                   <ul className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3">
                     {data.abilities.map((ability, row) => (
                       <li key={ability} className="text-sm text-text-mid">
                         <span className="label-caps">{ABILITY_LABEL[ability]}</span>{" "}
                         <span className="num text-text-hi">
-                          {data.array[result.bestBuild.placement[row]]}
+                          {data.array[result.bestBuild!.placement[row]]}
                         </span>
                       </li>
                     ))}

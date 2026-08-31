@@ -62,7 +62,7 @@ import {
   type Outcome,
 } from "@/lib/daily/core";
 import type { Ability } from "@/lib/game/types";
-import { readProgress, writeProgress } from "@/lib/daily/local";
+import { readProgress, useLocalStreak, writeProgress } from "@/lib/daily/local";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 
 const GAME = "deeprun" as const;
@@ -180,6 +180,11 @@ type RunReply = {
   bossBeaten: boolean;
   roomsCleared: number;
   score: number;
+  /**
+   * Where the score came from, line by line. See the note beside its
+   * construction in `run`: the house rule is the ledger, never a total.
+   */
+  ledger: { label: string; rate: string; value: number }[];
   archive: boolean;
   finished: boolean;
   par?: number;
@@ -356,7 +361,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
   // Read after mount, for the same reason.
   useEffect(() => setSound(soundOn()), []);
   const [reply, setReply] = useState<RunReply | null>(saved?.reply ?? null);
-  const [streak, setStreak] = useState<number | null>(null);
+  const [streak, setStreak] = useLocalStreak(GAME);
   const recorded = useRef(false);
 
   /**
@@ -980,7 +985,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                               {option.kind === "brace"
                                 ? `Slow, certain, and it costs you ${option.vigour} Vigour either way.`
                                 : stakeLine(option.ruinSets)}
-                              {lit && calling && ` The ${calling.knack.label} is armed.`}
+                              {lit && calling && ` ${calling.knack.label} is armed.`}
                             </span>
                           </button>
                         </li>
@@ -1223,15 +1228,24 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                 {reply.out && (
                   <p className="prose-read mt-3 text-text-mid">{data.premise.paid}</p>
                 )}
+                {/* Where the score came from, line by line. It used to print
+                    "Floors cleared 4, Vigour left 0, Score 16" with nothing
+                    connecting the three, so nobody could tell that the floor at
+                    the bottom is worth three ordinary ones and that walking out
+                    is worth two and a half more. Built server-side in
+                    `lib/daily/deeprun.ts`, beside the sum it explains. */}
                 <dl className="mt-3 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-text-mid">Floors cleared</dt>
-                    <dd className="num text-text-hi">{reply.roomsCleared}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-text-mid">Vigour left</dt>
-                    <dd className="num text-text-hi">{reply.vigour}</dd>
-                  </div>
+                  {reply.ledger?.map((row) => (
+                    <div key={row.label} className="flex items-baseline justify-between gap-3">
+                      <dt className={row.value > 0 ? "text-text-mid" : "text-text-low"}>
+                        {row.label}{" "}
+                        <span className="text-text-low">({row.rate})</span>
+                      </dt>
+                      <dd className={`num ${row.value > 0 ? "text-text-hi" : "text-text-low"}`}>
+                        {row.value}
+                      </dd>
+                    </div>
+                  ))}
                   <div className="flex justify-between border-t border-border-dim pt-1">
                     <dt className="label-caps">Score</dt>
                     <dd className="num text-lg text-text-hi">

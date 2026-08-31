@@ -166,6 +166,21 @@ export type DailyMeta = {
   blurb: string;
   /** The rule, in one short line, shown above the first input. */
   rule: string;
+  /**
+   * THE WORDS THIS PUZZLE USES, IN PLAIN ONES.
+   *
+   * The house rule is that a player who has never played this kind of game must
+   * never meet a bare flavour word. It was honoured on the home page and inside
+   * a Deep Run reveal, and nowhere else: somebody opening The Long Way Down met
+   * Renown, Dread, Hook tokens, Reckless, reach and Failing before their first
+   * click, none of them explained, and the rule that Dread doubles every cost at
+   * three was finally stated on the results screen, after the game was over.
+   *
+   * Every term a player meets in play, glossed where they meet it. Keep each
+   * gloss to a handful of plain words -- this is a strip somebody skims on the
+   * way to their first move, not a rulebook.
+   */
+  words: { term: string; gloss: string }[];
   glyph: string;
   /**
    * Score bounds, used to reject an impossible score at the persistence
@@ -182,6 +197,14 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
     blurb:
       "Five doors, and five dice you can see coming. One character, already made, and nothing left to blame.",
     rule: "You know every roll before you make it. Choose which door each one goes through.",
+    words: [
+      { term: "Renown", gloss: "your score" },
+      { term: "Dread", gloss: "the night turning against you. At 3, every cost doubles" },
+      { term: "Hook tokens", gloss: "your backstory, spendable. Worth +5 on a roll, and you get no more" },
+      { term: "Reckless", gloss: "pays the most, costs the most" },
+      { term: "your reach", gloss: "what you would roll here, die included" },
+      { term: "Failing", gloss: "your character's weak spot. Every cost in a room like this one doubles" },
+    ],
     glyph: "🚪",
     minScore: 0,
     maxScore: 99,
@@ -198,6 +221,14 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
     blurb:
       "Build somebody, take them down six floors, and find out what is in each room when you open it. The same dungeon for everybody, and you will not all come back.",
     rule: "Every room owns its die. You only see the number once you are in the room.",
+    words: [
+      { term: "Calling", gloss: "the sort of person you are. It decides what you are good at" },
+      { term: "Signature", gloss: "one special move, once a night" },
+      { term: "Vigour", gloss: "health. Miss a floor and it takes a bite; at nothing, you do not come back up" },
+      { term: "Kit", gloss: "two things you carry, each adding to one ability" },
+      { term: "Trained", gloss: "your Calling's two best abilities, worth +2 each" },
+      { term: "Marks", gloss: "what a floor leaves on you — seen, hurt, lit, wet. A mark carries down, and some rooms are harder if you arrive wearing one" },
+    ],
     glyph: "🕯️",
     minScore: 0,
     maxScore: 62,
@@ -208,6 +239,9 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
     blurb:
       "Five drinkers, five debts and four statements that are all true. Work out who owes what.",
     rule: "Four true statements. Three checks, and each one costs you a mark.",
+    words: [
+      { term: "Tally", gloss: "your four checks. Each one you spend takes one off, and what is left is your score" },
+    ],
     glyph: "📖",
     minScore: 0,
     maxScore: 4,
@@ -218,6 +252,11 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
     blurb:
       "Tonight's six numbers, one Calling, one piece of kit, five doors. Character creation as the whole game.",
     rule: "Place tonight's six numbers, pick a Calling and one piece of kit, then face the night.",
+    words: [
+      { term: "Calling", gloss: "the sort of person you are. Its two best abilities are Trained, worth +2 each" },
+      { term: "Kit", gloss: "one thing you carry, adding to a single ability" },
+      { term: "Par", gloss: "what the best possible build tonight would have cleared" },
+    ],
     glyph: "🛡",
     minScore: 0,
     maxScore: 5,

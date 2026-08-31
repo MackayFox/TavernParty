@@ -107,6 +107,28 @@ describe("the character sheet", () => {
     expect(ratio, `paper-rule on paper is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(1.4);
   });
 
+  it("draws a focus ring on parchment that a keyboard user can actually see", () => {
+    /**
+     * WCAG 1.4.11: a focus indicator is a non-text UI signal and needs 3:1.
+     *
+     * The site had one global `:focus-visible` in --tp-accent, measured once
+     * against the dark table (10.2:1) and never against the sheet, where it is
+     * gold on cream at 1.40:1. Muster and the Ledger are played entirely on the
+     * sheet, so on two of the four dailies a keyboard player could not tell
+     * which field they were in. Found by an audit, not by this file, because
+     * this file only ever checked ink and never checked the ring.
+     */
+    const ratio = contrast(token("paper-focus"), token("paper"));
+    expect(ratio, `paper-focus on paper is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+  });
+
+  it("draws a focus ring on the table that a keyboard user can actually see", () => {
+    for (const surface of SURFACES) {
+      const ratio = contrast(token("accent"), token(surface));
+      expect(ratio, `the focus ring on ${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it("stays a light surface, so it always reads as paper on a dark table", () => {
     // Not a contrast rule, an identity rule: if paper ever darkens toward the
     // table the whole visual argument collapses.

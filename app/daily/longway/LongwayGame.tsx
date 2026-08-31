@@ -18,7 +18,7 @@ import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { NightSheet, NightStrip, tagMeaning, type ActLine, type Standing } from "./Character";
 import { reachNote } from "@/lib/daily/core";
-import { readProgress, writeProgress } from "@/lib/daily/local";
+import { readProgress, useLocalStreak, writeProgress } from "@/lib/daily/local";
 import {
   ABILITY_LABEL,
   AFFINITY_BONUS,
@@ -125,7 +125,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [announce, setAnnounce] = useState("");
-  const [streak, setStreak] = useState<number | null>(null);
+  const [streak, setStreak] = useLocalStreak(GAME);
   const [saved, setSaved] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const alive = useRef(true);
@@ -400,13 +400,24 @@ export function LongwayGame({ date }: { date?: string | null }) {
                           <span className="font-display text-lg text-text-hi">{door.label}</span>
                           {door.reckless ? <Pill tone="danger">Reckless</Pill> : null}
                         </span>
+                        {/* PAYS AND COSTS ARE THE TWO BRANCHES, NOT A NET SUM.
+                            This read "pays 7 · costs 6", which parses as a door
+                            that does both, nets +1, and is barely worth taking.
+                            The cost is only charged on a miss (see `renownDelta`
+                            in lib/daily/longway.ts), so the door is actually
+                            +7 or -6 -- an entirely different bet, on every door
+                            in the game. Saying "if you make it" and "if you
+                            miss" is nine words and makes Act 1 legible instead
+                            of Act 3. */}
                         <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-mid">
                           <span>{ABILITY_LABEL[door.ability]}</span>
                           <span className="num">needs {door.tn}</span>
-                          <span className="num">pays {door.deed}</span>
-                          <span className="num">
-                            costs {door.cost.renown * mult}
-                            {door.cost.dread > 0 ? ` and ${door.cost.dread * mult} Dread` : ""}
+                          <span className="num text-success">
+                            make it: +{door.deed} Renown
+                          </span>
+                          <span className="num text-danger">
+                            miss: −{door.cost.renown * mult} Renown
+                            {door.cost.dread > 0 ? ` and +${door.cost.dread * mult} Dread` : ""}
                             {mult > 1 ? (mult === 2 ? " (doubled)" : " (doubled twice)") : ""}
                           </span>
                         </span>
@@ -478,7 +489,12 @@ export function LongwayGame({ date }: { date?: string | null }) {
                             l.success ? "text-success" : "text-danger"
                           }`}
                         >
-                          <span aria-hidden>{l.success ? "✓ " : "✕ "}</span>
+                          {/* A flinch is neither. The three-glyph map in Character.tsx is the one
+                              that already knows that; this printed a failure cross over
+                              "Did not move". */}
+                          <span aria-hidden>
+                            {l.doorId === FLINCH ? "○ " : l.success ? "✓ " : "✕ "}
+                          </span>
                           {l.doorId === FLINCH
                             ? "Did not move"
                             : l.success

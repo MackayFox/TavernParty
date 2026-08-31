@@ -274,6 +274,11 @@ export type Result = {
   bossBeaten: boolean;
   roomsCleared: number;
   score: number;
+  /**
+   * Where the score came from, line by line. See the note beside its
+   * construction in `run`: the house rule is the ledger, never a total.
+   */
+  ledger: { label: string; rate: string; value: number }[];
 };
 
 // ---------------------------------------------------------------------------
@@ -929,13 +934,67 @@ export function run(
   }
 
   const out = vigour > 0 && depth >= puzzle.rooms.length;
+  const carried = out ? Math.max(0, vigour) : 0;
   const score =
     roomsCleared * ROOM_CLEARED +
     (bossBeaten ? BOSS_BEATEN : 0) +
     (out ? OUT_ALIVE : 0) +
-    (out ? Math.max(0, vigour) * VIGOUR_VALUE : 0);
+    carried * VIGOUR_VALUE;
 
-  return { lines, depth, vigour: Math.max(0, vigour), out, bossBeaten, roomsCleared, score };
+  /**
+   * THE LEDGER, NEVER A TOTAL.
+   *
+   * The house rule for the whole product is that a roll is narrated by naming
+   * the contributions that made it, and that printing a bare number is the bug.
+   * Every other daily honoured it and this one did not: the result card said
+   * "Floors cleared 4, Vigour left 0, Score 16 of a possible 54" and nothing
+   * anywhere derived 16 from 4 and 0.
+   *
+   * That is not only untidy, it is the difference between a game you can get
+   * better at and one you cannot. The thing at the bottom is worth three floors
+   * and getting out is worth two and a half more, so "go one deeper on fumes" is
+   * almost always the wrong bet -- and a player who is never told the rates will
+   * make the same wrong bet every night. Built here, next to the arithmetic it
+   * explains, so the two cannot drift apart.
+   *
+   * Rows with a zero are kept, not dropped. "Out alive, worth 10 -- no" is the
+   * line that teaches; hiding it leaves exactly the silence this fixes.
+   */
+  const ledger = [
+    {
+      label: `${roomsCleared} ${roomsCleared === 1 ? "floor" : "floors"} cleared`,
+      rate: `${ROOM_CLEARED} each`,
+      value: roomsCleared * ROOM_CLEARED,
+    },
+    {
+      label: bossBeaten ? "The thing at the bottom, beaten" : "The thing at the bottom",
+      rate: `${BOSS_BEATEN}`,
+      value: bossBeaten ? BOSS_BEATEN : 0,
+    },
+    {
+      label: out ? "Out alive" : "Out alive — you did not come back up",
+      rate: `${OUT_ALIVE}`,
+      value: out ? OUT_ALIVE : 0,
+    },
+    {
+      label: out
+        ? `Vigour carried out (${carried})`
+        : "Vigour carried out — nothing counts if you stay down there",
+      rate: `${VIGOUR_VALUE} each`,
+      value: carried * VIGOUR_VALUE,
+    },
+  ];
+
+  return {
+    lines,
+    depth,
+    vigour: Math.max(0, vigour),
+    out,
+    bossBeaten,
+    roomsCleared,
+    score,
+    ledger,
+  };
 }
 
 function knackApplies(kind: KnackKind, option: PuzzleOption): boolean {
