@@ -127,9 +127,12 @@ export function WriteIndex() {
             aria-describedby="byline-help"
             className="min-h-11 w-full max-w-xs rounded-md border border-border-input bg-bg-0 px-3 text-text-hi"
           />
+          {/* "No account needed" read as "this field is optional", which it is
+              not: the button below is disabled until it has something in it.
+              Say which of the two things is true. */}
           <span id="byline-help" className="mt-1 block text-xs text-text-low">
-            No account needed. It goes on the dungeon as &ldquo;by you&rdquo;, and it is the
-            same name the rest of the site already knows you by.
+            Needed, but no account is. It goes on the dungeon as &ldquo;by you&rdquo;, and it
+            is the same name the rest of the site already knows you by.
           </span>
         </label>
         <Button
@@ -138,7 +141,21 @@ export function WriteIndex() {
           disabled={busy || !loaded || name.trim().length === 0}
           onClick={() => void open()}
         >
-          {busy ? "Opening a desk" : "Start one"}
+          {/* THE BUTTON SAYS WHAT IS MISSING, rather than being greyed out and
+              silent. This was the only call to action on the landing page for a
+              whole feature, and it arrived disabled at 40% opacity next to a
+              field whose help text described itself as optional: nothing said
+              why, nothing happened on a press, and the way out was to guess.
+              The Deep Run's build button already does this properly ("Pick who
+              is going down", "Take two things with you"), so this is the house
+              pattern rather than a new idea. */}
+          {busy
+            ? "Opening a desk"
+            : !loaded
+              ? "One moment"
+              : name.trim().length === 0
+                ? "Put your name on it first"
+                : "Start one"}
         </Button>
         <ErrorNote message={error} />
       </Card>

@@ -309,12 +309,36 @@ export function Reveal({
           </p>
         )}
 
-        {/* The one thing a screen reader must be told without being made to hunt. */}
+        {/*
+          THE LEDGER, OUT LOUD.
+
+          This announced the verdict and the Vigour and stopped there, so a
+          screen reader user got "Cleared" and never the roll, the modifiers, the
+          total or the number it wanted. On screen that arithmetic is the whole
+          teaching moment -- it is where a player learns that being trained is
+          worth two and that the die was never the only thing in it -- and the
+          house rule for the entire product is the ledger and never a bare total.
+          Non-visually, only the outcome survived, which is precisely a bare
+          total with the total taken out.
+
+          Written once, on the last beat, rather than twice. It used to fire at
+          the outcome beat and again at the prose beat with a superset string,
+          because `holdFor("prose")` is 0, so two polite announcements queued 0ms
+          apart on every single check.
+        */}
         <p aria-live="polite" className="sr-only">
-          {showOutcome
-            ? `${line.cleared ? "Cleared" : ruined ? "Not cleared, and it went badly" : "Not cleared"}. ${
-                line.vigourSpent > 0 ? `${line.vigourSpent} Vigour, ${line.vigourAfter} left. ` : ""
-              }${showProse ? line.text : ""}`
+          {showProse
+            ? [
+                line.roll > 0 &&
+                  `${modsShown.map(({ mod }) => `${mod.label} ${mod.value >= 0 ? "plus" : "minus"} ${Math.abs(mod.value)}`).join(", ")}, total ${line.total}${line.tn !== null ? ` against ${line.tn}` : ""}.`,
+                `${line.cleared ? "Cleared" : ruined ? "Not cleared, and it went badly" : "Not cleared"}.`,
+                line.vigourSpent > 0
+                  ? `${line.vigourSpent} Vigour, ${line.vigourAfter} left.`
+                  : `No Vigour lost, ${line.vigourAfter} left.`,
+                line.text,
+              ]
+                .filter(Boolean)
+                .join(" ")
             : ""}
         </p>
 

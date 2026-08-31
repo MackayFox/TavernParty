@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DailyRecord } from "@/components/DailyRecord";
 import { RunTable } from "@/components/RunTable";
 import { Sheet, SheetBox } from "@/components/ui";
 import { CALLINGS } from "@/lib/content/callings";
@@ -22,6 +23,8 @@ export default async function HistoryPage() {
   if (identity?.kind !== "user") {
     return (
       <div className="mx-auto w-full max-w-xl py-8">
+        {/* The record itself, before the essay about the record. */}
+        <DailyRecord />
         {/*
           This said "nothing is kept past the run itself", which was not true.
           Two localStorage stores hold a guest's whole history: `lib/daily/local.ts`
@@ -106,6 +109,8 @@ export default async function HistoryPage() {
           </p>
         )}
       </Sheet>
+
+      <DailyRecord />
 
       <h2 className="mt-8 font-display text-2xl font-bold">Every run</h2>
       <div className="mt-3">
