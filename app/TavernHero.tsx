@@ -260,6 +260,25 @@ export function TavernHero() {
       </div>
 
       <p className="flex flex-wrap items-center gap-3 text-sm text-text-mid">
+        {/*
+          THE SAFE FIRST CLICK, and it goes first.
+
+          Everything above this needs at least one other person, or a willingness
+          to sit at a table with strangers, and both of those are a bigger ask
+          than a stranger's first five seconds will carry. The four puzzles are
+          one player, two minutes, no account and nothing to arrange -- and on a
+          phone the first mention of them was 1,800px down the page, two full
+          screens past a hero asking you to gather a party.
+
+          They are also the half of the site that needs no database, so on the
+          day the lobby is not answering this is the link that still works.
+        */}
+        <a
+          href="/daily"
+          className="inline-flex min-h-11 items-center underline hover:text-text-hi"
+        >
+          Or play tonight&apos;s puzzles on your own
+        </a>
         <a
           href="/tables"
           className="inline-flex min-h-11 items-center underline hover:text-text-hi"
