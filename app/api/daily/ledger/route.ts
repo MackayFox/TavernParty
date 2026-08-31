@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
-import { readSpent, writeSpent } from "@/lib/daily/spent";
+import { bankScore, readSpent, writeSpent } from "@/lib/daily/spent";
 import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import {
   MAX_CHECKS,
@@ -97,12 +97,23 @@ export async function POST(req: Request) {
     }
 
     const solved = isSolved(date, body.assignment);
+    /**
+     * The first score for a day stands. See `bankScore`.
+     *
+     * The solution still comes back, because seeing where you went wrong is the
+     * reward for finishing. What it no longer buys is a second, better score:
+     * this route was stateless, so "post rubbish, read `solution`, post
+     * `solution`" was a two-request perfect game with no cookies at all.
+     */
+    const earned = scoreFor(solved, spent);
+    const banked = await bankScore("ledger", date, earned, archive);
     return NextResponse.json({
       mode: "close",
       archive,
       solved,
       // Scored against what was actually spent, not against what was claimed.
-      score: scoreFor(solved, spent),
+      score: banked.score,
+      alreadyPlayed: banked.alreadyPlayed,
       maxScore: MAX_SCORE,
       checksUsed: spent,
       solution: solutionFor(date),

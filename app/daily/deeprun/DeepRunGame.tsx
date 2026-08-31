@@ -49,6 +49,7 @@ import {
   Ledger,
   type Sheet as CharacterSheet,
 } from "@/components/daily/Adventurer";
+import { useLanded } from "@/components/daily/landed";
 import { Reveal } from "@/components/daily/Reveal";
 import { playOut, setSoundOn, soundOn } from "@/components/daily/sfx";
 import { Runner } from "@/components/daily/Runner";
@@ -413,6 +414,22 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
       heading.focus();
     }
   }, [descending, seen]);
+
+  /**
+   * AND WHEN THE RUN ENDS, TAKE THEM TO THE SCORE.
+   *
+   * The effect above only fires while `descending`, and `descending` goes false
+   * at exactly the moment the run finishes. So the stage unmounted out from
+   * under whatever had focus and focus fell to <body>: somebody on a keyboard
+   * finished the Deep Run and was returned to the top of the document, several
+   * tab stops from the score they had just earned. The live region said "The run
+   * is over. Your score is below", which was true and no help at all.
+   *
+   * `useLanded` centres what it lands on, which is wrong for a fixed stage and
+   * exactly right for a card appended to the end of a page -- which is what the
+   * score is. Same treatment the other three dailies give their endings.
+   */
+  const scored = useLanded<HTMLDivElement>(finished ? "score" : null);
 
   /**
    * The stage is `position: fixed`, so the document behind it is still scrollable
@@ -1212,7 +1229,7 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
           {/* --------------------------------------------------- how it went */}
           {finished && reply && (
             <div className="mt-6 space-y-4">
-              <Card>
+              <Card ref={scored}>
                 <p className="label-caps">
                   {reply.out ? "Out" : `Stopped on floor ${reply.depth}`}
                 </p>

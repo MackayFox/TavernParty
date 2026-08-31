@@ -223,7 +223,20 @@ export function LongwayGame({ date }: { date?: string | null }) {
    * did not move, which on a phone meant the answer to what you just did was off
    * the top of the screen.
    */
-  const landed = useLanded<HTMLDivElement>(showLatest && latest ? latest.index : null);
+  /**
+   * ...AND TO THE ENDING, WHICH IS WHERE IT USED TO STOP DOING IT.
+   *
+   * `showLatest` is false once the night is done, so on Act 5 -- the only Act
+   * whose result anybody actually cares about -- the key went null, the Act card
+   * unmounted underneath the button that had focus, and focus fell to <body>.
+   * Somebody on a keyboard finished the game and was returned to the top of the
+   * document, with the score they had just earned several tab stops away.
+   *
+   * "summary" is a constant key: the ending happens once, so it fires once.
+   */
+  const landed = useLanded<HTMLDivElement>(
+    done ? "summary" : showLatest && latest ? latest.index : null
+  );
 
   /**
    * What a door would come to, before committing to it.
@@ -456,7 +469,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
 
           {done && reply ? (
             <div className="mt-6 space-y-4">
-              <Card>
+              <Card ref={landed}>
                 <p className="label-caps">The night, closed</p>
                 <p className="num mt-1 text-4xl text-text-hi">{reply.renown}</p>
                 <p className="mt-1 text-text-mid">

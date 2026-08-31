@@ -165,25 +165,22 @@ function Menu({
  * printed on the hub card under each name, so there is nothing new to write and
  * nothing that can drift out of step with the game.
  */
+const DAILY_ITEMS = [
+  ...DAILY_GAMES.map((g) => ({
+    href: DAILY_META[g].path,
+    text: DAILY_META[g].name,
+    note: DAILY_META[g].rule,
+  })),
+  { href: "/daily", text: "All four today", note: "Tonight's four in one place" },
+  {
+    href: "/daily/archive",
+    text: "Past days",
+    note: "Practice, and it never counts towards a streak",
+  },
+];
+
 export function DailyMenu() {
-  return (
-    <Menu
-      label="Daily"
-      items={[
-        ...DAILY_GAMES.map((g) => ({
-          href: DAILY_META[g].path,
-          text: DAILY_META[g].name,
-          note: DAILY_META[g].rule,
-        })),
-        { href: "/daily", text: "All four today", note: "Tonight's four in one place" },
-        {
-          href: "/daily/archive",
-          text: "Past days",
-          note: "Practice, and it never counts towards a streak",
-        },
-      ]}
-    />
-  );
+  return <Menu label="Daily" items={DAILY_ITEMS} />;
 }
 
 /**
@@ -198,30 +195,34 @@ export function DailyMenu() {
  * shelf. A gallery with one thing in it is honest; a gallery with nothing in it is
  * a dead end.
  */
+const DUNGEON_ITEMS = [
+  {
+    href: "/write",
+    text: "Write a dungeon",
+    note: "A solver tells you if it works",
+  },
+  {
+    href: "/dungeons",
+    text: "Dungeons people wrote",
+    note: "Ranked by the people who finished them",
+  },
+  {
+    href: "/d/LNGWLK",
+    text: "The Stone Walk",
+    note: "Six floors, ours, to see how it goes",
+  },
+];
+
 export function DungeonMenu() {
-  return (
-    <Menu
-      label="Dungeons"
-      items={[
-        {
-          href: "/write",
-          text: "Write a dungeon",
-          note: "A solver tells you if it works",
-        },
-        {
-          href: "/dungeons",
-          text: "Dungeons people wrote",
-          note: "Ranked by the people who finished them",
-        },
-        {
-          href: "/d/LNGWLK",
-          text: "The Stone Walk",
-          note: "Six floors, ours, to see how it goes",
-        },
-      ]}
-    />
-  );
+  return <Menu label="Dungeons" items={DUNGEON_ITEMS} />;
 }
+
+/** The one nav entry that is a plain link rather than a menu. */
+const TABLES_ITEM = {
+  href: "/tables",
+  text: "Tables",
+  note: "Open tables, and a quick match",
+};
 
 export function Nav() {
   const pathname = usePathname();
@@ -235,19 +236,45 @@ export function Nav() {
           `relative` is load-bearing: both menu panels position against this
           element rather than against their own button, which is what keeps the
           leftmost one on a 375px screen. */}
+      {/*
+       * ONE BUTTON BELOW `sm`, THE WHOLE ROW ABOVE IT.
+       *
+       * Three labels plus their two chevrons measure 287px, and the wordmark was
+       * the thing told to give: it carried `min-w-0` against three `shrink-0`
+       * siblings. Measured, that meant 63px of space for a wordmark that needs
+       * about 78 at 390px, 33px at 360px, and at 320px it was squeezed to ZERO
+       * and the header overflowed the viewport by 45px, painting "PARTY"
+       * directly on top of "DUNGEONS". The first thing on every page, on every
+       * small phone, looked broken.
+       *
+       * No amount of shrinking fixes 287px of nav in 288px of gutter, so below
+       * `sm` all three collapse into one disclosure. It reuses `Menu`, which
+       * already has the Escape handling, the click-outside, the focus return and
+       * the `aria-expanded` contract, so this is one more list rather than a
+       * second navigation pattern to keep working.
+       *
+       * `hidden` rather than a media query in JS: it takes the branch that is not
+       * showing out of the accessibility tree too, so a screen reader is never
+       * offered both.
+       */}
       <nav
         aria-label="Main"
         className="relative flex shrink-0 items-center gap-0.5 sm:gap-1"
       >
-        <DungeonMenu />
-        <DailyMenu />
-        <Link
-          href="/tables"
-          aria-current={tables ? "page" : undefined}
-          className={`${NAV_LINK} ${tables ? CURRENT : NAV_IDLE}`}
-        >
-          Tables
-        </Link>
+        <div className="sm:hidden">
+          <Menu label="Menu" items={[...DUNGEON_ITEMS, ...DAILY_ITEMS, TABLES_ITEM]} />
+        </div>
+        <div className="hidden items-center gap-0.5 sm:flex sm:gap-1">
+          <DungeonMenu />
+          <DailyMenu />
+          <Link
+            href="/tables"
+            aria-current={tables ? "page" : undefined}
+            className={`${NAV_LINK} ${tables ? CURRENT : NAV_IDLE}`}
+          >
+            Tables
+          </Link>
+        </div>
       </nav>
     </header>
   );

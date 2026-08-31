@@ -17,6 +17,7 @@ import { defsOf, doorFor, puzzleOf } from "@/lib/campaign/puzzle";
 import { countPlay, getDungeon } from "@/lib/campaign/store";
 import { recordRun } from "@/lib/campaign/hall";
 import { getIdentity } from "@/lib/identity";
+import { bankScore } from "@/lib/daily/spent";
 
 /**
  * THE DEEP RUN.
@@ -137,8 +138,22 @@ export async function POST(req: Request) {
         });
       }
     }
+    /**
+     * The first score for a day stands. See `bankScore`.
+     *
+     * `bestRun` below is the optimal build AND the optimal steps, so before this
+     * a throwaway run bought a perfect one: post anything, read `bestRun`, post
+     * it back. Demonstrated at 16 then 54 of 54 in two requests.
+     *
+     * An authored dungeon is keyed on its code rather than the date, because its
+     * dice are pinned to the code and it is the same puzzle whenever you play it.
+     */
+    const bankKey = source.row ? `dungeon:${source.row.code}` : date;
+    const banked = await bankScore("deeprun", bankKey, result.score, archive);
     return NextResponse.json({
       ...result,
+      score: banked.score,
+      alreadyPlayed: banked.alreadyPlayed,
       archive,
       finished,
       /** Every daily answers with `score` and `par`, whatever it calls them inside. */

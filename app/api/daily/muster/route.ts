@@ -4,6 +4,7 @@ import { handleError, jsonBody } from "@/lib/api";
 import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import { parFor, play, puzzleFor, shareText, validBuild } from "@/lib/daily/muster";
 import { ARRAY_SIZE } from "@/lib/game/rules";
+import { bankScore } from "@/lib/daily/spent";
 
 /**
  * MUSTER. Build a character on tonight's six numbers and take on the encounter.
@@ -52,11 +53,17 @@ export async function POST(req: Request) {
 
     const result = play(puzzle, build);
     const { par, best } = parFor(puzzle);
+    // The first score for a day stands, the same way it does in the other
+    // three. Muster already withholds the winning build on a miss, so there is
+    // no answer to read here -- this is for parity, so all four dailies agree
+    // about what a replay is worth. See bankScore.
+    const banked = await bankScore("muster", date, result.cleared, archive);
     return NextResponse.json({
       ...result,
       archive,
       /** Every daily answers with `score` and `par`, whatever it calls them inside. */
-      score: result.cleared,
+      score: banked.score,
+      alreadyPlayed: banked.alreadyPlayed,
       par,
       /**
        * THE ANSWER SHEET, AND ONLY ONCE IT CANNOT BE USED.

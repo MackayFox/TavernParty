@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handleError, jsonBody } from "@/lib/api";
 import { dailyCacheControl, resolvePlayDate } from "@/lib/daily/core";
 import { ACTS, FLINCH, parFor, play, puzzleFor, shareText } from "@/lib/daily/longway";
+import { bankScore } from "@/lib/daily/spent";
 
 /**
  * THE LONG WAY DOWN.
@@ -64,12 +65,16 @@ export async function POST(req: Request) {
     if (!complete) return NextResponse.json({ ...run, complete });
 
     const { par, line } = parFor(puzzle);
+    // The first score for a day stands: `parLine` below is the optimal five
+    // doors, and without this, replaying it was a two-request par. See bankScore.
+    const banked = await bankScore("longway", date, run.renown, archive);
     return NextResponse.json({
       ...run,
       complete,
       archive,
       /** Every daily answers with `score` and `par`, whatever it calls them inside. */
-      score: run.renown,
+      score: banked.score,
+      alreadyPlayed: banked.alreadyPlayed,
       par,
       /** The best night available, revealed only now the night is over. */
       parLine: line,
