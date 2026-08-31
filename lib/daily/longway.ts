@@ -47,6 +47,7 @@ import {
 } from "@/lib/game/rules";
 import { ABILITIES, type Ability, type Modifier, type Player, type Scores } from "@/lib/game/types";
 import { clears, parPhrase, seededRng } from "./core";
+import { siteUrl } from "../site";
 
 /** Five, as in the live run. */
 export const ACTS = 5;
@@ -463,7 +464,7 @@ export function shareText(date: string, run: Run, par: number): string {
     `THE LONG WAY DOWN ${date}`,
     `${run.renown} Renown, ${parPhrase(run.renown, par)}`,
     grid,
-    "https://tavernparty.com/daily/longway",
+    siteUrl("/daily/longway"),
   ].join("\n");
 }
 

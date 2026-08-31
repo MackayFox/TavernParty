@@ -1,3 +1,4 @@
+import { CANONICAL_ORIGIN } from "../site";
 /**
  * The network. A handful of small browser games that link to each other.
  *
@@ -43,7 +44,7 @@ export const NETWORK: NetworkSite[] = [
   {
     id: "tavernparty",
     name: "Tavern Party",
-    url: "https://tavernparty.com",
+    url: CANONICAL_ORIGIN,
     tagline: "Roll a character, survive five encounters, and only one of you gets the loot.",
     emoji: "🍺",
   },

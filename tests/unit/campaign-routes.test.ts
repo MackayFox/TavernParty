@@ -9,6 +9,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RoomDef } from "@/lib/daily/deeprun-data";
+import { CANONICAL_HOST } from "@/lib/site";
 
 // Guest identity, so the loop is tested the way most first authors will meet it.
 vi.mock("@/lib/identity", () => ({
@@ -234,7 +235,7 @@ describe("playing somebody else's", () => {
     expect(share).toContain("THE WEEPING STAIR");
     expect(share).toContain("by ALEX");
     // And every URL in it carries a scheme, or nothing unfurls it.
-    for (const m of share.match(/tavernparty\.com\S*/g) ?? []) {
+    for (const m of share.match(new RegExp(`${CANONICAL_HOST}\S*`, "g")) ?? []) {
       expect(share).toContain(`https://${m}`);
     }
   });

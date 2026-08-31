@@ -36,6 +36,7 @@ import { KIT } from "@/lib/content/kit";
 // of four copies and the dungeon starts resolving a roll its own way.
 import { DIE_SIDES, abilityMod } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
+import { siteUrl } from "../site";
 import {
   clears,
   dateSeed,
@@ -1125,7 +1126,7 @@ export function shareText(
     glyphs,
     `${result.score} of a possible ${par}`,
     dungeon
-      ? `https://tavernparty.com/d/${dungeon.code}`
-      : "https://tavernparty.com/daily/deeprun",
+      ? siteUrl(`/d/${dungeon.code}`)
+      : siteUrl("/daily/deeprun"),
   ].join("\n");
 }

@@ -110,6 +110,49 @@ try {
     process.exit(0);
   }
 
+  /**
+   * Put this schema on PostgREST's exposed list, additively.
+   *
+   * The dashboard's Settings -> API -> Exposed schemas box writes exactly this:
+   * a `pgrst.db_schemas` setting on the `authenticator` role, followed by a
+   * config reload. Doing it here rather than by hand because the setting has
+   * been lost once already, and the failure is horrible to diagnose from the
+   * outside: every table read comes back PGRST106 "Invalid schema", the app
+   * turns that into a generic 500, and the site looks like it has a broken
+   * database rather than a checkbox in the wrong state.
+   *
+   * ADDITIVE, NEVER A REPLACEMENT. This project is shared with another site.
+   * Writing the list wholesale would take that site's schema off the air, which
+   * is a worse outage than the one being fixed.
+   */
+  if (cmd === "expose") {
+    const { rows } = await client.query(
+      `select rolconfig from pg_roles where rolname = 'authenticator'`
+    );
+    const current = (rows[0]?.rolconfig ?? [])
+      .map((c) => /^pgrst\.db_schemas=(.*)$/.exec(c)?.[1])
+      .find((v) => v !== undefined);
+    const wanted = (current ?? "public, graphql_public")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (wanted.includes(schema)) {
+      console.log(`already exposed: ${wanted.join(", ")}`);
+    } else {
+      wanted.push(schema);
+      // Identifier, not a parameter: ALTER ROLE ... SET takes no bind params.
+      // `schema` comes from our own env, and is quoted into a single literal.
+      await client.query(
+        `alter role authenticator set pgrst.db_schemas = '${wanted.join(", ").replace(/'/g, "''")}'`
+      );
+      console.log(`exposed: ${wanted.join(", ")}`);
+    }
+    await client.query(`notify pgrst, 'reload config'`);
+    await client.query(`notify pgrst, 'reload schema'`);
+    console.log("asked PostgREST to reload");
+    process.exit(0);
+  }
+
   if (cmd !== "migrate") {
     console.error(`unknown command: ${cmd}`);
     process.exit(1);

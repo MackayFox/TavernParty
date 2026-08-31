@@ -25,8 +25,9 @@ vi.mock("next/font/google", () => {
 import { CHARACTER_PAGES } from "@/app/characters/shared";
 import { DISALLOWED, isDisallowed } from "@/app/crawl";
 import sitemap from "@/app/sitemap";
+import { CANONICAL_ORIGIN } from "@/lib/site";
 
-const BASE = "https://tavernparty.com";
+const BASE = CANONICAL_ORIGIN;
 
 /**
  * Route path to page module. Written out rather than globbed, because a glob

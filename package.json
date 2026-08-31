@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node scripts/db.mjs migrate",
     "db:status": "node scripts/db.mjs status",
+    "db:expose": "node scripts/db.mjs expose",
     "smoke": "node scripts/smoke.mjs",
     "smoke:daily": "node scripts/daily-smoke.mjs",
     "smoke:dungeon": "node scripts/dungeon-smoke.mjs",

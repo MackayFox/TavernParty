@@ -4,6 +4,7 @@ import "./globals.css";
 import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
+import { CANONICAL_ORIGIN } from "@/lib/site";
 
 const display = Cinzel({
   subsets: ["latin"],
@@ -39,7 +40,7 @@ const mono = IBM_Plex_Mono({
  * Naming it here would pin every page to the same picture forever.
  */
 export const metadata: Metadata = {
-  metadataBase: new URL("https://tavernparty.com"),
+  metadataBase: new URL(CANONICAL_ORIGIN),
   title: {
     default: "Tavern Party: Roll a Character, Survive the Night",
     template: "%s · Tavern Party",

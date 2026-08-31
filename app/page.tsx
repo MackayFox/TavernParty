@@ -27,6 +27,7 @@ import {
   TIMINGS,
 } from "@/lib/game/rules";
 import { ABILITIES, type Scores } from "@/lib/game/types";
+import { CANONICAL_ORIGIN } from "@/lib/site";
 
 export const metadata: Metadata = {
   // Absolute, because the root template appends "· Tavern Party" to every child
@@ -542,7 +543,7 @@ export default function HomePage() {
           "@context": "https://schema.org",
           "@type": "VideoGame",
           name: "Tavern Party",
-          url: "https://tavernparty.com",
+          url: CANONICAL_ORIGIN,
           description:
             "A free fantasy roleplaying game in the browser. Roll a character, take on five encounters with friends, and find out which of you walks out with the loot.",
           genre: ["Role-playing game", "Party game", "Puzzle"],

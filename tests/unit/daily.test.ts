@@ -510,12 +510,32 @@ describe("share text is shareable", () => {
       const source = Object.values(m).filter((v) => typeof v === "function");
       expect(source.length).toBeGreaterThan(0);
     }
+    /**
+     * Every daily's share line has to carry an absolute url.
+     *
+     * This used to scan the four source files for a literal hostname and assert
+     * it was preceded by a scheme. That worked right up until the hostname moved
+     * into `lib/site.ts`, at which point the scan found nothing and a test whose
+     * job was to catch a missing scheme would have passed on a file with no url
+     * in it at all. So it asserts the two halves separately: `siteUrl` really
+     * does produce an absolute url, and each daily really does build its share
+     * link with it rather than typing a host of its own.
+     */
+    const { siteUrl, CANONICAL_ORIGIN } = await import("@/lib/site");
+    expect(CANONICAL_ORIGIN).toMatch(/^https:\/\/[a-z0-9.-]+$/);
+    expect(CANONICAL_ORIGIN.endsWith("/"), "no trailing slash, or every url doubles it").toBe(false);
+    expect(siteUrl("/daily/muster")).toBe(`${CANONICAL_ORIGIN}/daily/muster`);
+    expect(siteUrl("daily/muster"), "a missing leading slash is still one slash").toBe(
+      `${CANONICAL_ORIGIN}/daily/muster`
+    );
+
     const fs = await import("node:fs");
     for (const f of ["deeprun", "ledger", "longway", "muster"]) {
       const text = fs.readFileSync(`lib/daily/${f}.ts`, "utf8");
-      const hosts = text.match(/["'][^"']*tavernparty\.com[^"']*["']/g) ?? [];
-      expect(hosts.length, f).toBeGreaterThan(0);
-      for (const h of hosts) expect(h, `${f}: ${h}`).toContain("https://");
+      expect(text, `${f} should build its share link with siteUrl`).toContain("siteUrl(");
+      expect(text, `${f} should not spell out a hostname of its own`).not.toMatch(
+        /["'`][^"'`]*tavernparty\.[a-z.]+/
+      );
     }
   });
 });

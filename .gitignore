@@ -19,3 +19,6 @@ supabase/.temp/
 
 # Screenshots from scripts/shots.mjs. Evidence for a human, not source.
 shots/
+
+# Agent test harnesses and screenshots. Scratch, not source.
+.testing/

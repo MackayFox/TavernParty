@@ -15,8 +15,9 @@
  */
 import Link from "next/link";
 import { JsonLd } from "@/components/JsonLd";
+import { CANONICAL_ORIGIN } from "@/lib/site";
 
-const BASE = "https://tavernparty.com";
+const BASE = CANONICAL_ORIGIN;
 
 export type CharacterPage = {
   path: string;

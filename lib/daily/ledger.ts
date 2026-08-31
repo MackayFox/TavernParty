@@ -18,6 +18,7 @@
  * is a checked property of every puzzle this file has ever produced.
  */
 import { seededPick, seededRng, seededShuffle } from "./core";
+import { siteUrl } from "../site";
 
 export const PEOPLE = 5;
 export const CLUES = 4;
@@ -364,6 +365,6 @@ export function shareText(date: string, correct: boolean, checksUsed: number): s
     `THE LEDGER ${date}`,
     verdict,
     correct ? marks : "▫▫▫▫",
-    "https://tavernparty.com/daily/ledger",
+    siteUrl("/daily/ledger"),
   ].join("\n");
 }

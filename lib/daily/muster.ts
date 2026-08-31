@@ -34,6 +34,7 @@ import {
 } from "@/lib/game/rules";
 import { ABILITIES, type Ability } from "@/lib/game/types";
 import { clears, parPhrase, seededRng, seededShuffle } from "./core";
+import { siteUrl } from "../site";
 
 export const TRIALS = 5;
 
@@ -350,6 +351,6 @@ export function shareText(date: string, result: Result, par: number, encounter: 
     `MUSTER ${date}`,
     `${encounter}: ${result.cleared} of ${result.trials.length}, ${parPhrase(result.cleared, par)}`,
     grid,
-    "https://tavernparty.com/daily/muster",
+    siteUrl("/daily/muster"),
   ].join("\n");
 }
