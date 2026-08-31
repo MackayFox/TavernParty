@@ -94,6 +94,11 @@ export default function PrivacyPage() {
                 where="One year, or until you clear it"
               />
               <Row
+                what="tp_spent and tp_banked"
+                why="What a daily puzzle already cost you and what it already scored you. The Ledger charges you for each check, and every daily keeps the first score you earned so that replaying one after seeing the answer cannot raise it. Both are signed with the same key as the guest cookie, so you are welcome to read them and nobody can edit them. No name, no account, nothing beyond the game and the day."
+                where="36 hours, or until you clear it"
+              />
+              <Row
                 what="Supabase auth cookies"
                 why="Only if you create an account and sign in. They hold the session, and they are set by Supabase, who host the login for us."
                 where="Until you sign out or the session expires"
@@ -161,6 +166,14 @@ export default function PrivacyPage() {
               <span className="num text-text-hi">tp_daily_done</span>{" "}
               <span className="text-text-mid">
                 which days you have completed, and the score for each.
+              </span>
+            </li>
+            <li>
+              <span className="num text-text-hi">tp_daily_counted</span>{" "}
+              <span className="text-text-mid">
+                the same again, but only for puzzles played on their own date. The streak is
+                counted from this one, which is why practising an old day in the archive can
+                never extend it.
               </span>
             </li>
             <li>

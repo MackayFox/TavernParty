@@ -972,14 +972,14 @@ export function run(
       value: bossBeaten ? BOSS_BEATEN : 0,
     },
     {
-      label: out ? "Out alive" : "Out alive — you did not come back up",
+      label: out ? "Out alive" : "Out alive: you did not come back up",
       rate: `${OUT_ALIVE}`,
       value: out ? OUT_ALIVE : 0,
     },
     {
       label: out
         ? `Vigour carried out (${carried})`
-        : "Vigour carried out — nothing counts if you stay down there",
+        : "Vigour carried out: nothing counts if you stay down there",
       rate: `${VIGOUR_VALUE} each`,
       value: carried * VIGOUR_VALUE,
     },

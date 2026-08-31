@@ -31,7 +31,25 @@ export default async function DeepRunPage({
    * chosen dungeon", every finish would pay for a query on the way to an answer
    * that used to be arithmetic.
    */
-  const chosen = await chosenDungeon();
+  /**
+   * AND IT MUST NEVER TAKE THE PUZZLE DOWN WITH IT.
+   *
+   * The reads in `lib/campaign/store.ts` were changed to throw rather than
+   * return an empty result, because a database that was refusing to answer had
+   * been rendering as "Nothing here yet" in the site's own voice. That is right
+   * for the Hall, where the list IS the page. It is wrong here, where this is a
+   * decoration beside a puzzle that needs no database at all: the throw escaped
+   * the server render and 500'd the whole of The Deep Run during an outage, so a
+   * fix for a silent failure took a working daily off the air.
+   *
+   * `catch` and carry on. The aside below is already conditional, the puzzle is
+   * arithmetic, and one of four dailies going dark because an unrelated table
+   * would not answer is a far worse bargain than a missing link.
+   */
+  const chosen = await chosenDungeon().catch((err: unknown) => {
+    console.warn("[deeprun] chosen dungeon unavailable, carrying on", err);
+    return null;
+  });
   return (
     <>
       <DeepRunGame date={(Array.isArray(date) ? date[0] : date) ?? null} />

@@ -113,7 +113,12 @@ export function DailyRecord() {
                 text alternative, because a row of squares is meaningless to a
                 screen reader.
               */}
+              {/* `role="img"`, because `aria-label` on a bare <p> is a
+                  prohibited attribute: browsers may ignore it, and it is the
+                  only thing carrying this strip's meaning. Without the role a
+                  screen reader gets fourteen unpronounceable shapes or silence. */}
               <p
+                role="img"
                 className="num mt-2 tracking-[0.15em] text-paper-ink"
                 aria-label={`Last ${DAYS} days: ${row.strip.filter((s) => s !== null).length} played`}
               >

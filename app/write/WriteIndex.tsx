@@ -135,11 +135,32 @@ export function WriteIndex() {
             is the same name the rest of the site already knows you by.
           </span>
         </label>
+        {/*
+          `aria-disabled`, NOT `disabled`, once there is something to explain.
+
+          Saying "Put your name on it first" on a `disabled` button meant the
+          sentence written to unblock somebody was drawn through
+          `disabled:opacity-40`: measured at 2.54:1 against the page, the least
+          legible text on the screen, inside a control the keyboard skips. The
+          fix for a silent failure had made it a nearly invisible one.
+
+          So the button stays reachable and readable, announces itself as
+          unavailable, and the handler refuses. The house already uses this
+          pattern for the Ledger's checks, and for the same reason: a screen
+          reader user should be able to find the control and be told why.
+        */}
         <Button
           size="lg"
           className="mt-3"
-          disabled={busy || !loaded || name.trim().length === 0}
-          onClick={() => void open()}
+          disabled={busy || !loaded}
+          aria-disabled={name.trim().length === 0 || undefined}
+          onClick={() => {
+            if (name.trim().length === 0) {
+              setError("Put your name on it first. It goes on the dungeon as the byline.");
+              return;
+            }
+            void open();
+          }}
         >
           {/* THE BUTTON SAYS WHAT IS MISSING, rather than being greyed out and
               silent. This was the only call to action on the landing page for a

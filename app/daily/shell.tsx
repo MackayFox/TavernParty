@@ -259,7 +259,7 @@ export function NextUp({
           // it lands rather than changing in silence.
           <p className="text-sm text-text-mid" aria-live="polite">
             Streak:{" "}
-            <span className="num text-text-hi">{streak === null ? "—" : streak}</span>{" "}
+            <span className="num text-text-hi">{streak === null ? "–" : streak}</span>{" "}
             {streak === 1 ? "day" : "days"}
           </p>
         )}

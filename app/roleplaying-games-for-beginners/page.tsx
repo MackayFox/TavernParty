@@ -99,7 +99,7 @@ export default function BeginnersPage() {
         <p className="prose-read text-text-mid">
           This page is written for somebody who has never played one and has nobody handy to
           ask. It uses Tavern Party as the worked example, because that is the game this site
-          is, and because you can go and play it in a browser in about {RUN_LENGTH} with no
+          is, and because you can go and play it in a browser in {RUN_LENGTH} with no
           account and nothing to install. But the ideas are the ideas. Take them anywhere.
         </p>
       </header>
@@ -150,8 +150,8 @@ export default function BeginnersPage() {
           running the world: deciding what you walk into, how hard it is, and what happens
           afterwards. It is a genuinely great job and it is the reason most people never get to
           try one of these games, because it wants somebody prepared to read a book, prepare an
-          evening, and then be available on a specific Tuesday. Every group that has ever
-          collapsed collapsed because that person got busy.
+          evening, and then be available on a specific Tuesday. Most groups that fall apart
+          fall apart because that person got busy.
         </p>
         <p className="prose-read text-text-mid">
           So there is not one here. The server does that job. It chooses the encounter from a

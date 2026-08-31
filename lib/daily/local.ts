@@ -130,7 +130,15 @@ export function localStats(game: DailyGame): { streak: number; played: number; b
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   const today = iso(new Date());
   const cursor = new Date();
-  if (!done[today]) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  /*
+   * `undefined`, not falsy. `done[today]` is a SCORE, and three of the four
+   * dailies can legitimately score nought: 0 of 4 on the Ledger is common and is
+   * its own `minScore`. Testing truthiness threw today's play away and started
+   * the walk at yesterday, so a fourteen-day streak read 13 after one bad Ledger
+   * and a first-timer whose first ever puzzle scored zero was told "Streak: 0
+   * days" beside their own finished game. The loop below already had this right.
+   */
+  if (done[today] === undefined) cursor.setUTCDate(cursor.getUTCDate() - 1);
   let streak = 0;
   while (done[iso(cursor)] !== undefined) {
     streak++;
