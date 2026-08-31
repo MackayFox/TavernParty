@@ -489,8 +489,17 @@ export function AdSlot({ zone, className = "" }: { zone: string; className?: str
 
   if (!ADSENSE_CLIENT) return null;
   return (
+    /*
+      `overflow-hidden`, because Google sizes the unit and we do not.
+      AdSense writes a pixel width onto its own iframe when it fills, and that
+      width is chosen for the viewport at the moment it filled. Load the home
+      page wide, then narrow the window or turn a phone from landscape to
+      portrait, and a 768px unit sits inside a 390px column: the whole document
+      scrolls sideways, on the home page, from an element the site does not
+      control. Clipping it is the only lever on this side of the boundary.
+    */
     <div
-      className={`${className} ${status === "unfilled" ? "hidden" : ""}`}
+      className={`${className} max-w-full overflow-x-hidden ${status === "unfilled" ? "hidden" : ""}`}
       data-zone={zone}
       data-ad-state={status}
     >

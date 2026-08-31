@@ -12,20 +12,7 @@ import { KIT } from "@/lib/content/kit";
 import { SCENES } from "@/lib/content/scenes";
 import { isTag, TAG_MEANING } from "@/lib/content/tags";
 import { DAILY_GAMES, DAILY_META } from "@/lib/daily/core";
-import {
-  abilityMod,
-  ABILITY_LABEL,
-  DEFAULT_SETTINGS,
-  DREAD_DOUBLE_AT,
-  estimateRunMs,
-  formatDuration,
-  HOOK_TOKENS_MAX,
-  HOOK_TOKEN_VALUE,
-  LAUREL_VALUE,
-  MAX_PLAYERS,
-  MIN_PLAYERS,
-  TIMINGS,
-} from "@/lib/game/rules";
+import { ABILITY_LABEL, DEFAULT_SETTINGS, DREAD_DOUBLE_AT, HOOK_TOKENS_MAX, HOOK_TOKEN_VALUE, LAUREL_VALUE, MAX_PLAYERS, MIN_PLAYERS, TIMINGS, abilityMod, estimateRunMs, spellDuration } from "@/lib/game/rules";
 import { ABILITIES, type Scores } from "@/lib/game/types";
 import { CANONICAL_ORIGIN } from "@/lib/site";
 
@@ -45,7 +32,7 @@ export const metadata: Metadata = {
   },
 };
 
-const RUN_LENGTH = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
+const RUN_LENGTH = spellDuration(estimateRunMs(DEFAULT_SETTINGS));
 
 /** Content is keyed by id, so the page shows the real game rather than a mock-up. */
 function byId<T extends { id: string }>(list: T[], id: string): T {
@@ -133,9 +120,12 @@ export default function HomePage() {
             <span className="text-accent">Survive the night.</span>
           </h1>
           <p className="prose-read">
-            Build somebody in two minutes, take on {DEFAULT_SETTINGS.acts} encounters with your
+            {/* Words in prose, numerals in stat blocks. "two minutes" and "5
+                encounters" in one sentence was the most visible instance of a
+                constant being interpolated into writing. */}
+            Build somebody in two minutes, take on five encounters with your
             friends, and find out which of you they were prepared to sacrifice. Exactly one of you
-            walks out with the loot.
+            walks out with the Hoard, which is all of the loot.
           </p>
           <p className="text-sm text-text-mid">
             {MIN_PLAYERS} to {MAX_PLAYERS} players, {RUN_LENGTH}. Free, in your browser, no

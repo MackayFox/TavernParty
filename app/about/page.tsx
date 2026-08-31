@@ -5,13 +5,7 @@ import { CALLINGS } from "@/lib/content/callings";
 import { HOOKS } from "@/lib/content/hooks";
 import { OTHER_SITES } from "@/lib/content/network";
 import { SCENES } from "@/lib/content/scenes";
-import {
-  DEFAULT_SETTINGS,
-  MAX_PLAYERS,
-  MIN_PLAYERS,
-  estimateRunMs,
-  formatDuration,
-} from "@/lib/game/rules";
+import { DEFAULT_SETTINGS, MAX_PLAYERS, MIN_PLAYERS, estimateRunMs, spellDuration } from "@/lib/game/rules";
 
 export const metadata: Metadata = {
   title: "About Tavern Party, and Why It Is This Short",
@@ -38,7 +32,7 @@ export default function AboutPage() {
       <header className="flex flex-col gap-3">
         <p className="label-caps">About</p>
         <h1 className="font-display text-3xl font-bold text-text-hi sm:text-4xl">
-          A whole roleplaying night in {formatDuration(estimateRunMs(DEFAULT_SETTINGS))}
+          A whole roleplaying night in {spellDuration(estimateRunMs(DEFAULT_SETTINGS))}
         </h1>
         <p className="prose-read text-text-mid">
           Tavern Party is a small fantasy roleplaying game you play in a browser tab with{" "}

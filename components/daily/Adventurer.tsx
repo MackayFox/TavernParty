@@ -22,7 +22,7 @@
  * and the mapping from a door to an ability is left to you. Showing your Brawn
  * is not a leak; showing that the third door is a Brawn door would be.
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ABILITY_BLURB, ABILITY_LABEL, AFFINITY_BONUS, abilityMod } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
 
@@ -124,11 +124,59 @@ export function signed(n: number): string {
 export function AdventurerStrip({ sheet, onOpen }: { sheet: Sheet; onOpen: () => void }) {
   const thin = sheet.vigour <= 2;
   const pct = Math.max(0, Math.min(100, (sheet.vigour / Math.max(1, sheet.baseVigour)) * 100));
+  /**
+   * Open on a wide screen, closed on a phone. Driven from JS rather than a `sm:`
+   * class because a closed `<details>` hides its children through the UA's slot
+   * and no `display` rule can force it open. Same reasoning as the Long Way
+   * Down's strip, which is the component this is being made to match.
+   */
+  const [open, setOpen] = useState(false);
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   return (
-    <footer
-      aria-label="Your character"
-      className="sheet tp-strip flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2"
-    >
+    <footer aria-label="Your character" className="sheet tp-strip px-3 py-2">
+      {/*
+        SAME BARGAIN AS THE LONG WAY DOWN'S STRIP, and for the same measured
+        reason: a reference panel must not outrank the decision. This one was a
+        fixed block about a fifth of a phone screen tall, always expanded, sitting
+        under the room you are trying to read and the doors you are choosing
+        between. Two dailies had two different answers to one problem.
+
+        WHAT STAYS ON THE ONE LINE IS DIFFERENT HERE, though. In the Long Way Down
+        the summary carries Renown and Dread; down here the number that matters
+        every single floor is Vigour, because it is the one standing between you
+        and the end of the run. So the collapsed line carries it in full,
+        including the "nearly done" warning, and only the things you look at once
+        per floor fold away.
+      */}
+      <details
+        className="group [&[open]>summary]:mb-2"
+        open={wide || open}
+        onToggle={(e) => setOpen(e.currentTarget.open)}
+      >
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 sm:hidden">
+          <span className="min-w-0 truncate">
+            <span className="font-display text-base text-paper-ink">{sheet.callingName}</span>{" "}
+            <span className="sheet-label">Vigour</span>{" "}
+            <span className={`num ${thin ? "text-paper-danger" : "text-paper-ink"}`}>
+              {sheet.vigour}
+            </span>
+            <span className="sheet-label">/{sheet.baseVigour}</span>
+            {thin ? <span className="sheet-label text-paper-danger"> nearly done</span> : null}
+          </span>
+          <span className="sheet-label shrink-0 text-paper-ink">
+            <span className="group-open:hidden">Your sheet &#9662;</span>
+            <span className="hidden group-open:inline">Hide &#9652;</span>
+          </span>
+        </summary>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <div className="min-w-0">
         {/* "Calling" is the product's word and the build screen teaches it, but
             the strip is glanced at rather than read, so it uses the plain one. */}
@@ -263,6 +311,8 @@ export function AdventurerStrip({ sheet, onOpen }: { sheet: Sheet; onOpen: () =>
           Full sheet <span aria-hidden>&#9656;</span>
         </span>
       </button>
+      </div>
+      </details>
     </footer>
   );
 }

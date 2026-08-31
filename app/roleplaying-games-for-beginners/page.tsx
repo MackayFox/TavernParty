@@ -26,26 +26,10 @@ import { CALLINGS } from "@/lib/content/callings";
 import { HOOKS } from "@/lib/content/hooks";
 import { KIT } from "@/lib/content/kit";
 import { SCENES } from "@/lib/content/scenes";
-import {
-  ABILITY_BLURB,
-  ABILITY_LABEL,
-  ARRAY_DICE,
-  ARRAY_DROP,
-  ARRAY_SIZE,
-  DEFAULT_SETTINGS,
-  DIE_SIDES,
-  DRAFT_RANKS,
-  DREAD_DOUBLE_AT,
-  MAX_PLAYERS,
-  MIN_PLAYERS,
-  TIMINGS,
-  abilityMod,
-  estimateRunMs,
-  formatDuration,
-} from "@/lib/game/rules";
+import { ABILITY_BLURB, ABILITY_LABEL, ARRAY_DICE, ARRAY_DROP, ARRAY_SIZE, DEFAULT_SETTINGS, DIE_SIDES, DRAFT_RANKS, DREAD_DOUBLE_AT, MAX_PLAYERS, MIN_PLAYERS, TIMINGS, abilityMod, estimateRunMs, spellDuration } from "@/lib/game/rules";
 import { ABILITIES } from "@/lib/game/types";
 
-const RUN_LENGTH = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
+const RUN_LENGTH = spellDuration(estimateRunMs(DEFAULT_SETTINGS));
 
 /** "+3", "-1". A bare 3 next to "adds one to your roll" reads as a target. */
 const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);

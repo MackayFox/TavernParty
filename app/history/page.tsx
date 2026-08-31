@@ -23,6 +23,10 @@ export default async function HistoryPage() {
   if (identity?.kind !== "user") {
     return (
       <div className="mx-auto w-full max-w-xl py-8">
+        {/* The page had no h1 at all: its only heading was the sheet's own h2,
+            so a screen reader landing here got no page title in the heading
+            tree, and axe flags it. Every other page on the site has one. */}
+        <h1 className="sr-only">Your record</h1>
         {/* The record itself, before the essay about the record. */}
         <DailyRecord />
         {/*

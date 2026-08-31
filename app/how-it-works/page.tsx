@@ -49,6 +49,7 @@ import {
   abilityMod,
   estimateRunMs,
   formatDuration,
+  spellDuration,
 } from "@/lib/game/rules";
 import { ABILITIES, type Player, type Scores } from "@/lib/game/types";
 import { siteUrl } from "@/lib/site";
@@ -282,7 +283,8 @@ function Contents({ rail = false }: { rail?: boolean }) {
 }
 
 export default function HowItWorksPage() {
-  const runLength = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
+  // In a sentence, so the spelled form. The table below keeps the short one.
+  const runLength = spellDuration(estimateRunMs(DEFAULT_SETTINGS));
   const acts = DEFAULT_SETTINGS.acts;
 
   /**

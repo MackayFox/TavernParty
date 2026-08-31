@@ -15,17 +15,9 @@ import { CALLINGS } from "@/lib/content/callings";
 import { HOOKS } from "@/lib/content/hooks";
 import { KIT } from "@/lib/content/kit";
 import { SCENES } from "@/lib/content/scenes";
-import {
-  ARRAY_SIZE,
-  DEFAULT_SETTINGS,
-  MAX_PLAYERS,
-  MIN_PLAYERS,
-  TIMINGS,
-  estimateRunMs,
-  formatDuration,
-} from "@/lib/game/rules";
+import { ARRAY_SIZE, DEFAULT_SETTINGS, MAX_PLAYERS, MIN_PLAYERS, TIMINGS, estimateRunMs, spellDuration } from "@/lib/game/rules";
 
-const RUN_LENGTH = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
+const RUN_LENGTH = spellDuration(estimateRunMs(DEFAULT_SETTINGS));
 
 /**
  * "Online roleplaying games" on its own is a head term a five-page site is not

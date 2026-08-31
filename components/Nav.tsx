@@ -42,7 +42,11 @@ export function Wordmark({ className = "" }: { className?: string }) {
     <Link
       href="/"
       aria-label="Tavern Party, home"
-      className={`font-display min-w-0 text-lg font-bold uppercase leading-none sm:text-xl ${className}`}
+      // `min-h-11 inline-flex`: it was 36px tall, the only control on the whole
+      // site under the 44px the house rule sets everywhere else, and it is on
+      // every page. `min-w-0` is gone with it: the nav collapses to one button
+      // below `sm` now, so the wordmark no longer has to give up its width.
+      className={`font-display inline-flex min-h-11 items-center text-lg font-bold uppercase leading-none sm:text-xl ${className}`}
     >
       <span className="block text-accent sm:inline">Tavern</span>{" "}
       <span className="block text-text-hi sm:inline">Party</span>

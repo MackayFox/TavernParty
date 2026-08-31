@@ -184,6 +184,15 @@ export default function PrivacyPage() {
               </span>
             </li>
             <li>
+              <span className="num text-text-hi">tp_hero</span>{" "}
+              <span className="text-text-mid">
+                your Deep Run runner, if you have made one: the name you gave them, the Blood
+                they were dealt, what they did before this, their last sixty nights and their
+                last forty scars. It is the largest thing on this list and it never leaves
+                this browser.
+              </span>
+            </li>
+            <li>
               <span className="num text-text-hi">tp_name</span>{" "}
               <span className="text-text-mid">
                 the name you last used, so you are not asked for it every time.

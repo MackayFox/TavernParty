@@ -34,8 +34,8 @@ export default function DailyHub() {
         Tonight&apos;s four
       </h1>
       <p className="prose-read mt-3 text-text-mid">
-        Four puzzles, new at midnight, the same four for everybody in the world. Each one is two or
-        three minutes. Three of them publish a par worked out by brute force, so you find out not
+        Four puzzles, new at midnight, the same four for everybody in the world. Three of them are
+        two or three minutes; the Deep Run is the long one and wants about five. Three of them publish a par worked out by brute force, so you find out not
         just what you scored but what there was to score.
       </p>
 

@@ -110,6 +110,41 @@ export function formatDuration(ms: number): string {
   return `about ${minutes} min`;
 }
 
+/**
+ * The same length, as a sentence rather than as a stat block.
+ *
+ * `formatDuration` is right in a dropdown and in a table, and it was being
+ * interpolated into prose all over the site: "A whole roleplaying night in about
+ * 7 min" is an h1, and "you can go and play it in a browser in about 7 min"
+ * opens a page written for search. An abbreviated unit mid-sentence reads as a
+ * template variable rather than as writing, which is exactly the tell that makes
+ * a page look generated.
+ *
+ * Small numbers spelled out, because that is what the rest of the writing does:
+ * "You needed fourteen, the die gave eleven", "Five doors".
+ */
+const WORDS = [
+  "no",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+] as const;
+
+export function spellDuration(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  const word = WORDS[minutes] ?? String(minutes);
+  return `about ${word} minute${minutes === 1 ? "" : "s"}`;
+}
+
 // ---------------------------------------------------------------------------
 // The house array
 // ---------------------------------------------------------------------------

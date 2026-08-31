@@ -86,8 +86,8 @@ export function Door({
         {mine
           ? "Your dungeon, as everybody else sees it"
           : house
-            ? "The house’s own dungeon"
-            : "Somebody else’s dungeon"}
+            ? "The house's own dungeon"
+            : "Somebody else's dungeon"}
       </p>
       <h1 className="font-display mt-1 text-3xl font-bold uppercase text-text-hi sm:text-4xl">
         {door.title}
