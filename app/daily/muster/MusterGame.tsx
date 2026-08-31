@@ -15,7 +15,7 @@ import { Announcer, Button, Card, Die, ErrorNote, Pill, Sheet, Spinner } from "@
 import { postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, DieRule, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
-import { clears, reachNote } from "@/lib/daily/core";
+import { clears, modValue, reachNote } from "@/lib/daily/core";
 import { readProgress, useLocalStreak, writeProgress } from "@/lib/daily/local";
 import { ABILITY_LABEL, AFFINITY_BONUS, abilityMod } from "@/lib/game/rules";
 import type { Ability } from "@/lib/game/types";
@@ -533,7 +533,7 @@ export function MusterGame({ date }: { date?: string | null }) {
                     <li key={trial.id} className="border-b border-border-dim pb-2 last:border-0">
                       <p className="text-text-hi">{trial.label}</p>
                       <p className="num mt-1 text-sm text-text-mid">
-                        {trial.mods.map((m) => `${m.label} ${m.value >= 0 ? "+" : ""}${m.value}`).join("  ")}
+                        {trial.mods.map((m) => `${m.label} ${modValue(m)}`).join("  ")}
                         {"  =  "}
                         {trial.total} against {trial.tn}
                       </p>

@@ -28,7 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Die } from "@/components/ui";
-import { listOf, type Outcome } from "@/lib/daily/core";
+import { isDieMod, listOf, modValue, type Outcome } from "@/lib/daily/core";
 import { playCleared, playFailed, playHurt, playRoll } from "./sfx";
 
 export type RevealLine = {
@@ -264,10 +264,7 @@ export function Reveal({
                     className="tp-anim-reveal flex items-baseline justify-between gap-3 border-b border-border-dim py-0.5"
                   >
                     <dt className="text-sm text-text-mid">{mod.label}</dt>
-                    <dd className="num text-sm text-text-hi">
-                      {mod.value >= 0 ? "+" : ""}
-                      {mod.value}
-                    </dd>
+                    <dd className="num text-sm text-text-hi">{modValue(mod)}</dd>
                   </div>
                 ))}
               {showNeeded && (
@@ -330,7 +327,7 @@ export function Reveal({
           {showProse
             ? [
                 line.roll > 0 &&
-                  `${modsShown.map(({ mod }) => `${mod.label} ${mod.value >= 0 ? "plus" : "minus"} ${Math.abs(mod.value)}`).join(", ")}, total ${line.total}${line.tn !== null ? ` against ${line.tn}` : ""}.`,
+                  `${modsShown.map(({ mod }) => (isDieMod(mod.label) ? `${mod.label} rolled ${mod.value}` : `${mod.label} ${mod.value >= 0 ? "plus" : "minus"} ${Math.abs(mod.value)}`)).join(", ")}, total ${line.total}${line.tn !== null ? ` against ${line.tn}` : ""}.`,
                 `${line.cleared ? "Cleared" : ruined ? "Not cleared, and it went badly" : "Not cleared"}.`,
                 line.vigourSpent > 0
                   ? `${line.vigourSpent} Vigour, ${line.vigourAfter} left.`

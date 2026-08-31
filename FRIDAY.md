@@ -1,5 +1,98 @@
 # Friday
 
+## WHEN YOU WAKE UP: one thing is broken, and it is one checkbox
+
+**Multiplayer is dead in production and has been all night.** The four dailies
+are fine and always were; tables, quick match, the Hall and the dungeon builder
+all answer 500.
+
+It is not a code fault and there is nothing to deploy. The Supabase project
+stopped exposing the `tavern` schema to PostgREST, so every database call comes
+back `PGRST106 Invalid schema: tavern`. All five migrations are applied and the
+data is all there; `npm run db:status` confirms it.
+
+**Either of these fixes it, and both take under a minute.**
+
+1. **The checkbox.** Supabase dashboard, Settings, API, Exposed schemas: add
+   `tavern` next to `public`. Nothing to redeploy; it takes effect immediately.
+
+2. **Or run the command I wrote for it:**
+   ```bash
+   npm run db:expose
+   ```
+   It reads the current exposed list off the `authenticator` role, adds `tavern`
+   if it is missing, and asks PostgREST to reload. It is deliberately ADDITIVE:
+   this project is shared with Shareholder Party and writing the list wholesale
+   would take that site off the air. **It is untested** — I could not run it,
+   because changing a role on a live shared database is exactly the sort of thing
+   my own safety rails stop me doing unattended, and I decided not to argue with
+   that at four in the morning. If it misbehaves, use the checkbox.
+
+Verify either way with:
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" https://www.tavernparty.com/api/tables
+```
+200 means it is back. 500 means it is not.
+
+### The better version of the same fix, if you would rather
+
+`SUPABASE.txt` has the keys for a new dedicated Pro project
+(`npcfbcuywaoreutbbcuf`), which is what this site should be on: its own auth
+pool, its own service key, its own ceiling, and `public` is exposed by default
+so this entire class of failure disappears. **The one thing missing is the
+database password**, which cannot be derived from the API keys and is not in the
+file. Add it as `SUPABASE_DB_PASSWORD` and the move is:
+
+```bash
+# in .env.local: point at the new project, and DELETE the SUPABASE_DB_SCHEMA line
+npm run db:migrate && npm run db:status
+```
+
+then the same values into Vercel for production and preview. Nothing in the code
+needs unpicking; that is what the schema variable was for.
+
+---
+
+## What changed while you were asleep
+
+The domain, the ads and the deploy pipeline are all done and verified live.
+
+- **`tavernparty.com` was serving nothing at all.** Vercel redirected the apex to
+  www and `next.config.ts` redirected www back to the apex, so every path on the
+  domain was an infinite loop while the `vercel.app` URL looked perfect. Host
+  canonicalisation now belongs to Vercel alone, www answers, and `lib/site.ts` is
+  the one place the hostname is written down. **If you would rather the apex was
+  canonical**, make it primary in Vercel, Domains, and change `CANONICAL_ORIGIN`
+  in `lib/site.ts` to match. Change one and you must change the other.
+- **The whole repo said `.co.uk`.** Every canonical tag, sitemap entry, share
+  link and og:url pointed at a hostname nobody owns.
+- **AdSense is on**, all three ways: `ads.txt`, the loader script, and the
+  `google-adsense-account` meta tag, so verification does not depend on the
+  crawler running JavaScript. `NEXT_PUBLIC_ADSENSE_CLIENT` is set in production
+  only, deliberately: serving ads from preview URLs is unapproved inventory.
+- **CI/CD is confirmed working end to end.** A push to `main` auto-deployed to
+  production in 56 seconds, four times tonight.
+- **A tip jar**, off by default. Set `NEXT_PUBLIC_SUPPORT_URL` to a Ko-fi or
+  Buy Me a Coffee page and a line appears in the footer; leave it unset and there
+  is nothing there.
+
+### Still yours to do
+
+- [ ] **DNS is already pointing at Vercel** and both hosts resolve, so nothing to
+      do there. Worth knowing: GoDaddy holds the nameservers.
+- [ ] Add the site in **AdSense** and in **Search Console** (verify as a Domain
+      property so it covers both hosts), then submit `sitemap.xml`.
+- [ ] **A consent banner.** `/privacy` now says honestly that consent is not
+      being collected. Google's own Funding Choices / Privacy and Messaging CMP
+      is free, certified and a console setting rather than code. Needed before
+      serving personalised ads to UK and EEA visitors.
+- [ ] The **Supabase auth settings** in section 1 below are still unticked.
+- [ ] Decide on PostHog. `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` is baked in at build
+      time, so it needs a redeploy after being set.
+
+---
+
 Everything that needs a Supabase Pro plan, a paid account, or a dashboard I cannot
 reach. Nothing in here is a code change: the repo is built to be switched on, not
 reworked. Work top to bottom.

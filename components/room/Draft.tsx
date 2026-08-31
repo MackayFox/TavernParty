@@ -7,10 +7,11 @@
  * table in priority order. The only difference is the pool and the direction,
  * and the direction is the whole fork, so the kit draft says so twice.
  */
+import Link from "next/link";
 import { useState } from "react";
 import { Avatar, Button, Pill } from "@/components/ui";
-import { CALLING_DETAIL } from "@/lib/content/callings";
-import { KIT_DETAIL } from "@/lib/content/kit";
+import { CALLINGS, CALLING_DETAIL } from "@/lib/content/callings";
+import { KIT, KIT_DETAIL } from "@/lib/content/kit";
 import { TAG_MEANING, isTag } from "@/lib/content/tags";
 import { ABILITY_LABEL, DRAFT_RANKS } from "@/lib/game/rules";
 import { reversePriority } from "@/lib/game/draft";
@@ -41,6 +42,8 @@ const tagMeaning = (tag: string) => (isTag(tag) ? TAG_MEANING[tag] : tag);
 
 export function Draft({ view, post, busy }: PhaseProps) {
   const kit = view.phase === "DRAFT_KIT";
+  /** How many exist altogether, so the pool can admit it is a subset. */
+  const total = kit ? KIT.length : CALLINGS.length;
   const draft = kit ? view.kitDraft : view.callingDraft;
   const [wants, setWants] = useState<string[]>(draft?.myWants ?? []);
   const [handedIn, setHandedIn] = useState(false);
@@ -122,6 +125,7 @@ export function Draft({ view, post, busy }: PhaseProps) {
         </section>
       )}
 
+      {/* How many exist in total, so the subset line below can say so. */}
       <header className="space-y-2">
         <p className="prose-read">
           {kit
@@ -133,6 +137,23 @@ export function Draft({ view, post, busy }: PhaseProps) {
           draft. Everybody sees the same pool, and nobody sees what anybody else has
           ranked. Hand in nothing and you get whatever is left over.
         </p>
+        {/* SAY THAT THIS IS A SUBSET. At two, three or four players the Calling
+            draft offers four of the eight and the Kit six of the twelve, with
+            nothing on screen admitting it. Somebody drafted from a menu of four
+            all night and only learned the other Callings existed by reading the
+            source. The pool sizes are deliberate and fine; being quiet about
+            them is not, because "one of each per table" reads as though the
+            table is choosing between all of them. */}
+        {draft.pool.length < total && (
+          <p className="text-sm text-text-low">
+            {draft.pool.length} of the {total} {kit ? "pieces of Kit" : "Callings"} are in
+            tonight&apos;s draft. The rest are not on the table this run.{" "}
+            <Link href={kit ? "/characters/gear" : "/characters/classes"} className="underline">
+              All {total} are here
+            </Link>
+            .
+          </p>
+        )}
         {kit && (
           <ol className="flex flex-wrap gap-2">
             {order.map((id, i) => (

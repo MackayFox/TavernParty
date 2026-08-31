@@ -36,6 +36,16 @@ export default function BloodsPage() {
         <h1 className="font-display text-3xl font-bold text-text-hi sm:text-4xl">
           Eight character origin ideas, and not one of them is a species
         </h1>
+        {/* The one thing this page did not say, and a player found out by playing:
+            you do not choose your Blood at a table, the house deals you one. It
+            is presented here in exactly the browse-and-pick framing the Callings
+            and the Kit use, both of which you really do choose. */}
+        <p className="prose-read text-text-mid">
+          <strong className="text-text-hi">The house deals you one of these.</strong> Your
+          Calling you draft and your Kit you draft; your Blood arrives with the night,
+          because Bloods are not scarce and there is nothing to fight over. Read them for
+          the character you are handed, or take the lot to a table of your own.
+        </p>
         <p className="prose-read text-text-mid">
           There are no pointed ears in this game and no long-lived wise elders. A Blood is
           where you are from and therefore what you were taught to put up with: the folk of a

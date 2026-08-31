@@ -481,3 +481,22 @@ export function parPhrase(score: number, par: number): string {
   const n = size <= 10 ? words[size] : String(size);
   return gap > 0 ? `${n} short of par` : `${n} over par`;
 }
+
+/**
+ * THE DIE IS A RESULT, NOT A BONUS.
+ *
+ * Every ledger in the product rendered the throw in the same grammar as the
+ * things added to it: "d20 +19 · wits +3 · trained for this +2 · TOTAL 24". Read
+ * out loud that is "d20 plus nineteen", which is four points more than anybody
+ * threw, and it is the one place the ledger -- the best thing in this product --
+ * fumbles its own reading. The server sends the throw as a modifier called `d20`
+ * because that is how it sums it; the screen does not have to agree.
+ *
+ * Everything else keeps its sign, because a bonus without one is not a bonus.
+ */
+export const isDieMod = (label: string): boolean => /^d\d+$/i.test(label.trim());
+
+export function modValue(mod: { label: string; value: number }): string {
+  if (isDieMod(mod.label)) return `${mod.value}`;
+  return `${mod.value >= 0 ? "+" : ""}${mod.value}`;
+}

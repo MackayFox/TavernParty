@@ -17,7 +17,7 @@ import { postJson } from "@/components/client";
 import { useLanded } from "@/components/daily/landed";
 import { DailyHeader, NextUp, RuleLine, ShareCard, finishDaily, getPuzzle } from "../shell";
 import { NightSheet, NightStrip, tagMeaning, type ActLine, type Standing } from "./Character";
-import { reachNote } from "@/lib/daily/core";
+import { modValue, reachNote } from "@/lib/daily/core";
 import { readProgress, useLocalStreak, writeProgress } from "@/lib/daily/local";
 import {
   ABILITY_LABEL,
@@ -315,7 +315,7 @@ export function LongwayGame({ date }: { date?: string | null }) {
                 {latest.doorId === FLINCH
                   ? "You did not move."
                   : latest.mods
-                      .map((m) => `${m.label} ${m.value >= 0 ? "+" : ""}${m.value}`)
+                      .map((m) => `${m.label} ${modValue(m)}`)
                       .join("   ")}
               </p>
               {latest.doorId !== FLINCH ? (
