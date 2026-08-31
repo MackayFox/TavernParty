@@ -9,6 +9,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { exposedList, mergeExposed } from "./exposed.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -26,6 +27,7 @@ try {
 // with its own CA (not in Node's trust store). This script runs locally or in
 // CI against a pinned host, never in the app runtime.
 const ssl = { rejectUnauthorized: false };
+
 
 async function connect() {
   const direct = process.env.SUPABASE_DIRECT_CONNECTION_STRING;
@@ -129,17 +131,10 @@ try {
     const { rows } = await client.query(
       `select rolconfig from pg_roles where rolname = 'authenticator'`
     );
-    const current = (rows[0]?.rolconfig ?? [])
-      .map((c) => /^pgrst\.db_schemas=(.*)$/.exec(c)?.[1])
-      .find((v) => v !== undefined);
-    const wanted = (current ?? "public, graphql_public")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (wanted.includes(schema)) {
+    const wanted = mergeExposed(rows[0]?.rolconfig ?? [], schema);
+    if (wanted.length === exposedList(rows[0]?.rolconfig ?? []).length) {
       console.log(`already exposed: ${wanted.join(", ")}`);
     } else {
-      wanted.push(schema);
       // Identifier, not a parameter: ALTER ROLE ... SET takes no bind params.
       // `schema` comes from our own env, and is quoted into a single literal.
       await client.query(
