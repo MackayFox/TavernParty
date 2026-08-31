@@ -18,7 +18,7 @@
  * impossible rather than merely unwise.
  */
 import { useState } from "react";
-import { Button, Pill } from "@/components/ui";
+import { Announcer, Button, Pill } from "@/components/ui";
 import { BLOODS } from "@/lib/content/bloods";
 import { HOOKS } from "@/lib/content/hooks";
 import {
@@ -40,6 +40,10 @@ export function Runner({
   const [name, setName] = useState("");
   const [hookId, setHookId] = useState(HOOKS[0].id);
   const [open, setOpen] = useState(false);
+  /** Armed, but not yet confirmed. See the note on the button. */
+  const [retiring, setRetiring] = useState(false);
+  /** Said out loud, because the only other signal is a block quietly emptying. */
+  const [retired, setRetired] = useState("");
 
   // ------------------------------------------------------------- nobody yet
   if (!hero && !making) {
@@ -195,18 +199,50 @@ export function Runner({
             </div>
           )}
 
+          {/*
+            ARM, THEN CONFIRM. This wiped a character on one press: every night
+            they had run, every scar, gone, with no confirmation, no undo and
+            nothing said out loud. The only signal was a block of the page
+            quietly becoming "Nobody yet", and the button unmounted itself so a
+            keyboard user's focus fell to the body at the same moment.
+
+            Closing a ledger takes two presses in this product, and closing a
+            ledger is undone by a reload. This is the same pattern, for the one
+            thing here that a reload cannot bring back.
+          */}
           <button
             type="button"
             onClick={() => {
+              if (!retiring) {
+                setRetiring(true);
+                return;
+              }
+              const name = hero.name;
               forgetHero();
+              setRetiring(false);
+              setRetired(`${name} has been retired. Their nights are gone.`);
               onChange(null);
             }}
-            className="mt-3 min-h-11 text-xs text-text-low underline hover:text-danger"
+            className={`mt-3 min-h-11 text-xs underline ${
+              retiring ? "text-danger" : "text-text-low hover:text-danger"
+            }`}
           >
-            Retire {hero.name} and start somebody new
+            {retiring
+              ? `Yes, retire ${hero.name}. This cannot be undone`
+              : `Retire ${hero.name} and start somebody new`}
           </button>
+          {retiring && (
+            <button
+              type="button"
+              onClick={() => setRetiring(false)}
+              className="mt-1 min-h-11 text-xs text-text-mid underline hover:text-text-hi"
+            >
+              Keep them
+            </button>
+          )}
         </details>
       )}
+      <Announcer message={retired} />
     </section>
   );
 }
