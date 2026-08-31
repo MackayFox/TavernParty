@@ -73,9 +73,36 @@ export async function recordRun(run: RunRecord): Promise<void> {
   }
 }
 
+
+/**
+ * A READ THAT FAILS OUT LOUD.
+ *
+ * Every list here was `const { data } = await ...` followed by `data ?? []`, so
+ * a database that was refusing to answer produced an empty array and a 200. The
+ * Hall then rendered "Nothing here yet. Write the first one" and `/api/dungeons`
+ * answered `{"mine":[],"pool":[]}` -- an outage reported to the player as an
+ * editorial fact, in the site's own voice.
+ *
+ * It is worse than a wrong screen. During a real diagnosis it actively misled:
+ * these routes answering 200 was the reason the database was first believed to
+ * be healthy while every write was failing. A silent failure does not only hide
+ * itself, it hides its neighbours.
+ *
+ * Writes stay best-effort and warn: losing a play count is not worth taking the
+ * ending away from a table. Reads throw, `handleError` turns that into a 500,
+ * and the page shows "not answering" instead of "nobody has written one".
+ */
+function rowsOf<T>(
+  result: { data: T[] | null; error: { message: string } | null },
+  what: string
+): T[] {
+  if (result.error) throw new Error(`${what}: ${result.error.message}`);
+  return result.data ?? [];
+}
+
 export async function runOf(code: string, playerKey: string): Promise<RunRecord | null> {
   if (!supabaseConfigured()) return memRuns.get(key(code, playerKey)) ?? null;
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("dungeon_runs")
     .select("*")
     .eq("code", code.toUpperCase())
@@ -113,12 +140,15 @@ export async function mark(code: string, playerKey: string): Promise<"marked" | 
 
 export async function hasMarked(code: string, playerKey: string): Promise<boolean> {
   if (!supabaseConfigured()) return memMarks.has(key(code, playerKey));
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("dungeon_marks")
     .select("code")
     .eq("code", code.toUpperCase())
     .eq("player_key", playerKey)
     .maybeSingle();
+  // "Have you already marked this?" answered "no" for everybody during an
+  // outage, which is the answer that lets somebody mark it twice.
+  if (error) throw new Error(`reading marks: ${error.message}`);
   return !!data;
 }
 
@@ -161,7 +191,8 @@ export async function floorReportFor(code: string): Promise<{
   if (!supabaseConfigured()) {
     rows = [...memRuns.values()].filter((r) => r.code === upper);
   } else {
-    const { data } = await adminClient().from("dungeon_runs").select("*").eq("code", upper).limit(2000);
+    const { data, error } = await adminClient().from("dungeon_runs").select("*").eq("code", upper).limit(2000);
+    if (error) throw new Error(`reading the standing: ${error.message}`);
     rows = (data ?? []).map((d) => ({
       code: d.code,
       playerKey: d.player_key,

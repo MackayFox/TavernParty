@@ -1000,7 +1000,12 @@ function Run({ data, dungeon }: { data: Payload; dungeon: string | null }) {
                             */}
                             <span className="mt-2 block text-xs text-text-low">
                               {option.kind === "brace"
-                                ? `Slow, certain, and it costs you ${option.vigour} Vigour either way.`
+                                /* "Slow" is boilerplate pinned to every brace, and it lands on doors
+                                   called "Run it flat out" and "Just run up" three floors
+                                   running, which tells a reader the words were not written
+                                   for this door. Certainty is the thing a brace actually
+                                   sells, and it is true of all of them. */
+                                ? `No roll. It works, and it costs you ${option.vigour} Vigour.`
                                 : stakeLine(option.ruinSets)}
                               {lit && calling && ` ${calling.knack.label} is armed.`}
                             </span>

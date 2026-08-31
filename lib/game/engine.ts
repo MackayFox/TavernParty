@@ -996,6 +996,33 @@ function resolveAct(room: Room, now: number, rng: Rng): void {
     act.choices[p.id] = (wantsReckless ? reckless : best).id;
     act.spend[p.id] = wantsReckless ? Math.min(1, p.hookTokens) : 0;
     act.order.push(p.id);
+
+    /**
+     * AND A STRANGER NOMINATES, because otherwise nobody ever does.
+     *
+     * A Stranger used to take a door and nothing else: never nominate, never
+     * fire its Signature, never spend a Torch. The lobby fills empty seats with
+     * Strangers and the front page says so, which means a solo player's first
+     * night -- quite possibly their only night -- contained none of the
+     * mechanics the Callings page spends eight hundred words selling. Measured
+     * over three full five-Act nights: zero nominations, zero Signatures, zero
+     * purchased information.
+     *
+     * The rule is the honest one a person would use: point at whoever is
+     * winning, because a nomination pays you a share of their success and costs
+     * you if they fail, so it is a bet on somebody else and the leader is the
+     * safest bet available. A bot taking the Reckless line has enough on.
+     *
+     * Not a nomination of itself (the engine forbids it) and not on the first
+     * Act, when everybody is on nothing and "the leader" is an accident of
+     * player order.
+     */
+    if (!wantsReckless && act.index > 1) {
+      const leader = room.players
+        .filter((other) => other.id !== p.id)
+        .sort((x, y) => y.renown - x.renown)[0];
+      if (leader && leader.renown > 0) act.nominations[p.id] = leader.id;
+    }
   }
 
   // One door. The quicker hand takes it; everybody else is bumped to the door
@@ -1640,7 +1667,23 @@ function finish(room: Room, now: number): void {
     if (!bot.isBot || bot.laurelFor) continue;
     const others = room.players.filter((p) => p.id !== bot.id);
     if (others.length === 0) continue;
-    const seed = `${bot.id}:${room.code}`;
+    /**
+     * AND THE ROUND, or the same bot toasts the same seat forever.
+     *
+     * Seeded on the bot and the table alone, a Stranger's vote was fixed before
+     * the night started and identical on every rematch in that room: two
+     * consecutive rounds in one table produced a byte-identical Ballad, three
+     * toasts, same names, same order. A Laurel is eight Renown and this file's
+     * own comment calls it "the single largest swing in the standings", so a
+     * table padded with Strangers had that swing knowable after one round -- and
+     * in one measured run it is what decided the Hoard.
+     *
+     * `seen` is every scene this table has faced across rounds and grows by a
+     * whole deck each time, so it is the round counter that already exists. The
+     * scatter and the replay-determinism the seed was chosen for both survive;
+     * only the memorisation goes.
+     */
+    const seed = `${bot.id}:${room.code}:${room.seen?.length ?? 0}`;
     let hash = 0;
     for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
     const best = others[hash % others.length];

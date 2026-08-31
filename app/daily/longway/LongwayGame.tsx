@@ -337,7 +337,16 @@ export function LongwayGame({ date }: { date?: string | null }) {
                   {latest.renownDelta}
                 </Pill>
                 {latest.dreadDelta > 0 ? <Pill tone="danger">Dread +{latest.dreadDelta}</Pill> : null}
-                {latest.costDoubled ? <Pill tone="warning">Cost doubled</Pill> : null}
+                {/* Only when a cost was actually charged. The flag says "Dread
+                    is at three, so costs are doubled here", which is a state of
+                    the night rather than of this roll -- so it printed COST
+                    DOUBLED next to +7 Renown on Acts that were cleared and cost
+                    nothing. A badge warning about a bill that never arrived is
+                    noise in a game whose promise is that every number traces to
+                    a word. */}
+                {latest.costDoubled && latest.renownDelta < 0 ? (
+                  <Pill tone="warning">Cost doubled</Pill>
+                ) : null}
                 {latest.hookRefilled ? <Pill tone="arcane">Hook tokens back to two</Pill> : null}
               </p>
             </Card>

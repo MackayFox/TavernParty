@@ -10,9 +10,10 @@
  * The length of the night is the one setting here, and it is pre-answered rather
  * than asked: leaving it alone is the standard run, so it costs nobody a click.
  */
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Announcer, Button, ErrorNote, Field, Input, Pill } from "@/components/ui";
+import { Announcer, Button, Card, ErrorNote, Field, Input, Pill } from "@/components/ui";
 import { readName, writeName } from "@/lib/daily/local";
 import {
   DEFAULT_SETTINGS,
@@ -47,7 +48,17 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   const data: unknown = await res.json().catch(() => ({}));
   if (!res.ok) {
     const message = (data as { error?: string }).error;
-    throw new Error(message ?? "That did not work. Try again in a moment.");
+    const err = new Error(message ?? "That did not work. Try again in a moment.") as Error & {
+      status?: number;
+    };
+    /*
+     * Carry the status. "Try again" is honest for a 400 and a lie for a 500:
+     * when the lobby is down every one of these buttons fails identically
+     * forever, and a person presses four times before opening devtools. The
+     * caller uses this to swap the note for the truth.
+     */
+    err.status = res.status;
+    throw err;
   }
   return data as T;
 }
@@ -58,6 +69,8 @@ export function TavernHero() {
   const [acts, setActs] = useState(DEFAULT_SETTINGS.acts);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** A 5xx from the table routes: the lobby is down, not the request wrong. */
+  const [lobbyDown, setLobbyDown] = useState(false);
   const [busy, setBusy] = useState<"quick" | "create" | null>(null);
 
   // Read after mount: localStorage does not exist during the server render, and
@@ -77,6 +90,7 @@ export function TavernHero() {
     }
     setBusy(which);
     setError(null);
+    setLobbyDown(false);
     try {
       const { code: tableCode } = await (which === "quick"
         ? post<{ code: string }>("/api/quick-match", { displayName: trimmed })
@@ -90,7 +104,10 @@ export function TavernHero() {
           }));
       router.push(`/room/${tableCode}`);
     } catch (e) {
-      setError((e as Error).message);
+      const err = e as Error & { status?: number };
+      // 5xx is the lobby, not the request. See the note under the buttons.
+      setLobbyDown((err.status ?? 0) >= 500);
+      setError(err.message);
       setBusy(null);
     }
   };
@@ -105,6 +122,7 @@ export function TavernHero() {
       return;
     }
     setError(null);
+    setLobbyDown(false);
     router.push(`/room/${clean}`);
   };
 
@@ -133,8 +151,6 @@ export function TavernHero() {
           No account needed. This is the name the rest of the party will see.
         </span>
       </label>
-
-      <ErrorNote message={error} />
 
       <Field
         label="How long a night"
@@ -172,6 +188,40 @@ export function TavernHero() {
           {busy === "create" ? "Setting it up…" : "Create a table"}
         </Button>
       </div>
+
+      {/*
+        THE NOTE GOES UNDER THE BUTTONS THAT FAILED.
+        It used to be injected between the name field and the "how long a night"
+        select, two controls above the button anybody had actually pressed, and
+        it pushed everything below it down 44px as it appeared.
+
+        And when the lobby is down it says so, with the way out, rather than
+        "Try again" -- which on a 500 is an instruction to keep pressing a button
+        that cannot work. `/tables` has always had this copy; the home page,
+        where almost everybody meets the failure first, did not.
+      */}
+      {lobbyDown ? (
+        <Card className="border-danger/60" role="alert">
+          <p className="font-display text-lg text-text-hi">
+            <span aria-hidden>✕ </span>The lobby is not answering
+          </p>
+          <p className="mt-1 text-text-mid">
+            We cannot open a table or find you one at the moment. It is our end, not
+            yours, and pressing it again will not help.
+          </p>
+          <p className="mt-1 text-text-mid">
+            The four daily puzzles need none of this and are working normally.
+          </p>
+          <Link
+            href="/daily"
+            className="font-display mt-3 inline-flex min-h-11 items-center rounded-md bg-accent px-5 font-semibold text-ink hover:bg-accent-hover"
+          >
+            Play tonight's puzzles
+          </Link>
+        </Card>
+      ) : (
+        <ErrorNote message={error} />
+      )}
 
       {/*
         The label was sr-only, so a sighted first-timer saw a centred six-wide box

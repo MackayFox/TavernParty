@@ -227,7 +227,7 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
       { term: "Vigour", gloss: "health. Miss a floor and it takes a bite; at nothing, you do not come back up" },
       { term: "Kit", gloss: "two things you carry, each adding to one ability" },
       { term: "Trained", gloss: "your Calling's two best abilities, worth +2 each" },
-      { term: "Marks", gloss: "what a floor leaves on you — seen, hurt, lit, wet. A mark carries down, and some rooms are harder if you arrive wearing one" },
+      { term: "Marks", gloss: "what a floor leaves on you: seen, hurt, lit, wet. A mark carries down, and some rooms are harder if you arrive wearing one" },
     ],
     glyph: "🕯️",
     minScore: 0,

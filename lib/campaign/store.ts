@@ -184,10 +184,14 @@ export async function getStoredDungeon(code: string): Promise<DungeonRow | null>
     .select("*")
     .eq("code", key)
     .maybeSingle();
-  if (error) {
-    console.error("[campaign] getStoredDungeon failed", error);
-    return null;
-  }
+  /*
+   * Throw rather than return null. Null here becomes "No dungeon by that name",
+   * so during a database outage every authored dungeon in existence told its
+   * author and everybody holding its link that it had been deleted. A 500 that
+   * says the site is not answering is a smaller lie than a 404 that says the
+   * thing is gone.
+   */
+  if (error) throw new Error(`reading dungeon ${key}: ${error.message}`);
   return data ? fromDb(data) : null;
 }
 
@@ -275,19 +279,46 @@ export async function saveDungeon(row: DungeonRow): Promise<void> {
 }
 
 /** An author's own desk, newest first. */
+
+/**
+ * A READ THAT FAILS OUT LOUD.
+ *
+ * Every list here was `const { data } = await ...` followed by `data ?? []`, so
+ * a database that was refusing to answer produced an empty array and a 200. The
+ * Hall then rendered "Nothing here yet. Write the first one" and `/api/dungeons`
+ * answered `{"mine":[],"pool":[]}` -- an outage reported to the player as an
+ * editorial fact, in the site's own voice.
+ *
+ * It is worse than a wrong screen. During a real diagnosis it actively misled:
+ * these routes answering 200 was the reason the database was first believed to
+ * be healthy while every write was failing. A silent failure does not only hide
+ * itself, it hides its neighbours.
+ *
+ * Writes stay best-effort and warn: losing a play count is not worth taking the
+ * ending away from a table. Reads throw, `handleError` turns that into a 500,
+ * and the page shows "not answering" instead of "nobody has written one".
+ */
+function rowsOf<T>(
+  result: { data: T[] | null; error: { message: string } | null },
+  what: string
+): T[] {
+  if (result.error) throw new Error(`${what}: ${result.error.message}`);
+  return result.data ?? [];
+}
+
 export async function listByOwner(ownerKey: string): Promise<DungeonRow[]> {
   if (!supabaseConfigured()) {
     return [...memDungeons.values()]
       .filter((d) => d.ownerKey === ownerKey)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("dungeons")
     .select("*")
     .eq("owner_key", ownerKey)
     .order("updated_at", { ascending: false })
     .limit(50);
-  return (data ?? []).map(fromDb);
+  return rowsOf({ data, error }, "listing dungeons").map(fromDb);
 }
 
 /** One question, one place: is this person allowed to change this dungeon? */
@@ -314,7 +345,7 @@ export async function chosenDungeon(): Promise<DungeonRow | null> {
         .sort((a, b) => (b.chosenAt ?? "").localeCompare(a.chosenAt ?? ""))[0] ?? null
     );
   }
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("dungeons")
     .select("*")
     .eq("visibility", "listed")
@@ -322,6 +353,7 @@ export async function chosenDungeon(): Promise<DungeonRow | null> {
     .order("chosen_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) throw new Error(`reading the chosen dungeon: ${error.message}`);
   return data ? fromDb(data) : null;
 }
 
@@ -333,13 +365,13 @@ export async function listSubmitted(limit = 50): Promise<DungeonRow[]> {
       .sort((a, b) => (a.publishedAt ?? "").localeCompare(b.publishedAt ?? ""))
       .slice(0, limit);
   }
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("dungeons")
     .select("*")
     .eq("visibility", "submitted")
     .order("published_at", { ascending: true })
     .limit(limit);
-  return (data ?? []).map(fromDb);
+  return rowsOf({ data, error }, "listing dungeons").map(fromDb);
 }
 
 async function listByVisibility(v: Visibility, limit: number): Promise<DungeonRow[]> {
@@ -349,13 +381,13 @@ async function listByVisibility(v: Visibility, limit: number): Promise<DungeonRo
       .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""))
       .slice(0, limit);
   }
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("dungeons")
     .select("*")
     .eq("visibility", v)
     .order("published_at", { ascending: false })
     .limit(limit);
-  return (data ?? []).map(fromDb);
+  return rowsOf({ data, error }, "listing dungeons").map(fromDb);
 }
 
 /**
@@ -389,13 +421,13 @@ export async function listPool(limit = 200): Promise<PoolRoom[]> {
   if (!supabaseConfigured()) {
     return [...memPool.values()].filter((r) => r.shared).slice(0, limit);
   }
-  const { data } = await adminClient()
+  const { data, error } = await adminClient()
     .from("pool_rooms")
     .select("*")
     .eq("shared", true)
     .order("created_at", { ascending: false })
     .limit(limit);
-  return (data ?? []).map((r: DbRow) => ({
+  return rowsOf({ data, error }, "listing the room pool").map((r: DbRow) => ({
     id: r.id as string,
     authorId: (r.author_id as string | null) ?? null,
     authorName: r.author_name as string,

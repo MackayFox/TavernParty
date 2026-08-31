@@ -369,8 +369,11 @@ export function MusterGame({ date }: { date?: string | null }) {
                             data.array.filter((v) => v === value).length > 1 && owner !== -1;
                           return (
                             <option key={slot} value={slot}>
+                              {/* Middot, not an em-dash: the house rule is no
+                                  em-dashes in player-facing copy, and this is
+                                  copy even though it lives in an option tag. */}
                               {repeated
-                                ? `${value} — on ${ABILITY_LABEL[data.abilities[owner]]}`
+                                ? `${value} · on ${ABILITY_LABEL[data.abilities[owner]]}`
                                 : value}
                             </option>
                           );
