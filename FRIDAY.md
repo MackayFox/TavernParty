@@ -102,6 +102,114 @@ thing it depends on exists. Anything marked **(you)** genuinely needs your login
 
 ---
 
+## Money: what is switched on, and what is worth doing next
+
+You asked for anything that would cover the hosting with minimal effort. Here is
+the honest ranking, including the ones I decided against.
+
+**Switched on now.**
+
+- **AdSense**, three ways: `ads.txt`, the loader script, and the
+  `google-adsense-account` meta tag, so verification does not depend on the
+  crawler executing JavaScript. Production only, on purpose: serving ads from
+  `*.vercel.app` preview URLs is unapproved inventory and is a way to annoy the
+  reviewer before he has said yes.
+- **The unfilled-slot fix.** An `<ins>` with no ad to show renders as a bare
+  white rectangle, which on a `#150F08` page was the single brightest object on
+  the site. A new site has no fill until AdSense approves it, so that was not an
+  edge case, it was the current state. The unit now stays out of the layout until
+  Google says it has something to put there.
+- **A tip jar**, dark until you switch it on. Set `NEXT_PUBLIC_SUPPORT_URL` to a
+  Ko-fi or Buy Me a Coffee page and one line appears in the footer; leave it
+  unset and there is nothing there at all. Footer only: a game that interrupts
+  you to ask for money is a game people stop opening, and Google takes a dim view
+  of anything competing with an advert for a click.
+
+**Worth doing, in this order, once AdSense says yes.**
+
+1. **H5 Games Ads.** This is the big one and it is the reason to care about the
+   AdSense approval beyond the approval itself. It is AdSense's games programme,
+   it requires an already-approved AdSense account, and it pays substantially
+   better per thousand for exactly this shape of site. The natural placement here
+   is a **rewarded** ad, never an interstitial: your own rule is no ads during a
+   live Act or an unfinished daily, and an interstitial between Acts breaks it.
+   A rewarded ad to unlock an extra archive night is non-coercive and fits.
+2. **A supporter tier that removes ads.** Needs Stripe plus an entitlement check
+   on the account you already have. Not minimal effort, but it is the only one of
+   these that scales with how much people like the game rather than with traffic.
+
+**Deliberately not done, and why.**
+
+- **Amazon Associates, DriveThruRPG, dice affiliates.** Tempting, genuinely
+  relevant, and the wrong move *right now*. A thin page of affiliate links on a
+  site that has not yet passed its first AdSense review is one of the more
+  reliable ways to fail it. Revisit once approved, and only as a page that would
+  earn its place without the links in it.
+- **Merch.** Print on demand is a shop, not a link, and a shop is a different
+  product with its own support burden.
+
+---
+
+## Design calls I did not make for you
+
+A tabletop player played three full nights and all four dailies and wrote these
+up. Every one is a real observation with a measurement behind it. None is a bug,
+all of them change how the game plays, and you should be the one who decides.
+
+- **MUSTER grades your homework while you write it.** The board shows a live
+  "This build clears 4 of 5" as you change dropdowns, so the winning build is
+  found by wiggling them until the counter stops going up. It is the daily aimed
+  squarely at people who make characters for games they will never play, and it
+  is the only one of the four with no puzzle in it. The Ledger already solved
+  this exact problem in this exact product by charging you for a check.
+  *Suggested: keep "your reach", drop the live clears counter, or charge for it.*
+
+- **Keeping a Scar almost never pays.** Measured over two runs: eight Scars kept
+  in public, one paid, and each keep costs the whole party a point of Dread. The
+  keep-or-hide decision is meant to be the emotional core and in play it is "am I
+  winning? then keep", which is a lookup, not a decision, and it rewards the
+  player who is already ahead. *Suggested: pay half below the median rather than
+  nothing, and print where the player actually stands on the card.*
+
+- **Two players who take the same door get the same sentence, verbatim,** in the
+  same paragraph, because there is one `win` and one `lose` string per approach.
+  Called the most visible seam in the whole "assembly, not authorship" bet.
+  *Cheapest real fix: two more variants each, indexed by position in `act.order`.
+  Free interim fix: collapse them into one line, which is how a GM would narrate
+  it anyway.*
+
+- **Certainty beats expectation in The Deep Run,** structurally. The `pass` knack
+  is a guaranteed floor; `boost` and `rethrow` are gambles against a die you
+  cannot see, and the whole premise of that daily is that you cannot see it. So
+  one of the three Callings on offer is usually right for a reason that has
+  nothing to do with the night. *Suggested: price certainty, e.g. `pass` costs
+  the floor's brace price minus one.*
+
+- **The Reckoner's Signature is honest now but boring.** It said "add five AFTER
+  you have seen the die" and did not; I changed the words to match the game. The
+  better fix is the other direction: make a `boost` a second commit, offered
+  inside the reveal after the die and before the target number. That is the
+  difference between a Calling and a modifier, and it is a real piece of work
+  because the par solver prices knacks.
+
+- **The Ledger is over in forty seconds** for anybody who does logic puzzles, and
+  has no difficulty ramp across the week. *Suggested: scale the clue count by
+  weekday and pick the clue set with the longest forced-deduction chain rather
+  than any set with a unique solution. You are already enumerating, so score the
+  candidates by deduction depth and take the deepest.*
+
+- **A room can narrate a floor you never visited.** "You were asked this exact
+  question already tonight, further up" appeared on a night when nothing had.
+  Rooms are dealt independently, so any room whose prose asserts a prior event is
+  a coin flip. *Suggested: make the campaign gate treat a backward reference the
+  way it already treats a `needs` mark.*
+
+- **`/online-roleplaying-games` names Roll20 and D&D Beyond in body copy.** That
+  is lawful nominative use and it is fine. It also puts a competitor's trademark
+  on an indexable page, which is worth being a decision rather than an accident.
+
+---
+
 ## 0. Before anything else: two minutes of checking
 
 - [ ] **(you)** Confirm the Pro plan is on the **organisation** that will own this
