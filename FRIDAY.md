@@ -1,58 +1,36 @@
 # Friday
 
-## WHEN YOU WAKE UP: one thing is broken, and it is one checkbox
+## The database is fixed and multiplayer is live
 
-**Multiplayer is dead in production and has been all night.** The four dailies
-are fine and always were; tables, quick match, the Hall and the dungeon builder
-all answer 500.
+Tavern Party is on its **own** Supabase Pro project now (`npcfbcuywaoreutbbcuf`),
+in `public`, with no schema override. That removes the whole class of failure
+that took multiplayer down: `public` is exposed by default, so there is no
+checkbox to lose.
 
-It is not a code fault and there is nothing to deploy. The Supabase project
-stopped exposing the `tavern` schema to PostgREST, so every database call comes
-back `PGRST106 Invalid schema: tavern`. All five migrations are applied and the
-data is all there; `npm run db:status` confirms it.
+Done and verified against the live site:
 
-**Either of these fixes it, and both take under a minute.**
+- All five migrations applied to the new project, all eight tables answering.
+- `SUPABASE_DB_SCHEMA` deleted from production and preview. The URL, both public
+  keys and both secrets repointed at the new project, and production redeployed.
+- `npm run smoke` against `https://www.tavernparty.com`: **77 passed, 0 failed**,
+  a full three-Act run with a rematch.
+- The room pool seeded: **32 rooms on the shelf** and THE STONE WALK published in
+  the Hall, so the builder and the gallery are not cold.
+- The contact form files a message again.
+- Account signup works.
+- A real browser opened a table, added two Strangers and started a run.
 
-1. **The checkbox.** Supabase dashboard, Settings, API, Exposed schemas: add
-   `tavern` next to `public`. Nothing to redeploy; it takes effect immediately.
+### The only Supabase things left, and both need your dashboard
 
-2. **Or run the command I wrote for it:**
-   ```bash
-   npm run db:expose
-   ```
-   It reads the current exposed list off the `authenticator` role, adds `tavern`
-   if it is missing, and asks PostgREST to reload. It is deliberately ADDITIVE:
-   this project is shared with Shareholder Party and writing the list wholesale
-   would take that site off the air. **It is untested** — I could not run it,
-   because changing a role on a live shared database is exactly the sort of thing
-   my own safety rails stop me doing unattended, and I decided not to argue with
-   that at four in the morning. If it misbehaves, use the checkbox.
+- [ ] **Authentication → URL Configuration** on the NEW project. Site URL
+      `https://www.tavernparty.com`, and add that plus `http://localhost:3000` to
+      the redirect allowlist. Signup already works; this is what makes the
+      confirmation email point at the right place.
+- [ ] **Authentication → Emails.** Check the template says Tavern Party.
 
-Verify either way with:
-```bash
-curl -s -o /dev/null -w "%{http_code}
-" https://www.tavernparty.com/api/tables
-```
-200 means it is back. 500 means it is not.
-
-### The better version of the same fix, if you would rather
-
-`SUPABASE.txt` has the keys for a new dedicated Pro project
-(`npcfbcuywaoreutbbcuf`), which is what this site should be on: its own auth
-pool, its own service key, its own ceiling, and `public` is exposed by default
-so this entire class of failure disappears. **The one thing missing is the
-database password**, which cannot be derived from the API keys and is not in the
-file. Add it as `SUPABASE_DB_PASSWORD` and the move is:
-
-```bash
-# in .env.local: point at the new project, and DELETE the SUPABASE_DB_SCHEMA line
-npm run db:migrate && npm run db:status
-```
-
-then the same values into Vercel for production and preview. Nothing in the code
-needs unpicking; that is what the schema variable was for.
-
----
+`npm run db:expose` is still in the repo and still untested. It is now a fallback
+for a problem this site no longer has, and it is worth keeping only because the
+network's other projects can still hit it.
 
 ## What changed while you were asleep
 
