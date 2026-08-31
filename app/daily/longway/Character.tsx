@@ -29,6 +29,7 @@
  * borrows, and because the reach on a door does not tell you WHY it is what it
  * is.
  */
+import { useEffect, useState } from "react";
 import { AbilityRows, SheetDialog, signed, totals, type Brings } from "@/components/daily/Adventurer";
 import { DIE_RULE } from "@/lib/daily/core";
 import { TAG_MEANING, isTag } from "@/lib/content/tags";
@@ -244,11 +245,67 @@ export function NightStrip({
 }) {
   const doubling = standing.dread >= DREAD_DOUBLE_AT;
   const { act, acts } = actOf(standing);
+  /**
+   * Open on a wide screen, closed on a phone, and a tap either way.
+   *
+   * Driven from JS rather than a `sm:` class because a closed `<details>` hides
+   * its own children through the UA's slot, which no `display` rule can undo:
+   * CSS can hide the summary on a wide screen but cannot force the panel open.
+   * Media-query state is the honest version of the same intent.
+   *
+   * Starts closed so the server and the phone agree; the effect opens it before
+   * anybody on a desktop has read a word.
+   */
+  const [open, setOpen] = useState(false);
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   return (
-    <footer
-      aria-label="Your character"
-      className="sheet tp-strip px-3 py-2"
-    >
+    <footer aria-label="Your character" className="sheet tp-strip px-3 py-2">
+      {/*
+        A REFERENCE PANEL MUST NOT OUTRANK THE DECISION.
+
+        Measured on an iPhone-sized screen: this strip was 229px of an 844px
+        viewport -- 27%, and more like 35% once real browser chrome is counted --
+        and all four doors of Act 1 began at y=875. Every choice in the game was
+        below the fold, under a panel you need once per Act, on the screen where
+        the only thing to do is pick one.
+
+        So on a phone it opens closed: one line with the two numbers that change,
+        and a tap for the rest. From `sm` up nothing changes, because there the
+        space was never contested.
+
+        `<details>` rather than a state hook: it is a disclosure, and the native
+        one brings keyboard operation, the right roles and Escape for free. The
+        `sm:` rules force it permanently open on a wide screen without the marker
+        or the summary showing.
+      */}
+      <details className="group [&[open]>summary]:mb-2" open={wide || open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 sm:hidden">
+          <span className="truncate">
+            <span className="font-display text-base text-paper-ink">{who.callingName}</span>{" "}
+            <span className="sheet-label">Act</span>{" "}
+            <span className="num text-paper-ink">{act}</span>
+            <span className="sheet-label">/{acts}</span>{" "}
+            <span className="sheet-label">Renown</span>{" "}
+            <span className="num text-paper-ink">{standing.renown}</span>{" "}
+            <span className="sheet-label">Dread</span>{" "}
+            <span className={`num ${doubling ? "text-paper-danger" : "text-paper-ink"}`}>
+              {standing.dread}
+            </span>
+            {doubling ? <span className="sheet-label text-paper-danger"> doubled</span> : null}
+          </span>
+          <span className="sheet-label shrink-0 text-paper-ink">
+            <span className="group-open:hidden">Your sheet &#9662;</span>
+            <span className="hidden group-open:inline">Hide &#9652;</span>
+          </span>
+        </summary>
+
       {/* THREE LINES, and they are in the order you need them: who and where,
           what you bring, what is still to come. Every one of them wraps rather
           than scrolls, so nothing on the strip can ever be off the edge. */}
@@ -317,6 +374,7 @@ export function NightStrip({
           </span>
         </button>
       </div>
+      </details>
     </footer>
   );
 }
