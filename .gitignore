@@ -22,3 +22,8 @@ shots/
 
 # Agent test harnesses and screenshots. Scratch, not source.
 .testing/
+
+# Screenshots left behind by browser-driving agents. They belong in a scratch
+# directory, never in the repo root, and never in THIS repo, which is not the
+# one they were taken of.
+/*.png
