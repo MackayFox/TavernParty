@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { SCENES_BY_ID } from "@/lib/content/scenes";
 import * as engine from "@/lib/game/engine";
 import { memStore } from "@/lib/game/memstore";
-import { HOST_MIGRATION_GRACE_MS, PRESENCE_TIMEOUT_MS } from "@/lib/game/rules";
+import { ACT_GRACE_MS, HOST_MIGRATION_GRACE_MS, PRESENCE_TIMEOUT_MS } from "@/lib/game/rules";
 import type { Phase, Room } from "@/lib/game/types";
 import { rngFor } from "./helpers";
 
@@ -59,11 +59,30 @@ describe("a beat nobody is still answering", () => {
     // One of two. BEV is here and has not moved, so the clock still owns it.
     expect(room.phase).toBe("ACT");
 
+    /**
+     * FULL, AND THEN A MOMENT LONGER. See ACT_GRACE_MS.
+     *
+     * This used to assert the Act resolved on the very next tick after the last
+     * commit, and that was the bug rather than the feature: nominating somebody
+     * is an ACT-phase action, so a table that all decided quickly resolved the
+     * Act in the same breath and every nomination came back "That is not
+     * happening right now". Measured on a real six-player run, the sixty-second
+     * window collapsed to 1.9 seconds and all six nominations were refused, on
+     * every Act. The mechanic had an economy, a UI and a smoke test, and was
+     * reachable only by the slow.
+     */
     engine.commitApproach(room, "p1", door, 0, now + 3);
     engine.tick(room, now + 4, rngFor(3));
+    expect(room.phase, "the grace has not elapsed yet").toBe("ACT");
+
+    // And the grace is for something: this is the window nomination lives in.
+    engine.nominate(room, "p0", "p1", now + 5);
+    expect(room.act!.nominations.p0).toBe("p1");
+
+    engine.tick(room, now + 4 + ACT_GRACE_MS, rngFor(3));
     expect(room.phase).toBe("ACT_RESULT");
     // Well inside the Act's own deadline, or this test proves nothing.
-    expect(now + 4).toBeLessThan(deadline);
+    expect(now + 4 + ACT_GRACE_MS).toBeLessThan(deadline);
   });
 
   it("does not wait for a tab nobody is behind", () => {
@@ -75,9 +94,12 @@ describe("a beat nobody is still answering", () => {
 
     // BEV stops polling and never chooses. ALEX keeps polling. The beat must not
     // hold for BEV's full deadline just because she is in the players array.
+    // GONE is well past ACT_GRACE_MS, so the grace is not what is being tested
+    // here: the point is that a swept seat does not hold the beat at all.
     const later = now + GONE;
     engine.heartbeat(room, "p0", later);
     engine.tick(room, later, rngFor(4));
+    engine.tick(room, later + ACT_GRACE_MS, rngFor(4));
     expect(room.phase).toBe("ACT_RESULT");
     expect(engine.findPlayer(room, "p1")!.stats.flinches).toBe(1);
   });

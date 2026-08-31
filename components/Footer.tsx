@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CHARACTER_PAGES } from "@/app/characters/shared";
+import { CANONICAL_HOST } from "@/lib/site";
 import { isDisallowed } from "@/app/crawl";
 import { OTHER_SITES } from "@/lib/content/network";
 import { DAILY_GAMES, DAILY_META } from "@/lib/daily/core";
@@ -36,6 +37,7 @@ const COLUMNS: [string, [string, string][]][] = [
     [
       ["How to play", "/how-it-works"],
       ["Online roleplaying games", "/online-roleplaying-games"],
+      ["Roleplaying for beginners", "/roleplaying-games-for-beginners"],
       ["Leaderboard", "/leaderboard"],
       // An optional account that nothing links to is an account nobody has. The
       // footer is the right place for it: never a nag, always findable.
@@ -103,7 +105,35 @@ export function Footer() {
           affiliated with, endorsed by or based on any published tabletop roleplaying game, and it
           contains none of anybody else&apos;s text.
         </p>
-        <p>© {new Date().getFullYear()} Tavern Party · tavernparty.com</p>
+        {/**
+          * THE TIP JAR, IF THERE IS ONE.
+          *
+          * Env-gated exactly the way the AdSense client is, so an environment
+          * without it renders nothing at all rather than a dead link: set
+          * NEXT_PUBLIC_SUPPORT_URL to a Ko-fi, Buy Me a Coffee or GitHub
+          * Sponsors page and it appears everywhere, unset it and it is gone.
+          *
+          * In the footer and nowhere else, deliberately. A game that interrupts
+          * you to ask for money is a game people stop opening, and AdSense takes
+          * a dim view of anything that competes with an advert for a click. This
+          * is the one place a person goes looking when they have decided they
+          * want to, which is the only time asking works.
+          */}
+        {process.env.NEXT_PUBLIC_SUPPORT_URL ? (
+          <p>
+            The hosting is not free and the game always will be.{" "}
+            <a
+              className="underline hover:text-text-mid"
+              href={process.env.NEXT_PUBLIC_SUPPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Buy the house a round
+            </a>
+            .
+          </p>
+        ) : null}
+        <p>© {new Date().getFullYear()} Tavern Party · {CANONICAL_HOST}</p>
       </div>
     </footer>
   );

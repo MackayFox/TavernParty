@@ -4,6 +4,7 @@ import "./globals.css";
 import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
+import { SiteJsonLd } from "@/components/JsonLd";
 import { CANONICAL_ORIGIN } from "@/lib/site";
 
 const display = Cinzel({
@@ -112,6 +113,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             to be mounted or the whole site is unmeasurable. It was written and
             never placed. */}
         <AnalyticsProvider />
+        {/* Organization and WebSite, once, on every page rather than on the
+            three that happened to mount it. Nothing else on the site said who
+            publishes it, which is half of what E-E-A-T is asking. */}
+        <SiteJsonLd />
         <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4">
           <Nav />
           <main id="main" className="flex flex-1 flex-col">

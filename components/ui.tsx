@@ -9,7 +9,7 @@
  * glyph or a shape doing the same job, so it survives colour blindness and a
  * bad screen in a pub.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Controls
@@ -431,6 +431,28 @@ export function Spinner({ label = "Loading" }: { label?: string }) {
 const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
 
 export function AdSlot({ zone, className = "" }: { zone: string; className?: string }) {
+  const ins = useRef<HTMLModElement | null>(null);
+  /**
+   * "waiting" until Google says, then "filled" or "unfilled".
+   *
+   * UNFILLED INVENTORY PAINTS WHITE. The `<ins>` has no background of its own,
+   * so when there is no ad to show it renders as a bare rectangle in the
+   * browser's default colour: on the home page that was a 768x290 pure white
+   * block in the middle of a #150F08 page, the single brightest object on the
+   * site, larger than the hero, sitting under a small "ADVERTISEMENT" label. It
+   * read as a broken image. On a phone it was a ~600px band of nothing.
+   *
+   * A new site has no fill at all until AdSense approves it, so this is not the
+   * rare case, it is the state the site is in right now and will be in for
+   * anybody using an ad blocker forever.
+   *
+   * Google sets `data-ad-status` on the element once it has decided, so the
+   * label and the box stay out of the layout until there is genuinely an advert
+   * to label. Hiding an unfilled unit is explicitly what Google recommends
+   * rather than something to work around.
+   */
+  const [status, setStatus] = useState<"waiting" | "filled" | "unfilled">("waiting");
+
   useEffect(() => {
     if (!ADSENSE_CLIENT) return;
     try {
@@ -438,14 +460,49 @@ export function AdSlot({ zone, className = "" }: { zone: string; className?: str
     } catch {
       // An ad failing must never break the page.
     }
+    const el = ins.current;
+    if (!el) return;
+    const read = () => {
+      const value = el.getAttribute("data-ad-status");
+      if (value === "filled" || value === "unfilled") {
+        setStatus(value);
+        return true;
+      }
+      return false;
+    };
+    if (read()) return;
+    const observer = new MutationObserver(() => {
+      if (read()) observer.disconnect();
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ["data-ad-status"] });
+    /*
+     * And a backstop. A blocked script never sets the attribute at all, so
+     * without this the reserved space would sit there empty for the whole visit
+     * waiting for a callback that is never coming.
+     */
+    const giveUp = setTimeout(() => setStatus((s) => (s === "waiting" ? "unfilled" : s)), 4000);
+    return () => {
+      observer.disconnect();
+      clearTimeout(giveUp);
+    };
   }, []);
+
   if (!ADSENSE_CLIENT) return null;
   return (
-    <div className={className} data-zone={zone}>
-      <p className="label-caps mb-1 text-text-low">Advertisement</p>
+    <div
+      className={`${className} ${status === "unfilled" ? "hidden" : ""}`}
+      data-zone={zone}
+      data-ad-state={status}
+    >
+      <p className={`label-caps mb-1 text-text-low ${status === "filled" ? "" : "invisible"}`}>
+        Advertisement
+      </p>
       <ins
+        ref={ins}
         className="adsbygoogle block w-full"
-        style={{ display: "block" }}
+        // The dark ground is the page's, not the browser's, so a slot that is
+        // still deciding is invisible rather than a white hole.
+        style={{ display: "block", background: "var(--tp-bg-1)" }}
         data-ad-client={ADSENSE_CLIENT}
         data-ad-format="auto"
         data-full-width-responsive="true"

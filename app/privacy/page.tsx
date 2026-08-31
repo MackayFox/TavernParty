@@ -11,11 +11,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card } from "@/components/ui";
+import { CANONICAL_HOST } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Privacy and Cookies: What This Site Keeps",
   description:
-    "What Tavern Party stores, where, and for how long. A signed guest cookie, browser storage for your streaks, and Google's advertising cookies. Nothing is sold.",
+    "What Tavern Party stores, where, and for how long. A signed guest cookie, your streaks in your own browser, and Google's ad cookies. Nothing is sold.",
   alternates: { canonical: "/privacy" },
   openGraph: {
     title: "Privacy and Cookies: What This Site Keeps",
@@ -51,9 +52,19 @@ export default function PrivacyPage() {
           against the actual code rather than from a template, so it names real cookies and
           real database tables.
         </p>
+        <p className="prose-read text-text-mid">
+          The data controller is Adam Mackay, an individual operating this site from the United
+          Kingdom. That is the person who decides what is collected here and the person legally
+          answerable for it, and it is the same person who reads the{" "}
+          <Link href="/contact" className="text-accent underline">
+            contact form
+          </Link>
+          . There is no company, no data protection officer and nobody else with access. Anything
+          you want to ask about your data goes through that form.
+        </p>
         <p className="text-sm text-text-low">
-          This notice covers tavernparty.com. It is operated from the United Kingdom, and
-          English law applies to it.
+          This notice covers {CANONICAL_HOST}. It is operated from the United Kingdom, English
+          law applies to it, and the UK GDPR is the law it is written against.
         </p>
       </header>
 
@@ -100,11 +111,37 @@ export default function PrivacyPage() {
             </tbody>
           </table>
         </div>
+        {/*
+          THE HONEST VERSION. This paragraph used to say "there is no cookie
+          banner, because the guest cookie is the one thing the game cannot work
+          without, and the rest are not ours to consent to on your behalf." The
+          first half is true. The second half is not: under the UK PECR and
+          Google's own EU User Consent Policy, the obligation to collect consent
+          for advertising and analytics cookies sits with the publisher, not with
+          Google, and it sits there whether or not the publisher set the cookie.
+          Saying otherwise on the privacy page is the kind of claim that is both
+          wrong and checkable. Consent messaging is the next job; until it is
+          live, this says what is actually happening.
+        */}
         <p className="prose-read text-text-mid">
-          There is no cookie banner, because the guest cookie is the one thing the game
-          genuinely cannot work without, and the rest are not ours to consent to on your
-          behalf. If you would rather have none of it, browser settings and any of the usual
-          blockers will stop the advertising and analytics ones. The game still plays.
+          There is no consent banner on this site yet, and it should have one. The guest cookie
+          is genuinely necessary, in the sense the law means: without it the server cannot tell
+          which player at a table is you, so it is set with no consent asked and none needed.
+          The advertising and analytics cookies are a different matter. Those are not strictly
+          necessary, the obligation to ask you about them is mine rather than Google&apos;s, and
+          at the moment they are set without being asked about. That is a gap, it is being
+          closed with a proper consent tool, and this page will say so plainly when it is done.
+        </p>
+        <p className="prose-read text-text-mid">
+          Until then, here is what you can do about it today. Any browser will let you block
+          third party cookies outright, and any of the usual content blockers will stop both the
+          advertising and the analytics ones before they are set. Google&apos;s own controls at{" "}
+          <a href="https://myadcenter.google.com/" className="text-accent underline" rel="noopener">
+            My Ad Center
+          </a>{" "}
+          switch off personalised advertising across everywhere Google serves it, this site
+          included. None of that stops the game working: the whole thing plays with no
+          advertising and no analytics at all, and it plays the same.
         </p>
       </section>
 
@@ -238,9 +275,10 @@ export default function PrivacyPage() {
         </p>
         <p className="prose-read text-text-mid">
           The lawful basis for the guest cookie and the live table state is legitimate
-          interests, specifically being able to run a multiplayer game at all. For an account
-          it is performance of a contract, and for advertising and analytics cookies it is the
-          consent you manage in your browser and, for Google, in your Google settings.
+          interests, specifically being able to run a multiplayer game at all. For an account it
+          is performance of a contract. For the advertising and analytics cookies the basis is
+          consent, and as set out above that consent is not currently being collected properly,
+          which is a defect being fixed rather than a position being defended.
         </p>
         <p className="prose-read text-text-mid">
           If you think this has been handled badly you can complain to the Information

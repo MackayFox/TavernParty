@@ -7,6 +7,19 @@ export const metadata: Metadata = {
   description:
     "Who has walked out with the Hoard most often on Tavern Party, ranked by wins rather than by hours played. Turning up is deliberately worth nothing here.",
   alternates: { canonical: "/leaderboard" },
+  /**
+   * OUT OF THE INDEX UNTIL THERE IS SOMETHING ON IT.
+   *
+   * It renders "Nobody with an account has finished a run yet" and, unlike the
+   * Hall, there is no editorial layer that would honestly belong on it: it is a
+   * scoreboard, and a scoreboard with nobody on it is thin content by
+   * definition. An empty page in the index on a brand new site is one of the
+   * things an AdSense reviewer reads as "under construction".
+   *
+   * `follow` so the links off it still carry weight. Take this out, and put the
+   * page back in app/sitemap.ts, the day there are names on it.
+   */
+  robots: { index: false, follow: true },
   openGraph: {
     title: "Leaderboard: Who Has Taken the Most Hoards",
     description:

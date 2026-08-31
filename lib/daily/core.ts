@@ -238,9 +238,23 @@ export const DAILY_META: Record<DailyGame, DailyMeta> = {
     path: "/daily/ledger",
     blurb:
       "Five drinkers, five debts and four statements that are all true. Work out who owes what.",
-    rule: "Four true statements. Three checks, and each one costs you a mark.",
+    /**
+     * ONE WORD FOR ONE THING. This said "each one costs you a mark", while the
+     * buttons said "one off the tally", the pills said "on the tally" and the
+     * result said "on the tally" -- two names for the same currency, and "mark"
+     * already means something else entirely in both of the other two dice
+     * dailies. And the gloss beside it called the tally "your four checks",
+     * which is simply wrong: there are THREE checks (MAX_CHECKS) and the score
+     * is out of FOUR (MAX_SCORE = MAX_CHECKS + 1). The one sentence written to
+     * explain the scoring got the scoring wrong.
+     */
+    rule: "Four true statements. Three checks, and each one you spend takes a point off your four.",
     words: [
-      { term: "Tally", gloss: "your four checks. Each one you spend takes one off, and what is left is your score" },
+      {
+        term: "Tally",
+        gloss:
+          "your score, out of four. You get three checks, and every one you spend takes a point off it, so closing the ledger without checking anything is worth the most",
+      },
     ],
     glyph: "📖",
     minScore: 0,

@@ -47,10 +47,26 @@ function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
-/** `game:date:count`, signed. Readable by anybody, forgeable by nobody. */
+/**
+ * `game:date:count`, signed. Readable by anybody, forgeable by nobody.
+ *
+ * COLONS ARE THE DELIMITER, so a key may not contain one. The Deep Run banks an
+ * authored dungeon under its code rather than under a date, and the first
+ * version of that key was `dungeon:CODE`: it signed and stored perfectly, then
+ * `verify` split on colons, read the day as "dungeon", tried to parse "CODE" as
+ * the number and gave up. The write worked, the read never matched, and the
+ * protection was silently absent for exactly the case it was added for. Replaced
+ * rather than rejected, because a key that cannot round-trip should be made to
+ * round-trip, not throw at a player mid-game.
+ */
 function encode(game: DailyGame, date: string, count: number): string {
-  const payload = `${game}:${date}:${count}`;
+  const payload = `${game}:${safeKey(date)}:${count}`;
   return `${payload}.${sign(payload)}`;
+}
+
+/** Anything that is not the delimiter. See `encode`. */
+function safeKey(key: string): string {
+  return key.replace(/:/g, "-");
 }
 
 /**
@@ -77,7 +93,7 @@ function verify(raw: string | undefined, game: DailyGame, date: string): number 
   }
   const [g, d, n] = payload.split(":");
   // A cookie for a different game or a different day is not this puzzle's.
-  if (g !== game || d !== date) return null;
+  if (g !== game || d !== safeKey(date)) return null;
   const value = Number.parseInt(n ?? "", 10);
   return Number.isFinite(value) && value >= 0 ? value : null;
 }

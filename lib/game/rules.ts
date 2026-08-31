@@ -49,15 +49,57 @@ export const TIMINGS = {
   botThinkMs: 1_400,
 } as const;
 
-/** Rough run length, for the lobby to show. Fixed regardless of table size. */
+/**
+ * HOW LONG AN ACT WAITS AFTER THE LAST PERSON COMMITS.
+ *
+ * Nominating somebody is an ACT-phase action, and the Act was called complete
+ * the moment every present human had a choice recorded. On a table where people
+ * decide quickly -- the good case -- that meant the last commit resolved the Act
+ * in the same breath, and every nomination that followed came back "That is not
+ * happening right now." Measured on a six-player run: the whole sixty-second
+ * window collapsed to 1.9 seconds, and all six nominations were refused, on
+ * every Act of every run.
+ *
+ * So the mechanic had an economy (`settleNominations`, NOMINATION_SHARE,
+ * NOMINATION_PENALTY), a UI, and a smoke test, and could not be reached by
+ * anybody who was not slow.
+ *
+ * Six seconds: long enough to read who went where and press a name, short enough
+ * that a table who has all decided is not made to sit through the rest of a
+ * minute. The full deadline still applies to anybody who has not committed.
+ */
+export const ACT_GRACE_MS = 6_000;
+
+/**
+ * Rough run length, for the lobby to show. Fixed regardless of table size.
+ *
+ * IT SUMS THE DEADLINES, WHICH IS NOT WHAT A RUN COSTS. Every decision beat ends
+ * the moment the last person at the table has answered, so a table that answers
+ * promptly never spends anything like its window: measured on a real six-player
+ * five-Act run, DRAFT_CALLING took 1.8s of a 35s deadline, DRAFT_KIT 1.7s, ASSIGN
+ * 2.7s and each ACT about 8s of 60. The whole run finished in 4m18s while
+ * `/about` and `/how-it-works` advertised about twelve minutes.
+ *
+ * Overstating it by nearly three times is the expensive direction of wrong: the
+ * number's whole job is to answer "have I got time for this before dinner", and
+ * it was talking people out of a game they had time for.
+ *
+ * So the beats you DECIDE in are estimated from how long deciding takes, and only
+ * the two beats you READ -- MUSTER, where the table is waiting for people to
+ * arrive, and ACT_RESULT, which runs its full length on purpose -- are counted at
+ * their deadline. Deliberately still generous: better a run that ends early than
+ * one that overruns what somebody was promised.
+ */
 export function estimateRunMs(settings: Pick<RoomSettings, "acts">): number {
+  /** What a table actually takes to make one decision together, generously. */
+  const decide = 12_000;
   return (
     TIMINGS.musterMs +
-    TIMINGS.draftCallingMs +
-    TIMINGS.draftKitMs +
-    TIMINGS.assignMs +
-    settings.acts * (TIMINGS.actMs + TIMINGS.actResultMs) +
-    TIMINGS.balladMs
+    decide + // the Calling draft
+    decide + // the Kit draft
+    decide * 2 + // ASSIGN, which is six numbers and a Hook rather than a ranking
+    settings.acts * (decide + ACT_GRACE_MS + TIMINGS.actResultMs) +
+    decide // the Ballad
   );
 }
 

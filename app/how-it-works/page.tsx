@@ -9,6 +9,7 @@
  */
 import type { Metadata } from "next";
 import Link from "next/link";
+import { JsonLd, SITE_ORG_ID } from "@/components/JsonLd";
 import { Card, Pill, Sheet, SheetBox } from "@/components/ui";
 import { BLOODS } from "@/lib/content/bloods";
 import { CALLINGS } from "@/lib/content/callings";
@@ -50,6 +51,7 @@ import {
   formatDuration,
 } from "@/lib/game/rules";
 import { ABILITIES, type Player, type Scores } from "@/lib/game/types";
+import { siteUrl } from "@/lib/site";
 
 /**
  * The page called itself four different things: "How It Works" in the title,
@@ -60,7 +62,7 @@ import { ABILITIES, type Player, type Scores } from "@/lib/game/types";
 export const metadata: Metadata = {
   title: "How to Play: The Full Rules",
   description:
-    "The whole rulebook on one page. Callings, Bloods, the shared array, what a Hook does, how an encounter resolves, keeping or hiding a Scar, and who takes the Hoard.",
+    "The whole rulebook on one page. Callings, Bloods, the shared array, Hooks, how an encounter resolves, keeping or hiding a Scar, and who gets paid.",
   alternates: { canonical: "/how-it-works" },
   openGraph: {
     title: "How to Play Tavern Party: The Full Rules",
@@ -162,6 +164,47 @@ const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
  */
 const torches = (n: number) => `${n} ${n === 1 ? "torch" : "torches"}`;
 
+/* ---------------------------------------------------------------------------
+   The questions people actually ask about the rules.
+
+   Rules questions only, and deliberately not the ones the search lander already
+   answers: two pages carrying the same FAQ is two pages competing for the same
+   result. Every answer here is the rule as the engine implements it, and every
+   one of them is rendered visibly on the page below as well as in the JSON-LD,
+   because marking up an answer a reader cannot see is the sort of structured
+   data that earns a manual action rather than a rich result.
+   --------------------------------------------------------------------------- */
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: "Can two players have the same Calling?",
+    a: `No. There is one of each of the ${CALLINGS.length} per table, which is what makes the draft a draft. You submit up to ${DRAFT_RANKS} ranked choices at the same time as everybody else and the server grants each player their highest surviving pick in the published order, so being denied your first choice is a normal outcome rather than a fault.`,
+  },
+  {
+    q: "What happens if two players go for the Reckless line in the same Act?",
+    a: "Only one player per Act can take it. The quicker hand gets it, the other player is moved to the line they are best at, and the whole party takes a point of Dread for the scramble. Nobody is left without a move, and the cost of the argument lands on everybody.",
+  },
+  {
+    q: "Can I see the hidden target number before I commit?",
+    a: `Yes, and it costs you. The Reckless line is the only one whose target number is hidden, and ${torches(REVEAL_COST_TORCHES)} buys a look at it. That is the whole information economy in the game: you can always find out, and finding out is never free.`,
+  },
+  {
+    q: "Do kept Scars always pay at the end?",
+    a: `No, and the gate is the point. A kept Scar is worth ${KEPT_SCAR_VALUE} Renown at the Ballad only if your Renown is at or above the table median. Without that, the winning line would be to take no risks, collect cheap Scars and wear all of them. Wearing your wounds has to mean you were in the fight.`,
+  },
+  {
+    q: "What happens if somebody stops answering halfway through?",
+    a: `Nothing hangs. Every phase ends on its deadline whether or not everybody acted, and the default when you do not act is not a skip and not a bot playing your character: it is a real move called Flinch, worth ${signed(FLINCH_RENOWN)} Renown to you and ${signed(FLINCH_DREAD)} Dread to the whole party. An absent player becomes something the table can see and argue about.`,
+  },
+  {
+    q: "Does failing a roll get harder as the night goes badly?",
+    a: `The roll never gets harder. The costs get bigger. At ${DREAD_DOUBLE_AT} Dread every cost doubles, and at ${DREAD_TURN_AT} the last Act is drawn from a worse deck. Being told the situation is worse is the same arithmetic as being told you are worse at something, and it is a great deal easier to live with.`,
+  },
+  {
+    q: "Do I need to know a tabletop roleplaying game to follow this?",
+    a: "No. The dice work in a way anybody who has played one will recognise, but every term is explained where you meet it and the server does all the arithmetic and all the adjudicating. There is nobody to be the game master, because nothing here needs one.",
+  },
+];
+
 /* ------------------------------------------------------------------ page bits */
 
 function Section({
@@ -196,16 +239,17 @@ const CONTENTS: [string, string][] = [
   ["scar", "Scars"],
   ["dread", "Dread"],
   ["ballad", "The Ballad"],
+  ["questions", "Questions"],
 ];
 
 /**
- * The eleven sections, listed twice: a row of chips under the intro, and a
+ * The sections, listed twice: a row of chips under the intro, and a
  * sticky rail in the margin from `xl` up, which is what the shell's spare width
  * is for on the longest page in the product.
  *
  * Whichever one the breakpoint does not want is `display: none` rather than
  * merely invisible, so exactly one "On this page" is in the accessibility tree
- * at a time and there is never a second copy of eleven links to tab past.
+ * at a time and there is never a second copy of the whole list to tab past.
  */
 function Contents({ rail = false }: { rail?: boolean }) {
   const items = CONTENTS.map(([id, label]) => (
@@ -241,6 +285,42 @@ export default function HowItWorksPage() {
   const runLength = formatDuration(estimateRunMs(DEFAULT_SETTINGS));
   const acts = DEFAULT_SETTINGS.acts;
 
+  /**
+   * The longest page on the site, so it is the one that carries the Article
+   * node. No `datePublished` and no `dateModified`: the file has them in git and
+   * nothing on the page states one, and stamping a date on a page to look fresh
+   * is the one structured-data lie that is trivially caught.
+   *
+   * The publisher is referenced by id and `SiteJsonLd` below supplies that node,
+   * so the reference resolves inside this document rather than pointing at
+   * nothing.
+   */
+  const pageLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Article",
+        "@id": siteUrl("/how-it-works#article"),
+        mainEntityOfPage: siteUrl("/how-it-works"),
+        headline: "How to play Tavern Party: the whole rulebook on one page",
+        description:
+          "The full rules: Callings, Bloods, the shared array, Kit, Hooks, an Act, the itemised ledger, Scars, Dread and the Ballad.",
+        inLanguage: "en-GB",
+        author: { "@type": "Person", name: "Adam Mackay" },
+        publisher: { "@id": SITE_ORG_ID },
+      },
+      {
+        "@type": "FAQPage",
+        "@id": siteUrl("/how-it-works#faq"),
+        mainEntity: FAQ.map(({ q, a }) => ({
+          "@type": "Question",
+          name: q,
+          acceptedAnswer: { "@type": "Answer", text: a },
+        })),
+      },
+    ],
+  };
+
   const phases: [string, number, string][] = [
     ["Muster", secs(TIMINGS.musterMs), "The array is rolled and the pick order is published."],
     [
@@ -266,6 +346,7 @@ export default function HowItWorksPage() {
        rail, so the page is a column plus a margin doing a job rather than a
        column plus a gap. */
     <div className="py-8 sm:py-12 xl:flex xl:justify-center xl:gap-10">
+      <JsonLd data={pageLd} />
       <Contents rail />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         <header className="flex flex-col gap-4">
@@ -345,12 +426,21 @@ export default function HowItWorksPage() {
             draft becomes a game instead of a form.
           </p>
           <p className="prose-read text-text-mid">
-            A Calling gives you three things: two ability affinities worth{" "}
-            {signed(AFFINITY_BONUS)} to the total whenever you roll one of them, one Signature
-            you may use once in the whole run, and one Failing. A Failing is a named tag, and
-            any encounter
-            carrying it doubles what failure costs you. The Failings deliberately do not name
-            the frightening tags. They name the tag that makes you irrelevant. There is a{" "}
+            A Calling gives you three things. Two ability affinities, meaning the two things
+            your sort of person is trained at, worth {signed(AFFINITY_BONUS)} to the total
+            whenever you roll one of them. One Signature: a special move you may use once in
+            the whole run and never again. And one Failing, which is the situation your
+            character is worst in. Every encounter is labelled with a word or two saying what
+            sort of trouble it is, and when one of those labels matches your Failing, everything
+            that goes wrong in it costs you double.
+          </p>
+          <p className="prose-read text-text-mid">
+            The Failings deliberately do not name the frightening situations. A Failing on the
+            dark, or on something with teeth, would just be a tax on the encounters everybody
+            already dreads. They name the situation that makes you irrelevant instead: a crowd
+            with no doorway in it to hold, a ledger that will not balance, a fire no dog will
+            walk towards. Being useless is a more interesting problem than being hurt. There is
+            a{" "}
             <Link href="/characters/classes" className="text-accent underline">
               longer write-up of all {CALLINGS.length}
             </Link>{" "}
@@ -373,10 +463,24 @@ export default function HowItWorksPage() {
                       <dt className="label-caps">Signature</dt>
                       <dd className="text-text-hi">{c.signature.label}</dd>
                     </div>
-                    <div className="flex flex-wrap gap-x-2">
+                    {/*
+                      This printed `c.failing.tag` and nothing else, so the most
+                      important line about each Calling rendered as a one-word
+                      database key in monospace: "FAILING: CORPSE". The prose was
+                      already written and already good, and the home page was
+                      using it. The tag stays, because it is real information to
+                      a rules reader (it is what matches a Calling to a scene,
+                      and scenes carry the same words), but it is a parenthetical
+                      now rather than the whole answer.
+                    */}
+                    <div className="flex flex-col gap-0.5">
                       <dt className="label-caps">Failing</dt>
                       <dd className="text-text-hi">
-                        <span className="font-mono uppercase">{c.failing.tag}</span>
+                        {c.failing.text}{" "}
+                        <span className="text-text-mid">
+                          (encounters tagged{" "}
+                          <span className="font-mono uppercase">{c.failing.tag}</span>)
+                        </span>
                       </dd>
                     </div>
                   </dl>
@@ -890,6 +994,27 @@ export default function HowItWorksPage() {
               </Card>
             </li>
           </ol>
+        </Section>
+
+        {/* --------------------------------------------------------------- faq */}
+        <Section id="questions" step="And the ones that come up" title="Questions about the rules">
+          <dl className="flex flex-col gap-3">
+            {FAQ.map(({ q, a }) => (
+              <div key={q} className="rounded-lg border border-border-dim bg-bg-1 p-4">
+                <dt className="font-display text-lg font-bold text-text-hi">{q}</dt>
+                <dd className="mt-2 text-text-mid">{a}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="prose-read text-text-mid">
+            If you have never played anything like this before, the rules above are the
+            reference rather than the introduction. There is{" "}
+            <Link href="/roleplaying-games-for-beginners" className="text-accent underline">
+              a shorter piece written for a first night
+            </Link>{" "}
+            that translates the vocabulary and walks through what the first ten minutes
+            actually feel like.
+          </p>
         </Section>
 
         <footer className="flex flex-wrap gap-3 border-t border-border-dim pt-8">

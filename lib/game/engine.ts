@@ -30,10 +30,11 @@ import { freshDraft, normaliseWants, resolveDraft, reversePriority } from "./dra
 import { d20, pick, rollScore, shuffle, type Rng, defaultRng } from "./random";
 import { costMultiplier, flinch, rollApproach } from "./resolve";
 import {
+  ACT_GRACE_MS,
+  AFFINITY_BONUS,
   ARRAY_DICE,
   ARRAY_DROP,
   ARRAY_SIZE,
-  AFFINITY_BONUS,
   ASHKIN_DREAD,
   DEFAULT_SETTINGS,
   DREAD_RELIEF,
@@ -746,6 +747,7 @@ function beginAct(room: Room, index: number, now: number, rng: Rng): void {
     order: [],
     revealed: [],
     boosted: [],
+    allInAt: null,
     outcomes: null,
   };
   room.phase = "ACT";
@@ -786,7 +788,11 @@ export function nominate(room: Room, playerId: string, nomineeId: string, now: n
   if (room.phaseEndsAt !== null && now > room.phaseEndsAt)
     throw new GameError("too_late", "You left it too long.");
   requirePlayer(room, playerId);
-  requirePlayer(room, nomineeId);
+  // Not `requirePlayer`: that says "You are not at this table", which is the
+  // wrong person entirely. Reachable in the UI whenever a seat has just been
+  // swept out from under a name still on somebody's screen.
+  if (!findPlayer(room, nomineeId))
+    throw new GameError("bad_target", "They are not at this table.");
   if (playerId === nomineeId)
     throw new GameError("bad_target", "Volunteering is not nominating.");
   const act = room.act;
@@ -1601,7 +1607,9 @@ export function castLaurel(room: Room, playerId: string, targetId: string, now: 
   const p = requirePlayer(room, playerId);
   if (playerId === targetId)
     throw new GameError("bad_target", "You cannot toast yourself. Everyone would see.");
-  requirePlayer(room, targetId);
+  // Same reason as `nominate`: the caller is here, the target may not be.
+  if (!findPlayer(room, targetId))
+    throw new GameError("bad_target", "They are not at this table.");
   p.laurelFor = targetId;
   touch(room);
 }
@@ -1738,8 +1746,34 @@ function everybodyIn(room: Room, now: number): boolean {
     case "ASSIGN":
       return waitingOn.every((p) => p.scores && p.hookId);
     case "ACT": {
+      /**
+       * Full, and then a moment longer. See ACT_GRACE_MS.
+       *
+       * Nominating is an ACT-phase action, so resolving on the last commit made
+       * it unreachable on any table that decided promptly. The grace is recorded
+       * on the Act rather than derived, because `tick` runs on every read across
+       * a serverless deployment and there is no other clock to read it off.
+       *
+       * `touch` when it is set, or the write is dropped: the store only persists
+       * a room whose version moved, so an un-touched timestamp would be null
+       * again on the next poll and the Act would never resolve early at all.
+       */
       const act = room.act;
-      return !!act && waitingOn.every((p) => act.choices[p.id]);
+      if (!act) return false;
+      if (!waitingOn.every((p) => act.choices[p.id])) {
+        // Somebody left, or a seat was swept, and the table is no longer full.
+        if (act.allInAt !== null) {
+          act.allInAt = null;
+          touch(room);
+        }
+        return false;
+      }
+      if (act.allInAt === null) {
+        act.allInAt = now;
+        touch(room);
+        return false;
+      }
+      return now >= act.allInAt + ACT_GRACE_MS;
     }
     case "BALLAD":
       return waitingOn.every((p) => p.laurelFor);
@@ -1824,6 +1858,57 @@ function playerView(p: Player, viewerId: string | null): PlayerView {
   };
 }
 
+/**
+ * THE TABLE AS SOMEBODY WHO IS NOT AT IT MAY SEE IT.
+ *
+ * `visibility: "private"` is offered to a host as a privacy setting, and all it
+ * did was keep the table out of the lobby list. `GET /api/tables/:code` never
+ * checked membership, so anybody holding the code -- from a screenshot, a
+ * stream, a Discord scrollback years later -- read the full roster with every
+ * player's ability scores, Calling, Blood, Kit, Renown and kept Scars, plus the
+ * entire event log and the final standings, without appearing in the room or
+ * being visible to anybody in it.
+ *
+ * A 404 for non-members would have been the obvious fix and the wrong one: the
+ * way you join a private table IS to open its link, and 404ing the read makes an
+ * invited player unable to sit down. So a stranger gets what they need to decide
+ * whether to join -- the name, the settings, how many are seated, and who by
+ * name -- and nothing that belongs to the people already playing.
+ *
+ * Live redaction (a Reckless target number, another player's choice, an
+ * unrevealed Scar, an upcoming scene) is unchanged and still governed by
+ * `playerId` below. This is a second wall in front of it, for a viewer who is not
+ * at the table at all rather than one who is.
+ */
+function outsiderView(view: RoomView): RoomView {
+  return {
+    ...view,
+    // The log names who did what all night, and the standings are the ending.
+    log: [],
+    standings: undefined,
+    players: view.players.map((p) => ({
+      ...p,
+      // Enough to see the table filling up. Nothing off anybody's sheet.
+      callingId: null,
+      bloodId: null,
+      kitIds: [],
+      hookId: null,
+      scores: null,
+      renown: 0,
+      hookTokens: 0,
+      scars: [],
+      hiddenScarCount: 0,
+      torches: 0,
+      rerolls: 0,
+      // Zeroed rather than dropped: the shape is the same everywhere, so a
+      // client rendering an outsider view needs no second code path.
+      stats: { actsTaken: 0, recklessTaken: 0, flinches: 0, scarsKept: 0, scarsHidden: 0, crits: 0 },
+    })),
+    act: null,
+    seenScenes: [],
+  };
+}
+
 export function viewFor(room: Room, playerId: string | null): RoomView {
   const me = playerId ? findPlayer(room, playerId) : undefined;
   const draftView = (draft: DraftState | null) =>
@@ -1842,7 +1927,7 @@ export function viewFor(room: Room, playerId: string | null): RoomView {
   const canSeeReckless =
     !!act && !!playerId && (act.revealed.includes(playerId) || act.outcomes !== null);
 
-  return {
+  const view: RoomView = {
     code: room.code,
     name: room.name,
     visibility: room.visibility,
@@ -1913,4 +1998,7 @@ export function viewFor(room: Room, playerId: string | null): RoomView {
       canAct: !!me && !!act && !act.choices[me.id] && room.phase === "ACT",
     },
   };
+
+  // Everything above assumes a viewer who is AT the table. See `outsiderView`.
+  return me ? view : outsiderView(view);
 }

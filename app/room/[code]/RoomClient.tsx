@@ -28,7 +28,8 @@
  * Reckless target stripped. Worth doing the day somebody posts the trick.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Announcer, Card, ErrorNote, Spinner } from "@/components/ui";
+import Link from "next/link";
+import { Announcer, Button, Card, ErrorNote, Spinner } from "@/components/ui";
 import { useLanded } from "@/components/daily/landed";
 import { Act } from "@/components/room/Act";
 import { Assign } from "@/components/room/Assign";
@@ -40,6 +41,12 @@ import { Chronicle, DreadMeter, PartyRail, PhaseBar, phaseSentence } from "@/com
 import type { RoomView } from "@/lib/game/types";
 
 const POLL_MS = 2_500;
+/**
+ * Consecutive failed polls before the room admits it is not talking to anybody.
+ * Three is about 7.5 seconds: long enough that a blip stays quiet, short enough
+ * to beat a 60-second Act deadline the player would otherwise lose by default.
+ */
+const STALE_AFTER_MISSES = 3;
 
 /**
  * Read here rather than imported from lib/supabase/browser, on purpose.
@@ -72,8 +79,35 @@ export function RoomClient({
   const [busy, setBusy] = useState(false);
   /** The highest version rendered. Anything older than this is a stale reply. */
   const seen = useRef(initial?.version ?? -1);
+  /**
+   * HOW MANY POLLS IN A ROW HAVE FAILED, and whether to say so yet.
+   *
+   * One dropped poll is genuinely not worth a word: the next is 2.5 seconds
+   * away and swallowing it is right. Swallowing ALL of them is not, and that is
+   * what this did. With the network down, or with the table endpoint answering
+   * 500, the room kept rendering the last snapshot forever -- a live-looking
+   * countdown, everybody's avatars, every button enabled -- and the player had
+   * no way to know they were looking at a photograph. They watch the timer run
+   * out, flinch by default, and conclude the game is broken.
+   *
+   * Worse on first load: the "no such table" state is keyed to a 404, so a 500
+   * fell through to `if (!view) return <Spinner/>` and spun forever with no
+   * error and no way back. "Join by code" leads here, so a bad moment on the
+   * server was a dead end with a spinner on it.
+   *
+   * A ref for the count because it changes on every poll and must not re-render;
+   * state for the flag because it must. Three misses is about 7.5 seconds, which
+   * is long enough that a blip stays quiet and short enough to beat a 60-second
+   * Act deadline the player would otherwise lose.
+   */
+  const misses = useRef(0);
+  const [stale, setStale] = useState(false);
 
   const load = useCallback(async () => {
+    const missed = () => {
+      misses.current += 1;
+      if (misses.current >= STALE_AFTER_MISSES) setStale(true);
+    };
     try {
       const res = await fetch(`/api/tables/${encodeURIComponent(code)}`, {
         cache: "no-store",
@@ -82,14 +116,18 @@ export function RoomClient({
         setGone(true);
         return;
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        missed();
+        return;
+      }
       const next = (await res.json()) as RoomView;
+      misses.current = 0;
+      setStale(false);
       if (next.version < seen.current) return;
       seen.current = next.version;
       setView(next);
     } catch {
-      // A dropped poll is not an error the player needs to read about. The next
-      // one is 2.5 seconds away.
+      missed();
     }
   }, [code]);
 
@@ -221,6 +259,34 @@ export function RoomClient({
     );
   }
 
+  /*
+   * Never reached the table at all, and it is not a 404. Somewhere between two
+   * and three failed polls this stops being "loading" and starts being "broken",
+   * and a spinner that never resolves is the worst of both.
+   */
+  if (!view && stale) {
+    return (
+      <div className="mx-auto w-full max-w-md py-16">
+        <Card>
+          <p className="label-caps text-danger">✕ Not answering</p>
+          <h1 className="font-display mt-1 text-2xl text-text-hi">
+            We cannot reach that table
+          </h1>
+          <p className="mt-2 text-text-mid">
+            The table may be fine. This is our end, not your connection and not the
+            code you typed.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button onClick={() => void load()}>Try again</Button>
+            <Link href="/tables">
+              <Button variant="secondary">Back to open tables</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (!view) {
     return (
       <div className="flex flex-1 items-center justify-center py-16">
@@ -235,6 +301,22 @@ export function RoomClient({
   return (
     <div className="flex flex-1 flex-col gap-4 py-4">
       <PhaseBar view={shown} />
+      {/*
+        The table is still on screen and is no longer being updated. Said out
+        loud, because every other presence signal in this product exists to tell
+        you about OTHER people: there was nothing anywhere that told you about
+        yourself. `aria-live` so it is announced rather than merely drawn, and a
+        glyph as well as the colour, per the house rule.
+      */}
+      {stale ? (
+        <Card className="border-danger/60" role="status" aria-live="polite">
+          <p className="text-danger">
+            <span aria-hidden>✕ </span>
+            Not answering. What you are looking at is the last thing we heard, and it
+            may have moved on. Still trying.
+          </p>
+        </Card>
+      ) : null}
       <ErrorNote message={error} />
       {/*
         Not in the lobby. Dread is 0 before a run starts and both its thresholds

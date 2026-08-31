@@ -242,6 +242,11 @@ export type ActState = {
    * should change whether you nominate them.
    */
   boosted: string[];
+  /**
+   * When the last player still at the table committed, or null if somebody has
+   * not. The Act does not resolve the instant it fills up; see ACT_GRACE_MS.
+   */
+  allInAt: number | null;
   outcomes: Outcome[] | null;
 };
 
@@ -442,7 +447,12 @@ export type SceneView = {
   approaches: ApproachView[];
 };
 
-export type ActView = Omit<ActState, "choices"> & {
+/**
+ * `allInAt` is a server timing detail, not something a client is owed. It is
+ * only how `tick` knows how long ago the table filled up, and putting it on the
+ * wire would be one more field to keep honest for no one's benefit.
+ */
+export type ActView = Omit<ActState, "choices" | "allInAt"> & {
   /** Only your own choice, until the Act resolves. */
   myChoice: string | null;
   /** Who has committed, never what to. */

@@ -33,7 +33,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     { url: `${BASE}/`, changeFrequency: "weekly", priority: 1 },
-    { url: `${BASE}/tables`, changeFrequency: "always", priority: 0.9 },
+    /*
+     * /tables IS DELIBERATELY ABSENT. It sets `robots: { index: false }`, and a
+     * sitemap listing a page we have asked Google not to index is a direct
+     * contradiction: Search Console reports it as "excluded by noindex" and the
+     * two signals argue with each other forever. Strip the live list off that
+     * page and it is a name box with a paragraph over it. The search intent it
+     * was holding belongs to /online-roleplaying-games, which is written for it.
+     */
     { url: `${BASE}/daily`, changeFrequency: "daily", priority: 0.9 },
     ...dailies,
     { url: `${BASE}/daily/archive`, changeFrequency: "daily", priority: 0.6 },
@@ -48,7 +55,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/characters`, changeFrequency: "monthly", priority: 0.8 },
     ...characters,
     { url: `${BASE}/online-roleplaying-games`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${BASE}/leaderboard`, changeFrequency: "daily", priority: 0.5 },
+    {
+      url: `${BASE}/roleplaying-games-for-beginners`,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    // /leaderboard is deliberately absent: it is noindexed while it is empty,
+    // and a sitemap entry for a noindexed page is a contradiction Search Console
+    // reports as an error rather than ignoring. Put it back with the robots tag.
     { url: `${BASE}/about`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE}/contact`, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE}/privacy`, changeFrequency: "yearly", priority: 0.2 },

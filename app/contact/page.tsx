@@ -77,10 +77,53 @@ export default async function ContactPage({
         </h1>
         <p className="prose-read text-text-mid">
           Bugs, rules that read wrong, an encounter you think belongs in the deck, or a
-          complaint. It all arrives in the same place and I read all of it. An email address is
-          optional and only exists so I can answer you.
+          complaint. It all arrives in the same place and I read all of it. My name is Adam
+          Mackay, I built this and I run it on my own from the United Kingdom, and this form is
+          the only way in: there is no support desk behind it and nobody else on the other end.
+          There is more about who I am and why the game is shaped like this{" "}
+          <Link href="/about" className="text-accent underline">
+            on the about page
+          </Link>
+          .
         </p>
       </header>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-display text-xl font-bold text-text-hi">
+          What happens to what you send
+        </h2>
+        <p className="prose-read text-text-mid">
+          Pressing the button writes your message, the subject you chose, and the date into one
+          table in the database, and that is the whole of it. No email is sent to a third party,
+          nothing is forwarded anywhere, and the table is not readable from any browser: it has
+          row level security on with no read policy at all, so the only thing that can open it
+          is the server key, which is mine. Nothing you type is ever echoed back to you or shown
+          on the site.
+        </p>
+        <p className="prose-read text-text-mid">
+          Name and email are both genuinely optional and both blank by default. Leave the email
+          out and you will get no reply, because there is nothing to reply to, but the message
+          is still read. Leave it in and it is used for exactly one thing, which is answering
+          this message. It is not a mailing list. There is no mailing list.
+        </p>
+        <p className="prose-read text-text-mid">
+          Answers are not fast. This is one person&apos;s evenings, so a real bug with steps in
+          it usually gets looked at within a few days and a question about a rule might sit for
+          longer. The single most useful thing you can put in the box is what you did, what
+          happened, and what you expected instead. If it was during a game, the six character
+          table code narrows it down enormously.
+        </p>
+        <p className="prose-read text-text-mid">
+          Form submissions are rate limited to five an hour from one address, which is the only
+          reason your IP is touched at all and it is not stored against the message. Anything
+          about your own data, under the UK GDPR, comes through this form too and is set out in
+          the{" "}
+          <Link href="/privacy" className="text-accent underline">
+            privacy notice
+          </Link>
+          .
+        </p>
+      </section>
 
       {sent === "1" ? (
         <Card className="flex flex-col gap-3">

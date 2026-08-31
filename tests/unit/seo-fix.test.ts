@@ -35,7 +35,6 @@ const BASE = CANONICAL_ORIGIN;
  */
 const PAGE_MODULES: Record<string, () => Promise<{ metadata?: Metadata }>> = {
   "/": () => import("@/app/page"),
-  "/tables": () => import("@/app/tables/page"),
   "/daily": () => import("@/app/daily/page"),
   "/daily/longway": () => import("@/app/daily/longway/page"),
   "/daily/deeprun": () => import("@/app/daily/deeprun/page"),
@@ -49,7 +48,13 @@ const PAGE_MODULES: Record<string, () => Promise<{ metadata?: Metadata }>> = {
   "/characters/gear": () => import("@/app/characters/gear/page"),
   "/characters/backstories": () => import("@/app/characters/backstories/page"),
   "/online-roleplaying-games": () => import("@/app/online-roleplaying-games/page"),
-  "/leaderboard": () => import("@/app/leaderboard/page"),
+  "/roleplaying-games-for-beginners": () =>
+    import("@/app/roleplaying-games-for-beginners/page"),
+  // The desk and the Hall. Both were shipped with metadata, neither was audited
+  // here, and both were two sentences wrapped round a client component until
+  // they were given the writing that justifies indexing them.
+  "/write": () => import("@/app/write/page"),
+  "/dungeons": () => import("@/app/dungeons/page"),
   "/about": () => import("@/app/about/page"),
   "/contact": () => import("@/app/contact/page"),
   "/privacy": () => import("@/app/privacy/page"),
@@ -58,8 +63,30 @@ const PAGE_MODULES: Record<string, () => Promise<{ metadata?: Metadata }>> = {
 
 const ROUTES = Object.keys(PAGE_MODULES);
 
+/**
+ * Pages that carry metadata and are deliberately kept OUT of the index.
+ *
+ * They still get every check above: a noindexed page is still shared into a
+ * group chat, and a lobby with the home page's card is the same bug as an
+ * indexable one with it. What they must not do is appear in the sitemap, which
+ * is a list of pages we are asking Google to file.
+ */
+const NOINDEX: Record<string, () => Promise<{ metadata?: Metadata }>> = {
+  "/tables": () => import("@/app/tables/page"),
+  // Empty while nobody with an account has finished a run, and a scoreboard has
+  // no honest editorial layer to give it. Move it back up to ROUTES, and back
+  // into app/sitemap.ts, the day there are names on it.
+  "/leaderboard": () => import("@/app/leaderboard/page"),
+};
+
+/** Everything with metadata, indexable or not. */
+const ALL_ROUTES = [...ROUTES, ...Object.keys(NOINDEX)];
+
 const loaded = await Promise.all(
-  ROUTES.map(async (route) => [route, (await PAGE_MODULES[route]()).metadata] as const)
+  [...ROUTES, ...Object.keys(NOINDEX)].map(
+    async (route) =>
+      [route, (await (PAGE_MODULES[route] ?? NOINDEX[route])()).metadata] as const
+  )
 );
 const META = new Map<string, Metadata | undefined>(loaded);
 const metaFor = (route: string): Metadata => {
@@ -92,32 +119,32 @@ const OG_MIN = 60;
 const OG_MAX = 145;
 
 describe("every page carries its own metadata", () => {
-  it.each(ROUTES)("%s declares a title and a description", (route) => {
+  it.each(ALL_ROUTES)("%s declares a title and a description", (route) => {
     const meta = metaFor(route);
     expect(meta.title, `${route} has no title`).toBeDefined();
     expect(typeof meta.description, `${route} has no description`).toBe("string");
   });
 
-  it.each(ROUTES)("%s resolves to a title a search result will show whole", (route) => {
+  it.each(ALL_ROUTES)("%s resolves to a title a search result will show whole", (route) => {
     const title = resolvedTitle(metaFor(route).title);
     const where = `${route}: "${title}" is ${title.length} characters`;
     expect(title.length, where).toBeGreaterThanOrEqual(TITLE_MIN);
     expect(title.length, where).toBeLessThanOrEqual(TITLE_MAX);
   });
 
-  it.each(ROUTES)("%s has a description of a length Google will show whole", (route) => {
+  it.each(ALL_ROUTES)("%s has a description of a length Google will show whole", (route) => {
     const d = metaFor(route).description as string;
     const where = `${route}: description is ${d.length} characters`;
     expect(d.length, where).toBeGreaterThanOrEqual(DESCRIPTION_MIN);
     expect(d.length, where).toBeLessThanOrEqual(DESCRIPTION_MAX);
   });
 
-  it.each(ROUTES)("%s declares its own canonical", (route) => {
+  it.each(ALL_ROUTES)("%s declares its own canonical", (route) => {
     expect(metaFor(route).alternates?.canonical, `${route} has no canonical`).toBe(route);
   });
 
   it("gives every page a distinct title", () => {
-    const titles = ROUTES.map((r) => resolvedTitle(metaFor(r).title));
+    const titles = ALL_ROUTES.map((r) => resolvedTitle(metaFor(r).title));
     expect(new Set(titles).size, "two pages share a title").toBe(titles.length);
   });
 });
@@ -128,7 +155,7 @@ describe("every page carries its own share card", () => {
    * page's card, the four dailies among them, and those are exactly the pages
    * the share loop pastes into a group chat.
    */
-  it.each(ROUTES)("%s sets its own openGraph title, description and url", (route) => {
+  it.each(ALL_ROUTES)("%s sets its own openGraph title, description and url", (route) => {
     const og = metaFor(route).openGraph;
     expect(og, `${route} inherits the home page's card`).toBeDefined();
     expect(typeof og!.title, `${route} has no openGraph title`).toBe("string");
@@ -136,7 +163,7 @@ describe("every page carries its own share card", () => {
     expect(og!.url, `${route} has no openGraph url`).toBe(route);
   });
 
-  it.each(ROUTES)("%s has an openGraph description sized for a chat window", (route) => {
+  it.each(ALL_ROUTES)("%s has an openGraph description sized for a chat window", (route) => {
     const d = metaFor(route).openGraph!.description as string;
     const where = `${route}: openGraph description is ${d.length} characters`;
     expect(d.length, where).toBeGreaterThanOrEqual(OG_MIN);
@@ -144,7 +171,7 @@ describe("every page carries its own share card", () => {
   });
 
   it("gives every card a distinct title", () => {
-    const titles = ROUTES.map((r) => metaFor(r).openGraph!.title);
+    const titles = ALL_ROUTES.map((r) => metaFor(r).openGraph!.title);
     expect(new Set(titles).size, "two pages share a card title").toBe(titles.length);
   });
 
@@ -157,7 +184,7 @@ describe("every page carries its own share card", () => {
 });
 
 describe("no metadata copy uses an em-dash", () => {
-  it.each(ROUTES)("%s", (route) => {
+  it.each(ALL_ROUTES)("%s", (route) => {
     const meta = metaFor(route);
     const copy = [
       resolvedTitle(meta.title),
@@ -171,6 +198,24 @@ describe("no metadata copy uses an em-dash", () => {
 
 describe("the sitemap and the pages agree", () => {
   const urls = sitemap().map((entry) => entry.url);
+
+  /**
+   * A sitemap entry is a request to index. A `noindex` is a refusal. Shipping
+   * both for one url is not a small inconsistency: Search Console files it under
+   * "excluded by noindex" and it is the single easiest way to make a site look
+   * like it does not know what it wants indexed.
+   */
+  it("never lists a page that refuses to be indexed", () => {
+    for (const route of Object.keys(NOINDEX)) {
+      expect(metaFor(route).robots, `${route} is in NOINDEX but does not say so`).toMatchObject({
+        index: false,
+        follow: true,
+      });
+      expect(urls, `${route} is noindexed and still in the sitemap`).not.toContain(
+        `${BASE}${route}`
+      );
+    }
+  });
 
   it("lists every page that has metadata", () => {
     for (const route of ROUTES) {
@@ -207,7 +252,7 @@ describe("robots.txt and the links on the page agree", () => {
   });
 
   it("leaves the pages we want indexed alone", () => {
-    for (const route of ROUTES) expect(isDisallowed(route), route).toBe(false);
+    for (const route of ALL_ROUTES) expect(isDisallowed(route), route).toBe(false);
     // Near misses, because a prefix match is easy to write too loosely.
     expect(isDisallowed("/loginary")).toBe(false);
     expect(isDisallowed("/rooms")).toBe(false);

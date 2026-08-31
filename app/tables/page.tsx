@@ -30,6 +30,20 @@ export const metadata: Metadata = {
   description:
     "Every table still waiting for players. Sit down at one, or take a Quick Match and let us put you at the fullest one. Free, in your browser, no account.",
   alternates: { canonical: "/tables" },
+  /**
+   * NOT INDEXED, and dropped from the sitemap to match.
+   *
+   * This is a lobby. Strip the live list and it is about 140 words of preamble
+   * around a name box, which is a utility screen rather than a page, and on a
+   * quiet night the only thing on it is an empty state. Thin pages kept out of
+   * the index cannot count against the site, and the intent it was ranking for
+   * belongs to /online-roleplaying-games, which is written to answer it.
+   *
+   * `follow: true` on purpose: the crawler is welcome to come through here and
+   * pick up the rules, the character lists and the dailies. It just should not
+   * file the lobby itself as a result.
+   */
+  robots: { index: false, follow: true },
   openGraph: {
     title: "Open Tables: Find an Online Roleplaying Game",
     description:

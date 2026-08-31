@@ -32,6 +32,9 @@ export default function AboutPage() {
        measure is 646px inside a 1120px shell, and pinned left that is a third of
        the page left empty. */
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8 sm:py-12">
+      {/* The one page that names the publisher is the right place to say so in
+          machine-readable form as well. Ideally this sits in the root layout, on
+          every page at once; that file is not ours to edit today. */}
       <header className="flex flex-col gap-3">
         <p className="label-caps">About</p>
         <h1 className="font-display text-3xl font-bold text-text-hi sm:text-4xl">
@@ -133,13 +136,28 @@ export default function AboutPage() {
       <section className="flex flex-col gap-4 border-t border-border-dim pt-8">
         <h2 className="font-display text-2xl font-bold text-text-hi">Who made it</h2>
         <p className="prose-read text-text-mid">
-          One person, in the evenings, in the United Kingdom. It is the third small browser game
-          in a short row of them, and the others are below. If something is broken, or a rule
-          reads wrong, or you have an encounter you think belongs in the deck, the{" "}
+          My name is Adam Mackay. I built and I run Tavern Party, on my own, in the evenings,
+          from the United Kingdom. Every rule, every Calling, every encounter and every line of
+          copy on this site is mine, including the ones that are wrong. There is no team behind
+          this and no company: one person, a laptop, and a game that got out of hand.
+        </p>
+        <p className="prose-read text-text-mid">
+          I am also the person who answers the post. If something is broken, or a rule reads
+          wrong, or you have an encounter you think belongs in the deck, the{" "}
           <Link href="/contact" className="text-accent underline">
             contact form
           </Link>{" "}
-          reaches me directly.
+          reaches me and nobody else, and it is the only support channel there is. I am the data
+          controller for this site as well, which is set out properly in the{" "}
+          <Link href="/privacy" className="text-accent underline">
+            privacy notice
+          </Link>
+          .
+        </p>
+        <p className="prose-read text-text-mid">
+          This is the third small browser game in a short row of them, and the others are below.
+          They are all the same shape: something you can finish in a coffee break, free, with
+          nothing to install.
         </p>
         <ul className="grid gap-3 sm:grid-cols-2">
           {OTHER_SITES.map((site) => (
